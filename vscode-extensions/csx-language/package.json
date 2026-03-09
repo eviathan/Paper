@@ -1,0 +1,112 @@
+{
+  "name": "csx-language",
+  "displayName": "Paper CSX / CSSS Language Support",
+  "description": "Syntax highlighting, completions, and compile support for Paper's CSX and csss files",
+  "version": "1.1.0",
+  "publisher": "paper",
+  "icon": "icon.jpg",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "csx",
+        "aliases": ["CSX", "csx"],
+        "extensions": [".csx"],
+        "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "csss",
+        "aliases": ["csss", "csss", "Paper Styles"],
+        "extensions": [".csss"],
+        "configuration": "./csss-language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "csx",
+        "scopeName": "source.csx",
+        "path": "./syntaxes/csx.tmLanguage.json"
+      },
+      {
+        "language": "csss",
+        "scopeName": "source.csss",
+        "path": "./syntaxes/csss.tmLanguage.json"
+      }
+    ],
+    "configuration": {
+      "title": "Paper CSX",
+      "properties": {
+        "csx.trace.server": {
+          "type": "string",
+          "enum": ["off", "messages", "verbose"],
+          "default": "off",
+          "description": "Traces the communication between VS Code and the CSX language server"
+        },
+        "csx.cliPath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to the Paper.CSX.Cli project folder (for compile on save). Leave empty to auto-detect from repo root."
+        },
+        "csx.languageServerPath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to the Paper.CSX.LanguageServer project folder. Leave empty to auto-detect from repo root."
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "csx.compile",
+        "title": "CSX: Compile File"
+      },
+      {
+        "command": "csx.compileAll",
+        "title": "CSX: Compile All Files"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "csx.compile",
+        "key": "ctrl+shift+c",
+        "mac": "cmd+shift+c",
+        "when": "resourceLangId == csx"
+      }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "csx.compile",
+          "when": "resourceLangId == csx",
+          "group": "3_compile"
+        },
+        {
+          "command": "csx.compileAll",
+          "when": "explorerResourceIsFolder",
+          "group": "3_compile"
+        }
+      ]
+    }
+  },
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "npm run compile && vsce package"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.80.0",
+    "@types/node": "^18.0.0",
+    "@vscode/vsce": "^3.2.1",
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.0"
+  }
+}

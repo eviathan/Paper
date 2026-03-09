@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>Paper.Playground</name>
+    </assembly>
+    <members>
+        <member name="T:TestApp">
+            <summary>
+            Test application demonstrating a simple counter with Paper UI
+            </summary>
+        </member>
+        <member name="M:TestApp.SimpleCounter(Paper.Core.VirtualDom.Props)">
+            <summary>
+            Simple counter component with increment, decrement, and reset functionality
+            </summary>
+        </member>
+    </members>
+</doc>

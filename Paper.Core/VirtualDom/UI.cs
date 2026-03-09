@@ -1,0 +1,236 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+using Paper.Core.Styles;
+
+namespace Paper.Core.VirtualDom
+{
+    /// <summary>
+    /// Static factory for creating <see cref="UINode"/> instances.
+    /// Provides convenient, concise authoring syntax for building UI trees.
+    /// </summary>
+    public static class UI
+    {
+        // ── Intrinsics ────────────────────────────────────────────────────────
+
+        /// <summary>Generic container element (like an HTML div).</summary>
+        public static UINode Box(StyleSheet style, params UINode[] children) =>
+            new(ElementTypes.Box, new PropsBuilder()
+                .Style(style)
+                .Children(children)
+                .Build());
+
+        /// <summary>Generic container element.</summary>
+        public static UINode Box(params UINode[] children) =>
+            new(ElementTypes.Box, new PropsBuilder()
+                .Children(children)
+                .Build());
+
+        /// <summary>Generic container element with full props control.</summary>
+        public static UINode Box(Props props, string? key = null) =>
+            new(ElementTypes.Box, props, key);
+
+        /// <summary>Text element — renders its <paramref name="content"/> as a text run.</summary>
+        public static UINode Text(string content, StyleSheet? style = null, string? key = null) =>
+            new(ElementTypes.Text, new PropsBuilder()
+                .Text(content)
+                .Style(style ?? StyleSheet.Empty)
+                .Build(), key);
+
+        /// <summary>Image element — loads from <paramref name="src"/>.</summary>
+        public static UINode Image(string src, StyleSheet? style = null, string? key = null) =>
+            new(ElementTypes.Image, new PropsBuilder()
+                .Src(src)
+                .Style(style ?? StyleSheet.Empty)
+                .Build(), key);
+
+        /// <summary>
+        /// Multiline text input (value, onChange, optional rows).
+        /// </summary>
+        public static UINode Textarea(
+            string value,
+            Action<string>? onChange = null,
+            int? rows = null,
+            StyleSheet? style = null,
+            string? key = null)
+        {
+            var b = new PropsBuilder().Text(value);
+            if (onChange != null) b.OnChange(onChange);
+            if (rows.HasValue) b.Set("rows", rows.Value);
+            if (style != null) b.Style(style);
+            return new UINode(ElementTypes.Textarea, b.Build(), key);
+        }
+
+        /// <summary>
+        /// Single-line text input.
+        /// </summary>
+        public static UINode Input(
+            string value,
+            Action<string>? onChange = null,
+            StyleSheet? style = null,
+            string? key = null)
+        {
+            var b = new PropsBuilder().Text(value);
+            if (style != null) b.Style(style);
+            if (onChange != null) b.OnChange(onChange);
+            return new UINode(ElementTypes.Input, b.Build(), key);
+        }
+
+        /// <summary>Checkbox element — checked state and optional label.</summary>
+        public static UINode Checkbox(
+            bool @checked,
+            Action<bool>? onCheckedChange = null,
+            string? label = null,
+            StyleSheet? style = null,
+            string? key = null)
+        {
+            var b = new PropsBuilder().Set("checked", @checked);
+            if (onCheckedChange != null) b.Set("onCheckedChange", onCheckedChange);
+            if (label != null) b.Text(label);
+            if (style != null) b.Style(style);
+            return new UINode(ElementTypes.Checkbox, b.Build(), key);
+        }
+
+        /// <summary>Clickable button element.</summary>
+        public static UINode Button(
+            string label,
+            Action? onClick = null,
+            StyleSheet? style = null,
+            string? key = null)
+        {
+            var b = new PropsBuilder().Text(label);
+            if (style != null) b.Style(style);
+            if (onClick != null) b.OnClick(onClick);
+            return new UINode(ElementTypes.Button, b.Build(), key);
+        }
+
+        /// <summary>Radio group — options (value, label), selectedValue, onSelect. Renders as column of radio options.</summary>
+        public static UINode RadioGroup(
+            IReadOnlyList<(string Value, string Label)> options,
+            string? selectedValue,
+            Action<string>? onSelect,
+            StyleSheet? style = null,
+            string? key = null)
+        {
+            var b = new PropsBuilder().Set("options", options).Set("selectedValue", selectedValue ?? "");
+            if (onSelect != null) b.Set("onSelect", onSelect);
+            if (style != null) b.Style(style);
+            return new UINode(ElementTypes.RadioGroup, b.Build(), key);
+        }
+
+        /// <summary>Table container (block).</summary>
+        public static UINode Table(StyleSheet? style = null, string? key = null, params UINode[] children) =>
+            new(ElementTypes.Table, new PropsBuilder()
+                .Style(style ?? StyleSheet.Empty)
+                .Children(children)
+                .Build(), key);
+
+        /// <summary>Table row (flex row).</summary>
+        public static UINode TableRow(StyleSheet? style = null, string? key = null, params UINode[] children) =>
+            new(ElementTypes.TableRow, new PropsBuilder()
+                .Style(style ?? StyleSheet.Empty)
+                .Children(children)
+                .Build(), key);
+
+        /// <summary>Table cell (block).</summary>
+        public static UINode TableCell(StyleSheet? style = null, string? key = null, params UINode[] children) =>
+            new(ElementTypes.TableCell, new PropsBuilder()
+                .Style(style ?? StyleSheet.Empty)
+                .Children(children)
+                .Build(), key);
+
+        /// <summary>Scrollable container.</summary>
+        public static UINode Scroll(StyleSheet style, params UINode[] children) =>
+            new(ElementTypes.Scroll, new PropsBuilder()
+                .Style(style)
+                .Children(children)
+                .Build());
+
+        /// <summary>Fragment — renders children inline with no wrapper box.</summary>
+        public static UINode Fragment(params UINode[] children) =>
+            new(ElementTypes.Fragment, new PropsBuilder()
+                .Children(children)
+                .Build());
+
+        /// <summary>
+        /// Renders an OpenGL texture as a viewport panel. The texture handle is typically
+        /// obtained from the embedded engine's game-view framebuffer.
+        /// </summary>
+        public static UINode Viewport(uint textureHandle, StyleSheet? style = null, string? key = null) =>
+            new(ElementTypes.Viewport, new PropsBuilder()
+                .Set("textureHandle", textureHandle)
+                .Style(style ?? StyleSheet.Empty)
+                .Build(), key);
+
+        // ── Function components ───────────────────────────────────────────────
+
+        /// <summary>
+        /// Render a function component.
+        /// </summary>
+        /// <param name="component">A function that takes <see cref="Props"/> and returns a <see cref="UINode"/>.</param>
+        public static UINode Component(Func<Props, UINode> component, Props? props = null, string? key = null) =>
+            new(component, props ?? Props.Empty, key);
+
+        /// <summary>
+        /// Render a class component.
+        /// </summary>
+        public static UINode Component<TComponent>(Props? props = null, string? key = null)
+            where TComponent : Components.Component =>
+            new(typeof(TComponent), props ?? Props.Empty, key);
+
+        // ── List helpers ─────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Map a collection to UINodes, automatically setting the key from the provided selector.
+        /// </summary>
+        public static UINode[] Map<T>(IEnumerable<T> items, Func<T, string> keySelector, Func<T, UINode> render)
+        {
+            return items.Select(item =>
+            {
+                var node = render(item);
+                return new UINode(node.Type, node.Props, keySelector(item));
+            }).ToArray();
+        }
+
+        /// <summary>
+        /// Scrollable list: Scroll(style, Box(Map(items, keySelector, renderItem))).
+        /// </summary>
+        public static UINode List<T>(IEnumerable<T> items, Func<T, string> keySelector, Func<T, UINode> renderItem, StyleSheet? style = null)
+        {
+            var children = Map(items, keySelector, renderItem);
+            return Scroll(style ?? StyleSheet.Empty, Box(children));
+        }
+
+        /// <summary>
+        /// Conditionally include a node — returns an empty fragment when <paramref name="condition"/> is false.
+        /// </summary>
+        public static UINode When(bool condition, UINode node) =>
+            condition ? node : Fragment();
+
+        /// <summary>
+        /// Ternary: returns <paramref name="ifTrue"/> when condition is met, otherwise <paramref name="ifFalse"/>.
+        /// </summary>
+        public static UINode Ternary(bool condition, UINode ifTrue, UINode ifFalse) =>
+            condition ? ifTrue : ifFalse;
+
+        /// <summary>
+        /// Flattens a mix of <see cref="UINode"/> and <see cref="IEnumerable{UINode}"/> items into a single
+        /// UINode array. Used by codegen when children include dynamic array-producing expressions alongside
+        /// static nodes — avoids the C# params limitation of mixing <c>UINode</c> and <c>UINode[]</c> arguments.
+        /// </summary>
+        public static UINode[] Nodes(params object?[] items)
+        {
+            var list = new List<UINode>();
+            foreach (var item in items)
+            {
+                switch (item)
+                {
+                    case UINode n: list.Add(n); break;
+                    case IEnumerable<UINode> e: list.AddRange(e); break;
+                }
+            }
+            return list.ToArray();
+        }
+    }
+}

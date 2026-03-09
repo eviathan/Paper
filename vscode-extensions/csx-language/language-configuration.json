@@ -1,0 +1,37 @@
+{
+    "quickSuggestions": {
+        "other": true,
+        "comments": false,
+        "strings": true
+    },
+    "comments": {
+        "lineComment": "//",
+        "blockComment": [ "/*", "*/" ]
+    },
+    "brackets": [
+        ["{", "}"],
+        ["[", "]"],
+        ["(", ")"],
+        ["<", ">"]
+    ],
+    "autoClosingPairs": [
+        { "open": "{", "close": "}" },
+        { "open": "[", "close": "]" },
+        { "open": "(", "close": ")" },
+        { "open": "\"", "close": "\"", "notIn": ["string"] },
+        { "open": "'", "close": "'", "notIn": ["string"] },
+        { "open": "<", "close": ">", "notIn": ["string", "comment"] }
+    ],
+    "surroundingPairs": [
+        { "open": "{", "close": "}" },
+        { "open": "[", "close": "]" },
+        { "open": "(", "close": ")" },
+        { "open": "\"", "close": "\"" },
+        { "open": "'", "close": "'" },
+        { "open": "<", "close": ">" }
+    ],
+    "indentationRules": {
+        "increaseIndentPattern": "^\\s*((for|while|if|else|switch|case|try|catch|finally|do|function|class|interface|type|namespace|module|export)\\b.*|\\{[^}]*|\\[[^\\]]*|\\([^)]*)\\s*$",
+        "decreaseIndentPattern": "^\\s*((\\}|\\]|\\))|(break|continue|return|throw)\\b.*|(for|while|if|else|switch|case|try|catch|finally|do|function|class|interface|type|namespace|module|export)\\b.*\\{[^}]*\\})$"
+    }
+}

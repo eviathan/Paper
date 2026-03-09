@@ -1,0 +1,388 @@
+{
+    "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+    "name": "CSX",
+    "scopeName": "source.csx",
+    "fileTypes": ["csx"],
+    "patterns": [
+        { "include": "#at-import" },
+        { "include": "#jsx-comment" },
+        { "include": "#comment-block" },
+        { "include": "#comment-line" },
+        { "include": "#jsx-tag-self-closing" },
+        { "include": "#jsx-tag-open" },
+        { "include": "#jsx-tag-close" },
+        { "include": "#jsx-expression" },
+        { "include": "#cs-interpolated-string" },
+        { "include": "#cs-verbatim-string" },
+        { "include": "#cs-string" },
+        { "include": "#cs-char" },
+        { "include": "#cs-number" },
+        { "include": "#cs-keywords" },
+        { "include": "#cs-types-builtin" },
+        { "include": "#cs-storage" },
+        { "include": "#cs-type-name" },
+        { "include": "#cs-operator" }
+    ],
+    "repository": {
+
+        "at-import": {
+            "comment": "@import \"file.csss\" at top of file",
+            "name": "meta.at-rule.import.csx",
+            "match": "^\\s*(@import)\\s+(['\"])(.*?)(['\"])",
+            "captures": {
+                "1": { "name": "keyword.control.at-rule.csx" },
+                "2": { "name": "punctuation.definition.string.begin.csx" },
+                "3": { "name": "string.quoted.csx" },
+                "4": { "name": "punctuation.definition.string.end.csx" }
+            }
+        },
+
+        "comment-block": {
+            "name": "comment.block.csx",
+            "begin": "/\\*",
+            "end": "\\*/",
+            "captures": { "0": { "name": "punctuation.definition.comment.csx" } }
+        },
+
+        "comment-line": {
+            "name": "comment.line.double-slash.csx",
+            "match": "//.*$"
+        },
+
+        "jsx-comment": {
+            "comment": "{/* JSX comment */}",
+            "name": "comment.block.jsx.csx",
+            "begin": "\\{/\\*",
+            "end": "\\*/\\}",
+            "captures": { "0": { "name": "punctuation.definition.comment.csx" } }
+        },
+
+        "jsx-tag-self-closing": {
+            "comment": "<Tag attr=... />",
+            "name": "meta.tag.jsx.self-closing.csx",
+            "begin": "(<)([A-Z][a-zA-Z0-9]*)(?=\\s|/>)",
+            "end": "/>",
+            "beginCaptures": {
+                "1": { "name": "punctuation.definition.tag.begin.csx" },
+                "2": { "name": "entity.name.tag.jsx.csx support.class.component.csx" }
+            },
+            "endCaptures": { "0": { "name": "punctuation.definition.tag.end.csx" } },
+            "patterns": [{ "include": "#jsx-attrs" }]
+        },
+
+        "jsx-tag-open": {
+            "comment": "<Tag attr=...>",
+            "name": "meta.tag.jsx.open.csx",
+            "begin": "(<)([A-Z][a-zA-Z0-9]*)(?=\\s|>)",
+            "end": "(?<!/)>",
+            "beginCaptures": {
+                "1": { "name": "punctuation.definition.tag.begin.csx" },
+                "2": { "name": "entity.name.tag.jsx.csx support.class.component.csx" }
+            },
+            "endCaptures": { "0": { "name": "punctuation.definition.tag.end.csx" } },
+            "patterns": [{ "include": "#jsx-attrs" }]
+        },
+
+        "jsx-tag-close": {
+            "comment": "</Tag>",
+            "name": "meta.tag.jsx.close.csx",
+            "match": "(</)([A-Z][a-zA-Z0-9]*)(>)",
+            "captures": {
+                "1": { "name": "punctuation.definition.tag.begin.csx" },
+                "2": { "name": "entity.name.tag.jsx.csx support.class.component.csx" },
+                "3": { "name": "punctuation.definition.tag.end.csx" }
+            }
+        },
+
+        "jsx-expression": {
+            "comment": "{expr} — C# expression embedded in JSX",
+            "name": "meta.embedded.expression.csx",
+            "begin": "\\{",
+            "end": "\\}",
+            "beginCaptures": { "0": { "name": "punctuation.section.embedded.begin.csx" } },
+            "endCaptures":   { "0": { "name": "punctuation.section.embedded.end.csx" } },
+            "patterns": [
+                { "include": "#jsx-comment" },
+                { "include": "#comment-block" },
+                { "include": "#comment-line" },
+                { "include": "#jsx-tag-self-closing" },
+                { "include": "#jsx-tag-open" },
+                { "include": "#jsx-tag-close" },
+                { "include": "#jsx-expression" },
+                { "include": "#cs-interpolated-string" },
+                { "include": "#cs-verbatim-string" },
+                { "include": "#cs-string" },
+                { "include": "#cs-char" },
+                { "include": "#cs-number" },
+                { "include": "#cs-keywords" },
+                { "include": "#cs-types-builtin" },
+                { "include": "#cs-storage" },
+                { "include": "#cs-type-name" }
+            ]
+        },
+
+        "jsx-attrs": {
+            "patterns": [
+                { "include": "#comment-block" },
+                { "include": "#comment-line" },
+                { "include": "#jsx-attr-style" },
+                { "include": "#jsx-attr-classname" },
+                { "include": "#jsx-attr-event" },
+                { "include": "#jsx-attr-expr-value" },
+                { "include": "#jsx-attr-string-value" },
+                { "include": "#jsx-attr-name" }
+            ]
+        },
+
+        "jsx-attr-style": {
+            "comment": "style={{ cssProperty: value }}",
+            "name": "meta.attribute.style.csx",
+            "begin": "\\b(style)\\s*(=)\\s*(\\{\\{)",
+            "end": "(\\}\\})",
+            "beginCaptures": {
+                "1": { "name": "entity.other.attribute-name.csx" },
+                "2": { "name": "keyword.operator.assignment.csx" },
+                "3": { "name": "punctuation.section.embedded.begin.csx" }
+            },
+            "endCaptures": {
+                "1": { "name": "punctuation.section.embedded.end.csx" }
+            },
+            "patterns": [
+                { "include": "#css-property-name" },
+                { "include": "#css-value" },
+                { "include": "#comment-block" }
+            ]
+        },
+
+        "jsx-attr-classname": {
+            "comment": "className=\"class-names\"",
+            "name": "meta.attribute.classname.csx",
+            "match": "\\b(className|id)\\s*(=)\\s*(\"[^\"]*\"|'[^']*')",
+            "captures": {
+                "1": { "name": "entity.other.attribute-name.csx" },
+                "2": { "name": "keyword.operator.assignment.csx" },
+                "3": { "name": "string.quoted.csxattr entity.other.attribute-value.csx" }
+            }
+        },
+
+        "jsx-attr-event": {
+            "comment": "onXxx={handler}",
+            "name": "meta.attribute.event.csx",
+            "begin": "\\b(on[A-Z][a-zA-Z]*)\\s*(=)\\s*(\\{)",
+            "end": "\\}",
+            "beginCaptures": {
+                "1": { "name": "entity.other.attribute-name.event.csx support.function.event-handler.csx" },
+                "2": { "name": "keyword.operator.assignment.csx" },
+                "3": { "name": "punctuation.section.embedded.begin.csx" }
+            },
+            "endCaptures": { "0": { "name": "punctuation.section.embedded.end.csx" } },
+            "patterns": [
+                { "include": "#cs-interpolated-string" },
+                { "include": "#cs-verbatim-string" },
+                { "include": "#cs-string" },
+                { "include": "#cs-keywords" },
+                { "include": "#cs-types-builtin" },
+                { "include": "#cs-number" },
+                { "include": "#cs-operator" }
+            ]
+        },
+
+        "jsx-attr-expr-value": {
+            "comment": "propName={expr}",
+            "name": "meta.attribute.expr.csx",
+            "begin": "\\b([a-zA-Z_][a-zA-Z0-9_]*)\\s*(=)\\s*(\\{)",
+            "end": "\\}",
+            "beginCaptures": {
+                "1": { "name": "entity.other.attribute-name.csx" },
+                "2": { "name": "keyword.operator.assignment.csx" },
+                "3": { "name": "punctuation.section.embedded.begin.csx" }
+            },
+            "endCaptures": { "0": { "name": "punctuation.section.embedded.end.csx" } },
+            "patterns": [
+                { "include": "#jsx-expression" },
+                { "include": "#cs-interpolated-string" },
+                { "include": "#cs-verbatim-string" },
+                { "include": "#cs-string" },
+                { "include": "#cs-keywords" },
+                { "include": "#cs-types-builtin" },
+                { "include": "#cs-number" },
+                { "include": "#cs-operator" }
+            ]
+        },
+
+        "jsx-attr-string-value": {
+            "comment": "propName=\"value\"",
+            "name": "meta.attribute.string.csx",
+            "match": "\\b([a-zA-Z_][a-zA-Z0-9_]*)\\s*(=)\\s*(\"[^\"]*\"|'[^']*')",
+            "captures": {
+                "1": { "name": "entity.other.attribute-name.csx" },
+                "2": { "name": "keyword.operator.assignment.csx" },
+                "3": { "name": "string.quoted.csxattr" }
+            }
+        },
+
+        "jsx-attr-name": {
+            "name": "entity.other.attribute-name.csx",
+            "match": "\\b[a-zA-Z_][a-zA-Z0-9_]*\\b"
+        },
+
+        "css-property-name": {
+            "comment": "camelCase CSS property names inside style={{}}",
+            "name": "support.type.property-name.css.csx",
+            "match": "\\b(display|flexDirection|flexGrow|flexShrink|flexWrap|flex|justifyContent|alignItems|alignSelf|alignContent|gap|rowGap|columnGap|width|height|minWidth|minHeight|maxWidth|maxHeight|padding|paddingTop|paddingRight|paddingBottom|paddingLeft|margin|marginTop|marginRight|marginBottom|marginLeft|background|backgroundColor|color|fontSize|fontWeight|fontFamily|lineHeight|letterSpacing|textAlign|textOverflow|textDecoration|whiteSpace|wordWrap|border|borderTop|borderRight|borderBottom|borderLeft|borderRadius|borderWidth|borderColor|borderStyle|overflow|overflowX|overflowY|position|top|left|right|bottom|zIndex|opacity|transform|transition|cursor|visibility|pointerEvents|boxSizing|objectFit|gridTemplateColumns|gridTemplateRows|gridColumn|gridRow|gridColumnStart|gridColumnEnd|gridRowStart|gridRowEnd|justifyItems|justifySelf|boxShadow|backgroundImage|backgroundSize|backgroundPosition|backgroundRepeat|rotate|translateX|translateY|scaleX|scaleY|src|key)(?=\\s*:)"
+        },
+
+        "css-value": {
+            "patterns": [
+                { "include": "#css-color-hex" },
+                { "include": "#css-color-function" },
+                { "include": "#css-string" },
+                { "include": "#css-number" },
+                { "include": "#css-keyword-value" }
+            ]
+        },
+
+        "css-color-hex": {
+            "name": "constant.other.color.rgb-value.csx",
+            "match": "'#([0-9a-fA-F]{3,8})'|\"#([0-9a-fA-F]{3,8})\""
+        },
+
+        "css-color-function": {
+            "name": "support.function.color.csx",
+            "match": "'(rgba?|hsla?)\\([^)]*\\)'|\"(rgba?|hsla?)\\([^)]*\\)\""
+        },
+
+        "css-string": {
+            "name": "string.quoted.css.csx",
+            "match": "'[^']*'|\"[^\"]*\""
+        },
+
+        "css-number": {
+            "name": "constant.numeric.css.csx",
+            "match": "\\b-?\\d+(\\.\\d+)?\\b"
+        },
+
+        "css-keyword-value": {
+            "name": "support.constant.property-value.csx",
+            "match": "\\b(flex|block|inline|inline-flex|inline-block|grid|none|auto|row|column|row-reverse|column-reverse|wrap|nowrap|stretch|center|flex-start|flex-end|space-between|space-around|space-evenly|hidden|visible|scroll|relative|absolute|fixed|sticky|pointer|text|default|crosshair|ellipsis|break-word|pre|pre-wrap|contain|cover|fill|border-box|content-box|bold|normal|italic|underline|start|end|left|right|top|bottom|baseline)\\b"
+        },
+
+        "cs-string": {
+            "name": "string.quoted.double.cs.csx",
+            "begin": "(?<![\\$@])\"",
+            "end": "\"",
+            "patterns": [
+                { "name": "constant.character.escape.csx", "match": "\\\\." }
+            ]
+        },
+
+        "cs-verbatim-string": {
+            "name": "string.quoted.verbatim.cs.csx",
+            "begin": "@\"",
+            "end": "\"(?!\")",
+            "patterns": [
+                { "name": "constant.character.escape.csx", "match": "\"\"" }
+            ]
+        },
+
+        "cs-interpolated-string": {
+            "name": "string.interpolated.cs.csx",
+            "begin": "\\$\"",
+            "end": "\"",
+            "patterns": [
+                {
+                    "name": "meta.interpolation.cs.csx",
+                    "begin": "(?<!\\\\)\\{",
+                    "end": "\\}",
+                    "beginCaptures": { "0": { "name": "punctuation.section.interpolation.begin.csx" } },
+                    "endCaptures":   { "0": { "name": "punctuation.section.interpolation.end.csx" } },
+                    "patterns": [
+                        { "include": "#cs-keywords" },
+                        { "include": "#cs-types-builtin" },
+                        { "include": "#cs-string" },
+                        { "include": "#cs-number" }
+                    ]
+                },
+                { "name": "constant.character.escape.csx", "match": "\\\\." }
+            ]
+        },
+
+        "cs-char": {
+            "name": "string.quoted.single.cs.csx",
+            "match": "'(?:[^'\\\\]|\\\\.)'",
+            "captures": { "0": { "name": "string.quoted.single.cs.csx" } }
+        },
+
+        "cs-number": {
+            "name": "constant.numeric.csx",
+            "match": "\\b(0x[0-9a-fA-F]+[uUlL]*|0b[01]+[uUlL]*|\\d+\\.?\\d*([eE][+-]?\\d+)?[fFdDmMuUlL]*)\\b"
+        },
+
+        "cs-keywords": {
+            "patterns": [
+                {
+                    "name": "keyword.control.csx",
+                    "match": "\\b(if|else|switch|case|default|break|continue|return|throw|try|catch|finally|do|while|for|foreach|in|when|yield|goto)\\b"
+                },
+                {
+                    "name": "keyword.other.csx",
+                    "match": "\\b(using|namespace|class|interface|enum|struct|record|delegate|event|partial|abstract|sealed|static|readonly|const|volatile|extern|unsafe|fixed|checked|unchecked|lock|is|as|new|this|base|typeof|sizeof|nameof|stackalloc|await|async|with|init|required|file|scoped|ref|out|in|params)\\b"
+                },
+                {
+                    "name": "keyword.visibility.csx",
+                    "match": "\\b(public|private|protected|internal|override|virtual|abstract)\\b"
+                },
+                {
+                    "name": "constant.language.csx",
+                    "match": "\\b(true|false|null|default|void)\\b"
+                },
+                {
+                    "name": "keyword.operator.csx",
+                    "match": "\\b(var|let|function)\\b"
+                }
+            ]
+        },
+
+        "cs-types-builtin": {
+            "name": "keyword.type.csx",
+            "match": "\\b(bool|byte|sbyte|char|decimal|double|float|int|uint|long|ulong|short|ushort|string|object|dynamic|nint|nuint)\\b"
+        },
+
+        "cs-storage": {
+            "comment": "Paper/UI-specific well-known types and hooks",
+            "name": "support.class.csx",
+            "match": "\\b(Hooks|UseState|UseEffect|UseRef|UseReducer|UseContext|UseCallback|UseMemo|Props|UINode|StyleSheet|PaperColour|PaperContext|Thickness|Length|Border|BorderEdges|UI|PropsBuilder)\\b"
+        },
+
+        "cs-type-name": {
+            "comment": "PascalCase identifiers are types/components",
+            "name": "entity.name.type.csx",
+            "match": "\\b[A-Z][a-zA-Z0-9_]*\\b"
+        },
+
+        "cs-operator": {
+            "patterns": [
+                {
+                    "name": "keyword.operator.arrow.csx",
+                    "match": "=>"
+                },
+                {
+                    "name": "keyword.operator.null.csx",
+                    "match": "\\?\\?=?|\\?\\."
+                },
+                {
+                    "name": "keyword.operator.comparison.csx",
+                    "match": "==|!=|<=|>=|<|>"
+                },
+                {
+                    "name": "keyword.operator.logical.csx",
+                    "match": "&&|\\|\\||!"
+                },
+                {
+                    "name": "keyword.operator.assignment.csx",
+                    "match": "(?<![=!<>])=(?!=)"
+                }
+            ]
+        }
+    }
+}

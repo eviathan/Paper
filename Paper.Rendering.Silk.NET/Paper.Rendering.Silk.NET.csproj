@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Paper.Core\Paper.Core.csproj" />
+    <ProjectReference Include="..\Paper.Layout\Paper.Layout.csproj" />
+    <ProjectReference Include="..\Paper.CSX\Paper.CSX.csproj" />
+    <ProjectReference Include="..\Paper.CSSS\Paper.CSSS.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="FreeTypeSharp" Version="3.1.0" />
+    <PackageReference Include="StbImageSharp" Version="2.27.14" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.10.0" />
+    <PackageReference Include="Silk.NET.Input" Version="2.23.0" />
+    <PackageReference Include="Silk.NET.OpenGL" Version="2.23.0" />
+    <PackageReference Include="Silk.NET.GLFW" Version="2.23.0" />
+    <PackageReference Include="Silk.NET.Windowing" Version="2.23.0" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <LangVersion>13</LangVersion>
+  </PropertyGroup>
+
+</Project>

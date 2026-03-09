@@ -1,0 +1,557 @@
+[08:59:34] Execute called
+Found 1 CSX files
+Processing file: /Users/brian/Dev/Frameworks/Paper/Paper.Playground/AppComponent.cs
+Namespace: Paper.Playground
+Components: 1
+Component: AppComponent
+Methods: 1
+Method: App
+Body: return UI.Fragment();
+Generated code for AppComponent.generated.cs
+Execute complete
+[09:00:19] Execute called
+Found 1 CSX files
+Processing file: /Users/brian/Dev/Frameworks/Paper/Paper.Playground/AppComponent.cs
+Namespace: Paper.Playground
+Components: 1
+Component: AppComponent
+Methods: 1
+Method: App
+Body: @"
+            <Box style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                height: '100%',
+                background: '#1a1a2e',
+                padding: 16,
+                borderRadius: 8
+            }}>
+                <Box style={{
+                    background: '#16213e',
+                    padding: 32,
+                    borderRadius: 8
+                }}>
+                    <Text style={{
+                        fontSize: 48,
+                        color: '#ff6b35',
+                        paddingBottom: 24
+                    }}>
+                        Count: {count}
+                    </Text>
+                    <Box style={{
+                        display: 'flex',
+                        flexDirection: 'row',
+                        gap: 16
+                    }}>
+                        <Button 
+                            onClick={() => setCount(count + 1)}
+                            style={{
+                                background: '#0f3460',
+                                color: 'white',
+                                padding: '12px 24px',
+                                borderRadius: 6,
+                                fontSize: 16
+                            }}
+                        >
+                            Increment
+                        </Button>
+                        <Button 
+                            onClick={() => setCount(count - 1)}
+                            style={{
+                                background: '#0f3460',
+                                color: 'white',
+                                padding: '12px 24px',
+                                borderRadius: 6,
+                                fontSize: 16
+                            }}
+                        >
+                            Decrement
+                        </Button>
+                        <Button 
+                            onClick={() => setCount(0)}
+                            style={{
+                                background: '#0f3460',
+                                color: 'white',
+                                padding: '12px 24px',
+                                borderRadius: 6,
+                                fontSize: 16
+                            }}
+                        >
+                            Reset
+                        </Button>
+                    </Box>
+                </Box>
+            </Box>
+            ";
+Generated code for AppComponent.generated.cs
+Execute complete
+[09:00:40] Execute called
+Found 1 CSX files
+Processing file: /Users/brian/Dev/Frameworks/Paper/Paper.Playground/AppComponent.cs
+Namespace: Paper.Playground
+Components: 1
+Component: AppComponent
+Methods: 1
+Method: App
+Body: @"
+            <Box style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                height: '100%',
+                background: '#1a1a2e',
+                padding: 16,
+                borderRadius: 8
+            }}>
+                <Box style={{
+                    background: '#16213e',
+                    padding: 32,
+                    borderRadius: 8
+                }}>
+                    <Text style={{
+                        fontSize: 48,
+                        color: '#ff6b35',
+                        paddingBottom: 24
+                    }}>
+                        Count: {count}
+                    </Text>
+                    <Box style={{
+                        display: 'flex',
+                        flexDirection: 'row',
+                        gap: 16
+                    }}>
+                        <Button 
+                            onClick={() => setCount(count + 1)}
+                            style={{
+                                background: '#0f3460',
+                                color: 'white',
+                                padding: '12px 24px',
+                                borderRadius: 6,
+                                fontSize: 16
+                            }}
+                        >
+                            Increment
+                        </Button>
+                        <Button 
+                            onClick={() => setCount(count - 1)}
+                            style={{
+                                background: '#0f3460',
+                                color: 'white',
+                                padding: '12px 24px',
+                                borderRadius: 6,
+                                fontSize: 16
+                            }}
+                        >
+                            Decrement
+                        </Button>
+                        <Button 
+                            onClick={() => setCount(0)}
+                            style={{
+                                background: '#0f3460',
+                                color: 'white',
+                                padding: '12px 24px',
+                                borderRadius: 6,
+                                fontSize: 16
+                            }}
+                        >
+                            Reset
+                        </Button>
+                    </Box>
+                </Box>
+            </Box>
+            ";
+Generated code for AppComponent.generated.cs
+Execute complete
+[09:00:44] Execute called
+Found 1 CSX files
+Processing file: /Users/brian/Dev/Frameworks/Paper/Paper.Playground/AppComponent.cs
+Namespace: Paper.Playground
+Components: 1
+Component: AppComponent
+Methods: 1
+Method: App
+Body: @"
+            <Box style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                height: '100%',
+                background: '#1a1a2e',
+                padding: 16,
+                borderRadius: 8
+            }}>
+                <Box style={{
+                    background: '#16213e',
+                    padding: 32,
+                    borderRadius: 8
+                }}>
+                    <Text style={{
+                        fontSize: 48,
+                        color: '#ff6b35',
+                        paddingBottom: 24
+                    }}>
+                        Count: {count}
+                    </Text>
+                    <Box style={{
+                        display: 'flex',
+                        flexDirection: 'row',
+                        gap: 16
+                    }}>
+                        <Button 
+                            onClick={() => setCount(count + 1)}
+                            style={{
+                                background: '#0f3460',
+                                color: 'white',
+                                padding: '12px 24px',
+                                borderRadius: 6,
+                                fontSize: 16
+                            }}
+                        >
+                            Increment
+                        </Button>
+                        <Button 
+                            onClick={() => setCount(count - 1)}
+                            style={{
+                                background: '#0f3460',
+                                color: 'white',
+                                padding: '12px 24px',
+                                borderRadius: 6,
+                                fontSize: 16
+                            }}
+                        >
+                            Decrement
+                        </Button>
+                        <Button 
+                            onClick={() => setCount(0)}
+                            style={{
+                                background: '#0f3460',
+                                color: 'white',
+                                padding: '12px 24px',
+                                borderRadius: 6,
+                                fontSize: 16
+                            }}
+                        >
+                            Reset
+                        </Button>
+                    </Box>
+                </Box>
+            </Box>
+            ";
+Generated code for AppComponent.generated.cs
+Execute complete
+[09:03:20] Execute called
+Found 1 CSX files
+Processing file: /Users/brian/Dev/Frameworks/Paper/Paper.Playground/AppComponent.cs
+Namespace: Paper.Playground
+Components: 1
+Component: AppComponent
+Methods: 1
+Method: App
+Body: @"
+            <Box style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                height: '100%',
+                background: '#1a1a2e',
+                padding: 16,
+                borderRadius: 8
+            }}>
+                <Box style={{
+                    background: '#16213e',
+                    padding: 32,
+                    borderRadius: 8
+                }}>
+                    <Text style={{
+                        fontSize: 48,
+                        color: '#ff6b35',
+                        paddingBottom: 24
+                    }}>
+                        Count: {count}
+                    </Text>
+                    <Box style={{
+                        display: 'flex',
+                        flexDirection: 'row',
+                        gap: 16
+                    }}>
+                        <Button 
+                            onClick={() => setCount(count + 1)}
+                            style={{
+                                background: '#0f3460',
+                                color: 'white',
+                                padding: '12px 24px',
+                                borderRadius: 6,
+                                fontSize: 16
+                            }}
+                        >
+                            Increment
+                        </Button>
+                        <Button 
+                            onClick={() => setCount(count - 1)}
+                            style={{
+                                background: '#0f3460',
+                                color: 'white',
+                                padding: '12px 24px',
+                                borderRadius: 6,
+                                fontSize: 16
+                            }}
+                        >
+                            Decrement
+                        </Button>
+                        <Button 
+                            onClick={() => setCount(0)}
+                            style={{
+                                background: '#0f3460',
+                                color: 'white',
+                                padding: '12px 24px',
+                                borderRadius: 6,
+                                fontSize: 16
+                            }}
+                        >
+                            Reset
+                        </Button>
+                    </Box>
+                </Box>
+            </Box>
+            ";
+Generated code for AppComponent.generated.cs
+Execute complete
+[09:03:30] Execute called
+Found 1 CSX files
+Processing file: /Users/brian/Dev/Frameworks/Paper/Paper.Playground/AppComponent.cs
+Namespace: Paper.Playground
+Components: 1
+Component: AppComponent
+Methods: 1
+Method: App
+Body: @"
+            <Box style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                height: '100%',
+                background: '#1a1a2e',
+                padding: 16,
+                borderRadius: 8
+            }}>
+                <Box style={{
+                    background: '#16213e',
+                    padding: 32,
+                    borderRadius: 8
+                }}>
+                    <Text style={{
+                        fontSize: 48,
+                        color: '#ff6b35',
+                        paddingBottom: 24
+                    }}>
+                        Count: {count}
+                    </Text>
+                    <Box style={{
+                        display: 'flex',
+                        flexDirection: 'row',
+                        gap: 16
+                    }}>
+                        <Button 
+                            onClick={() => setCount(count + 1)}
+                            style={{
+                                background: '#0f3460',
+                                color: 'white',
+                                padding: '12px 24px',
+                                borderRadius: 6,
+                                fontSize: 16
+                            }}
+                        >
+                            Increment
+                        </Button>
+                        <Button 
+                            onClick={() => setCount(count - 1)}
+                            style={{
+                                background: '#0f3460',
+                                color: 'white',
+                                padding: '12px 24px',
+                                borderRadius: 6,
+                                fontSize: 16
+                            }}
+                        >
+                            Decrement
+                        </Button>
+                        <Button 
+                            onClick={() => setCount(0)}
+                            style={{
+                                background: '#0f3460',
+                                color: 'white',
+                                padding: '12px 24px',
+                                borderRadius: 6,
+                                fontSize: 16
+                            }}
+                        >
+                            Reset
+                        </Button>
+                    </Box>
+                </Box>
+            </Box>
+            ";
+Generated code for AppComponent.generated.cs
+Execute complete
+[09:03:33] Execute called
+Found 1 CSX files
+Processing file: /Users/brian/Dev/Frameworks/Paper/Paper.Playground/AppComponent.cs
+Namespace: Paper.Playground
+Components: 1
+Component: AppComponent
+Methods: 1
+Method: App
+Body: @"
+            <Box style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                height: '100%',
+                background: '#1a1a2e',
+                padding: 16,
+                borderRadius: 8
+            }}>
+                <Box style={{
+                    background: '#16213e',
+                    padding: 32,
+                    borderRadius: 8
+                }}>
+                    <Text style={{
+                        fontSize: 48,
+                        color: '#ff6b35',
+                        paddingBottom: 24
+                    }}>
+                        Count: {count}
+                    </Text>
+                    <Box style={{
+                        display: 'flex',
+                        flexDirection: 'row',
+                        gap: 16
+                    }}>
+                        <Button 
+                            onClick={() => setCount(count + 1)}
+                            style={{
+                                background: '#0f3460',
+                                color: 'white',
+                                padding: '12px 24px',
+                                borderRadius: 6,
+                                fontSize: 16
+                            }}
+                        >
+                            Increment
+                        </Button>
+                        <Button 
+                            onClick={() => setCount(count - 1)}
+                            style={{
+                                background: '#0f3460',
+                                color: 'white',
+                                padding: '12px 24px',
+                                borderRadius: 6,
+                                fontSize: 16
+                            }}
+                        >
+                            Decrement
+                        </Button>
+                        <Button 
+                            onClick={() => setCount(0)}
+                            style={{
+                                background: '#0f3460',
+                                color: 'white',
+                                padding: '12px 24px',
+                                borderRadius: 6,
+                                fontSize: 16
+                            }}
+                        >
+                            Reset
+                        </Button>
+                    </Box>
+                </Box>
+            </Box>
+            ";
+Generated code for AppComponent.generated.cs
+Execute complete
+[09:04:52] Execute called
+Found 1 CSX files
+Processing file: /Users/brian/Dev/Frameworks/Paper/Paper.Playground/AppComponent.cs
+Namespace: Paper.Playground
+Components: 1
+Component: AppComponent
+Methods: 1
+Method: App
+Body: @"
+            <Box style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                height: '100%',
+                background: '#1a1a2e',
+                padding: 16,
+                borderRadius: 8
+            }}>
+                <Box style={{
+                    background: '#16213e',
+                    padding: 32,
+                    borderRadius: 8
+                }}>
+                    <Text style={{
+                        fontSize: 48,
+                        color: '#ff6b35',
+                        paddingBottom: 24
+                    }}>
+                        Count: {count}
+                    </Text>
+                    <Box style={{
+                        display: 'flex',
+                        flexDirection: 'row',
+                        gap: 16
+                    }}>
+                        <Button 
+                            onClick={() => setCount(count + 1)}
+                            style={{
+                                background: '#0f3460',
+                                color: 'white',
+                                padding: '12px 24px',
+                                borderRadius: 6,
+                                fontSize: 16
+                            }}
+                        >
+                            Increment
+                        </Button>
+                        <Button 
+                            onClick={() => setCount(count - 1)}
+                            style={{
+                                background: '#0f3460',
+                                color: 'white',
+                                padding: '12px 24px',
+                                borderRadius: 6,
+                                fontSize: 16
+                            }}
+                        >
+                            Decrement
+                        </Button>
+                        <Button 
+                            onClick={() => setCount(0)}
+                            style={{
+                                background: '#0f3460',
+                                color: 'white',
+                                padding: '12px 24px',
+                                borderRadius: 6,
+                                fontSize: 16
+                            }}
+                        >
+                            Reset
+                        </Button>
+                    </Box>
+                </Box>
+            </Box>
+            ";
+Generated code for AppComponent.generated.cs
+Execute complete

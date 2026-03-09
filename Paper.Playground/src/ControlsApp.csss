@@ -1,0 +1,43 @@
+/* ControlsApp.csss — component styles for ControlsApp.csx */
+
+/* Variables */
+$panel-bg: #334155;
+$section-label: #94a3b8;
+$accent: #4a90e2;
+$muted: #64748b;
+
+/* Element selectors */
+Scroll {
+  background: #1e293b;
+}
+
+/* Class selectors */
+.section-label {
+  color: $section-label;
+  font-size: 16px;
+}
+
+.section-label:hover {
+  color: #cbd5e1;
+}
+
+.panel {
+  background: $panel-bg;
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.muted-hint {
+  color: $muted;
+  font-size: 12px;
+}
+
+/* Descendant selector — Text inside a .panel */
+.panel Text {
+  color: #e2e8f0;
+}
+
+/* Direct child selector — immediate Box children of Scroll */
+Scroll > Box {
+  gap: 6px;
+}

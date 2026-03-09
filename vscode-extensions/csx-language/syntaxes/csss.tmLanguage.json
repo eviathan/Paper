@@ -1,0 +1,200 @@
+{
+    "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+    "name": "CSSS",
+    "scopeName": "source.csss",
+    "fileTypes": ["csss"],
+    "patterns": [
+        { "include": "#comment-block" },
+        { "include": "#comment-line" },
+        { "include": "#at-rule" },
+        { "include": "#variable-declaration" },
+        { "include": "#rule-block" }
+    ],
+    "repository": {
+
+        "comment-block": {
+            "name": "comment.block.csss",
+            "begin": "/\\*",
+            "end": "\\*/",
+            "captures": {
+                "0": { "name": "punctuation.definition.comment.csss" }
+            }
+        },
+
+        "comment-line": {
+            "name": "comment.line.double-slash.csss",
+            "match": "//.*$"
+        },
+
+        "at-rule": {
+            "patterns": [
+                {
+                    "comment": "@import \"file.csss\"",
+                    "name": "meta.at-rule.import.csss",
+                    "match": "(@import)\\s+(['\"])(.*?)(['\"])",
+                    "captures": {
+                        "1": { "name": "keyword.control.at-rule.import.csss" },
+                        "2": { "name": "punctuation.definition.string.begin.csss" },
+                        "3": { "name": "string.quoted.csss" },
+                        "4": { "name": "punctuation.definition.string.end.csss" }
+                    }
+                }
+            ]
+        },
+
+        "variable-declaration": {
+            "comment": "$variable-name: value;",
+            "name": "meta.variable-declaration.csss",
+            "match": "(\\$[a-zA-Z_-][a-zA-Z0-9_-]*)\\s*(:)\\s*([^;]+)(;?)",
+            "captures": {
+                "1": { "name": "variable.other.csss entity.name.variable.csss" },
+                "2": { "name": "punctuation.separator.key-value.csss" },
+                "3": { "patterns": [{ "include": "#value" }] },
+                "4": { "name": "punctuation.terminator.rule.csss" }
+            }
+        },
+
+        "rule-block": {
+            "comment": "selector { declarations }",
+            "name": "meta.rule-block.csss",
+            "begin": "(?=[.#:a-zA-Z])",
+            "end": "(?<=\\})",
+            "patterns": [
+                { "include": "#selector" },
+                { "include": "#declaration-block" }
+            ]
+        },
+
+        "selector": {
+            "name": "meta.selector.csss",
+            "begin": "(?=[.#:a-zA-Z])",
+            "end": "(?=\\{)",
+            "patterns": [
+                { "include": "#selector-class" },
+                { "include": "#selector-id" },
+                { "include": "#selector-pseudo" },
+                { "include": "#selector-element" },
+                { "include": "#selector-combinator" }
+            ]
+        },
+
+        "selector-class": {
+            "name": "entity.other.attribute-name.class.csss",
+            "match": "\\.[a-zA-Z_-][a-zA-Z0-9_-]*"
+        },
+
+        "selector-id": {
+            "name": "entity.other.attribute-name.id.csss",
+            "match": "#[a-zA-Z_-][a-zA-Z0-9_-]*"
+        },
+
+        "selector-pseudo": {
+            "name": "entity.other.pseudo-class.csss",
+            "match": ":(hover|active|focus|disabled|checked|first-child|last-child|nth-child)(?:\\([^)]*\\))?"
+        },
+
+        "selector-element": {
+            "comment": "Paper element names and generic type selectors",
+            "name": "entity.name.tag.csss",
+            "match": "\\b(Box|Text|Button|Input|Scroll|Image|Textarea|Checkbox|Table|TableRow|TableCell|RadioGroup|RadioOption|Fragment|Viewport|[A-Z][a-zA-Z0-9]*)\\b"
+        },
+
+        "selector-combinator": {
+            "name": "keyword.operator.combinator.csss",
+            "match": "[>~+]"
+        },
+
+        "declaration-block": {
+            "name": "meta.declaration-block.csss",
+            "begin": "\\{",
+            "end": "\\}",
+            "beginCaptures": { "0": { "name": "punctuation.section.block.begin.csss" } },
+            "endCaptures":   { "0": { "name": "punctuation.section.block.end.csss" } },
+            "patterns": [
+                { "include": "#comment-block" },
+                { "include": "#comment-line" },
+                { "include": "#declaration" }
+            ]
+        },
+
+        "declaration": {
+            "comment": "property: value;",
+            "name": "meta.declaration.csss",
+            "begin": "(?=[-a-zA-Z])",
+            "end": ";|(?=\\})",
+            "patterns": [
+                { "include": "#property-name" },
+                { "include": "#declaration-value" }
+            ]
+        },
+
+        "property-name": {
+            "name": "support.type.property-name.csss",
+            "match": "(?<![\\S])[-a-z][a-z0-9-]*(?=\\s*:)",
+            "captures": {
+                "0": { "name": "support.type.property-name.csss" }
+            }
+        },
+
+        "declaration-value": {
+            "name": "meta.declaration-value.csss",
+            "begin": ":",
+            "end": "(?=;|\\})",
+            "beginCaptures": { "0": { "name": "punctuation.separator.key-value.csss" } },
+            "patterns": [
+                { "include": "#value" }
+            ]
+        },
+
+        "value": {
+            "patterns": [
+                { "include": "#variable-reference" },
+                { "include": "#color-hex" },
+                { "include": "#color-function" },
+                { "include": "#string-single" },
+                { "include": "#string-double" },
+                { "include": "#number-with-unit" },
+                { "include": "#keyword-value" }
+            ]
+        },
+
+        "variable-reference": {
+            "name": "variable.other.csss",
+            "match": "\\$[a-zA-Z_-][a-zA-Z0-9_-]*"
+        },
+
+        "color-hex": {
+            "name": "constant.other.color.rgb-value.csss",
+            "match": "#([0-9a-fA-F]{3,8})\\b"
+        },
+
+        "color-function": {
+            "name": "support.function.color.csss",
+            "match": "\\b(rgba?|hsla?|oklch|lch|lab)\\([^)]*\\)"
+        },
+
+        "string-single": {
+            "name": "string.quoted.single.csss",
+            "begin": "'",
+            "end": "'",
+            "patterns": [{ "name": "constant.character.escape.csss", "match": "\\\\." }]
+        },
+
+        "string-double": {
+            "name": "string.quoted.double.csss",
+            "begin": "\"",
+            "end": "\"",
+            "patterns": [{ "name": "constant.character.escape.csss", "match": "\\\\." }]
+        },
+
+        "number-with-unit": {
+            "name": "constant.numeric.csss",
+            "match": "-?\\b(\\d+\\.?\\d*)(px|em|rem|vh|vw|vmin|vmax|%|fr|deg|rad|turn|ms|s)?\\b"
+        },
+
+        "keyword-value": {
+            "name": "support.constant.property-value.csss",
+            "match": "\\b(flex|block|inline|inline-flex|inline-block|grid|inline-grid|none|auto|inherit|initial|unset|revert|row|column|row-reverse|column-reverse|wrap|nowrap|wrap-reverse|stretch|center|flex-start|flex-end|space-between|space-around|space-evenly|baseline|start|end|left|right|top|bottom|hidden|visible|scroll|clip|relative|absolute|fixed|sticky|normal|bold|italic|underline|pointer|text|default|crosshair|grab|grabbing|not-allowed|contain|cover|fill|border-box|content-box|ellipsis|break-word|pre|pre-wrap|pre-line|all|opacity|background|color|transform|width|height|padding|margin|border|gap|font-size|max-content|min-content|fit-content)\\b"
+        }
+    }
+}
