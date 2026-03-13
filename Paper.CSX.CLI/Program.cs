@@ -2,6 +2,9 @@ using System.CommandLine;
 using System.IO;
 using System.Linq;
 using System.Text;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.Formatting;
 using Paper.CSX;
 
 namespace Paper.CSX.CLI
@@ -45,8 +48,8 @@ namespace Paper.CSX.CLI
             var componentName = char.ToUpper(fileName[0]) + fileName.Substring(1) + "Component";
             var methodName = char.ToUpper(fileName[0]) + fileName.Substring(1);
 
-            var (preamble, jsxContent) = CSXParser.ExtractPreambleAndJsx(content);
-            var parsedBody = string.IsNullOrWhiteSpace(jsxContent) ? "UI.Fragment()" : CSXParser.Parse(jsxContent);
+            var (preamble, jsxContent) = CSXCompiler.ExtractPreambleAndJsx(content);
+            var parsedBody = string.IsNullOrWhiteSpace(jsxContent) ? "UI.Fragment()" : CSXCompiler.Parse(jsxContent);
 
             string ns = "Paper.Generated";
             if (!string.IsNullOrEmpty(projectRoot) && file.DirectoryName != null)
@@ -82,7 +85,13 @@ namespace Paper.CSX.CLI
             sb.AppendLine($"        return {parsedBody};");
             sb.AppendLine("    }");
             sb.AppendLine("}");
-            return sb.ToString();
+
+            return FormatWithRoslyn(sb.ToString());
+        }
+
+        static string FormatWithRoslyn(string source)
+        {
+            return source;
         }
 
         static void ParseCSXFile(FileInfo file, string? projectRoot = null)

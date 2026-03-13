@@ -304,7 +304,7 @@ namespace Paper.Rendering.Silk.NET
                 {
                     float cbFontPx  = SilkTextMeasurer.ResolveFontPx(style);
                     float cbLineH   = _fonts.LineHeight(cbFontPx);
-                    var (cbPadTop, _, _, _) = BoxModel.PaddingPx(style, lb.Width, lb.Height);
+                    var (cbPadTop, _, _, _) = BoxModel.PaddingPixels(style, lb.Width, lb.Height);
                     float cbCenterOffY = lb.Height / 2f - cbPadTop - cbLineH * 0.5f;
                     var labelBox = lb;
                     labelBox.AbsoluteX += 20;
@@ -339,7 +339,7 @@ namespace Paper.Rendering.Silk.NET
                 {
                     float roFontPx  = SilkTextMeasurer.ResolveFontPx(style);
                     float roLineH   = _fonts.LineHeight(roFontPx);
-                    var (cbPadTop, _, _, _) = BoxModel.PaddingPx(style, lb.Width, lb.Height);
+                    var (cbPadTop, _, _, _) = BoxModel.PaddingPixels(style, lb.Width, lb.Height);
                     float cbCenterOffY = lb.Height / 2f - cbPadTop - roLineH * 0.5f;
                     var labelBox = lb;
                     labelBox.AbsoluteX += 20;
@@ -504,7 +504,7 @@ namespace Paper.Rendering.Silk.NET
                     float atlasLineH = _fonts!.LineHeight(fontPx);
                     float textH    = atlasLineH * Math.Max(0.5f, style.LineHeight ?? 1.4f);
                     var logicalLines = label.Split('\n');
-                    var (padTop, padRight, _, padLeft) = BoxModel.PaddingPx(style, lb.Width, lb.Height);
+                    var (padTop, padRight, _, padLeft) = BoxModel.PaddingPixels(style, lb.Width, lb.Height);
                     float contentWidth = lb.Width - padLeft - padRight;
                     int idx = 0;
                     int row = 0;
@@ -607,7 +607,7 @@ namespace Paper.Rendering.Silk.NET
                     float rawScrollY = GetScrollOffset != null ? GetScrollOffset(path).scrollY : 0f;
                     float rawScrollX = GetScrollOffset != null ? GetScrollOffset(path).scrollX : 0f;
                     // Include container's trailing padding so max scroll reveals the full padded area
-                    var (_, padRightPx, padBottomPx, _) = BoxModel.PaddingPx(style, lb.Width, lb.Height);
+                    var (_, padRightPx, padBottomPx, _) = BoxModel.PaddingPixels(style, lb.Width, lb.Height);
                     float contentH = (ComputeChildrenContentHeight(fiber.Child) + padBottomPx) * ScaleY;
                     float contentW = (ComputeChildrenContentWidth(fiber.Child) + padRightPx) * ScaleX;
                     float sbOpacity = GetScrollbarOpacity != null ? GetScrollbarOpacity(path) : 0f;
@@ -890,7 +890,7 @@ namespace Paper.Rendering.Silk.NET
             if (lineSelStart >= lineSelEnd || lineSelStart < 0 || lineSelEnd > line.Length) return;
             float fontPx = SilkTextMeasurer.ResolveFontPx(style);
             float textH  = _fonts.LineHeight(fontPx);
-            var (padTop, _, _, padLeft) = BoxModel.PaddingPx(style, fullLb.Width, fullLb.Height);
+            var (padTop, _, _, padLeft) = BoxModel.PaddingPixels(style, fullLb.Width, fullLb.Height);
             float xLayout  = fullLb.AbsoluteX + padLeft - inputScrollX;
             float baseline = lineBox.AbsoluteY + padTop + (textH * 0.8f);
             float w0 = _fonts.MeasureWidth(line.AsSpan(0, lineSelStart), fontPx);
@@ -909,7 +909,7 @@ namespace Paper.Rendering.Silk.NET
             if (!FocusedInputCaretVisible || _fonts == null || FocusedInputCaret < lineStart || FocusedInputCaret > lineEnd + 1) return;
             float fontPx   = SilkTextMeasurer.ResolveFontPx(style);
             float textH    = _fonts.LineHeight(fontPx);
-            var (padTop, _, _, padLeft) = BoxModel.PaddingPx(style, fullLb.Width, fullLb.Height);
+            var (padTop, _, _, padLeft) = BoxModel.PaddingPixels(style, fullLb.Width, fullLb.Height);
             float xLayout  = fullLb.AbsoluteX + padLeft - inputScrollX;
             float baseline = lineBox.AbsoluteY + padTop + (textH * 0.8f);
             int   caretOffset = Math.Min(FocusedInputCaret - lineStart, line.Length);
@@ -937,7 +937,7 @@ namespace Paper.Rendering.Silk.NET
             float atlasLineH = _fonts.LineHeight(fontPx);
 
             // Padding from style (respects individual PaddingTop/Right/Bottom/Left overrides)
-            var (padTop, padRight, padBottom, padLeft) = BoxModel.PaddingPx(style, lb.Width, lb.Height);
+            var (padTop, padRight, padBottom, padLeft) = BoxModel.PaddingPixels(style, lb.Width, lb.Height);
 
             // Vertical alignment: centre in content area using raw glyph height; otherwise top-align.
             float contentH = lb.Height - padTop - padBottom;

@@ -49,11 +49,11 @@ namespace Paper.Core.Styles
         }
 
         public static readonly PaperColour Transparent = new(0f, 0f, 0f, 0f);
-        public static readonly PaperColour Black       = new(0f, 0f, 0f);
-        public static readonly PaperColour White       = new(1f, 1f, 1f);
-        public static readonly PaperColour Red         = new(1f, 0f, 0f);
-        public static readonly PaperColour Green       = new(0f, 1f, 0f);
-        public static readonly PaperColour Blue        = new(0f, 0f, 1f);
+        public static readonly PaperColour Black = new(0f, 0f, 0f);
+        public static readonly PaperColour White = new(1f, 1f, 1f);
+        public static readonly PaperColour Red = new(1f, 0f, 0f);
+        public static readonly PaperColour Green = new(0f, 1f, 0f);
+        public static readonly PaperColour Blue = new(0f, 0f, 1f);
 
         public PaperColour WithAlpha(float a) => new(R, G, B, a);
 
@@ -66,7 +66,7 @@ namespace Paper.Core.Styles
         public bool Equals(PaperColour other) =>
             R == other.R && G == other.G && B == other.B && A == other.A;
         public override bool Equals(object? obj) => obj is PaperColour c && Equals(c);
-        public override int  GetHashCode() => HashCode.Combine(R, G, B, A);
+        public override int GetHashCode() => HashCode.Combine(R, G, B, A);
         public static bool operator ==(PaperColour a, PaperColour b) => a.Equals(b);
         public static bool operator !=(PaperColour a, PaperColour b) => !a.Equals(b);
 

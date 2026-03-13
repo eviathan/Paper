@@ -4,6 +4,7 @@ using System.Reflection;
 using System.Runtime.Loader;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.Formatting;
 
 namespace Paper.CSX.Runtime
 {
@@ -13,10 +14,20 @@ namespace Paper.CSX.Runtime
 
     public static class CSXRuntimeCompiler
     {
+        private static string FormatSourceCode(string source)
+        {
+            var tree = CSharpSyntaxTree.ParseText(source);
+            var root = tree.GetRoot();
+
+            using var workspace = new AdhocWorkspace();
+            var formattedRoot = Formatter.Format(root, workspace);
+            return formattedRoot.ToFullString();
+        }
+
         public static CSXCompiledComponent Compile(string csxSource, string componentClassName = "CSXHotComponent", string? baseDir = null)
         {
-            var (preamble, jsxContent) = CSXParser.ExtractPreambleAndJsx(csxSource, baseDir);
-            string expr = CSXParser.Parse(jsxContent);
+            var (preamble, jsxContent) = CSXCompiler.ExtractPreambleAndJsx(csxSource, baseDir);
+            string expr = CSXCompiler.Parse(jsxContent);
 
             // Extract `using` directives from the preamble and hoist them to file level.
             var preambleLines = preamble.Split('\n');
@@ -58,6 +69,9 @@ public static class {{componentClassName}}
     }
 }
 """;
+
+            // Format the source code using Roslyn
+            source = FormatSourceCode(source);
 
             var syntaxTree = CSharpSyntaxTree.ParseText(source, new CSharpParseOptions(LanguageVersion.Preview));
 

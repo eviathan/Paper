@@ -123,7 +123,7 @@ namespace Paper.CSX.LanguageServer
             ("backgroundPosition",     "Background position",            ["center", "top", "bottom", "left", "right"]),
             // Typography
             ("fontSize",               "Font size (px or em)",           []),
-            ("fontWeight",             "Font weight",                    ["normal", "bold"]),
+            ("fontWeight",             "Font weight",                    ["normal", "bold", "100", "200", "300", "400", "500", "600", "700", "800", "900"]),
             ("fontFamily",             "Font family",                    []),
             ("lineHeight",             "Line height multiplier",         []),
             ("letterSpacing",          "Letter spacing (px)",            []),

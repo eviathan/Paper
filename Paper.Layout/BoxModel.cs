@@ -29,7 +29,7 @@ namespace Paper.Layout
         /// Resolve padding on each side in pixels, given the container's dimensions.
         /// Individual PaddingTop/Right/Bottom/Left override the corresponding side from Padding when set.
         /// </summary>
-        public static (float top, float right, float bottom, float left) PaddingPx(
+        public static (float top, float right, float bottom, float left) PaddingPixels(
             StyleSheet style, float containerWidth, float containerHeight)
         {
             // Percentage padding resolves against the containing block width (CSS spec)
@@ -46,7 +46,7 @@ namespace Paper.Layout
         /// Resolve margin on each side in pixels.
         /// Individual MarginTop/Right/Bottom/Left override the corresponding side from Margin when set.
         /// </summary>
-        public static (float top, float right, float bottom, float left) MarginPx(
+        public static (float top, float right, float bottom, float left) MarginPixels(
             StyleSheet style, float containerWidth, float containerHeight)
         {
             var m = style.Margin ?? Thickness.Zero;
@@ -66,7 +66,7 @@ namespace Paper.Layout
             float outerWidth, float outerHeight, StyleSheet style, float containerWidth, float containerHeight)
         {
             var (bt, br, bb, bl) = BorderWidths(style);
-            var (pt, pr, pb, pl) = PaddingPx(style, containerWidth, containerHeight);
+            var (pt, pr, pb, pl) = PaddingPixels(style, containerWidth, containerHeight);
 
             if ((style.BoxSizing ?? BoxSizing.BorderBox) == BoxSizing.BorderBox)
             {
@@ -121,7 +121,7 @@ namespace Paper.Layout
         public static float HorizontalInsets(StyleSheet style, float containerWidth)
         {
             var (_, br, _, bl) = BorderWidths(style);
-            var (_, pr, _, pl) = PaddingPx(style, containerWidth, 0);
+            var (_, pr, _, pl) = PaddingPixels(style, containerWidth, 0);
             return pl + pr + bl + br;
         }
 
@@ -131,7 +131,7 @@ namespace Paper.Layout
         public static float VerticalInsets(StyleSheet style, float containerHeight)
         {
             var (bt, _, bb, _) = BorderWidths(style);
-            var (pt, _, pb, _) = PaddingPx(style, 0, containerHeight);
+            var (pt, _, pb, _) = PaddingPixels(style, 0, containerHeight);
             return pt + pb + bt + bb;
         }
 
@@ -142,7 +142,7 @@ namespace Paper.Layout
             StyleSheet style, float containerWidth, float containerHeight)
         {
             var (bt, br, bb, bl) = BorderWidths(style);
-            var (pt, pr, pb, pl) = PaddingPx(style, containerWidth, containerHeight);
+            var (pt, pr, pb, pl) = PaddingPixels(style, containerWidth, containerHeight);
             return (pl + bl, pt + bt);
         }
     }

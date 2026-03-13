@@ -70,7 +70,7 @@ namespace Paper.Layout
             outerH = float.IsNaN(rawH) ? containerHeight : rawH;
 
             // Apply margin
-            var (mt, mr, mb, ml) = BoxModel.MarginPx(style, containerWidth, containerHeight);
+            var (mt, mr, mb, ml) = BoxModel.MarginPixels(style, containerWidth, containerHeight);
             float layoutX = x + ml;
             float layoutY = y + mt;
             float layoutW = Math.Max(0, outerW - ml - mr);
@@ -194,7 +194,7 @@ namespace Paper.Layout
                     h = lineH * rows + padH;
                 }
 
-                var (mt, mr, mb, ml) = BoxModel.MarginPx(childStyle, w, h);
+                var (mt, mr, mb, ml) = BoxModel.MarginPixels(childStyle, w, h);
                 child.Layout = new LayoutBox
                 {
                     X      = contentX + ml,

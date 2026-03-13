@@ -60,7 +60,7 @@ namespace Paper.Layout
                     h += resolvedRows[r].Size + (r < row + rowSpan - 1 ? rowGap : 0);
 
                 var itemStyle = item.ComputedStyle;
-                var (mt, mr, mb, ml) = BoxModel.MarginPx(itemStyle, w, h);
+                var (mt, mr, mb, ml) = BoxModel.MarginPixels(itemStyle, w, h);
                 x += ml; y += mt; w -= ml + mr; h -= mt + mb;
                 w = Math.Max(0, w); h = Math.Max(0, h);
 

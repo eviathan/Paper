@@ -79,7 +79,7 @@ namespace Paper.Layout
                 float mt = 0, mr = 0, mb = 0, ml = 0;
                 if (item.ComputedStyle != null)
                 {
-                    (mt, mr, mb, ml) = BoxModel.MarginPx(item.ComputedStyle, item.Layout.Width, item.Layout.Height);
+                    (mt, mr, mb, ml) = BoxModel.MarginPixels(item.ComputedStyle, item.Layout.Width, item.Layout.Height);
                 }
                 float marginMain = isRow ? (ml + mr) : (mt + mb);
                 usedMainTotal += (i > 0 ? gap : 0) + marginMain + main;
@@ -284,7 +284,7 @@ namespace Paper.Layout
                 var itemStyle = fi.Fiber.ComputedStyle;
                 float mt = 0, mr = 0, mb = 0, ml = 0;
                 if (itemStyle != null)
-                    (mt, mr, mb, ml) = BoxModel.MarginPx(itemStyle, w, h);
+                    (mt, mr, mb, ml) = BoxModel.MarginPixels(itemStyle, w, h);
                 x += ml;
                 y += mt;
                 if (h <= 0) h = 40f;
@@ -298,7 +298,7 @@ namespace Paper.Layout
                 float mainUsed = isRow ? fi.Fiber.Layout.Width : fi.Fiber.Layout.Height;
                 float mt2 = 0, mr2 = 0, mb2 = 0, ml2 = 0;
                 if (itemStyle != null)
-                    (mt2, mr2, mb2, ml2) = BoxModel.MarginPx(itemStyle, fi.Fiber.Layout.Width, fi.Fiber.Layout.Height);
+                    (mt2, mr2, mb2, ml2) = BoxModel.MarginPixels(itemStyle, fi.Fiber.Layout.Width, fi.Fiber.Layout.Height);
                 float marginMain = isRow ? (ml2 + mr2) : (mt2 + mb2);
                 cursor += reversed ? -(mainUsed + marginMain + spacing) : (mainUsed + marginMain + spacing);
             }

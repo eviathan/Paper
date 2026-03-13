@@ -9,12 +9,12 @@ namespace Paper.CSX.Syntax
     /// - Children support text, nested elements, and balanced-brace expressions.
     /// This parser intentionally treats the content inside { ... } as an opaque code string.
     /// </summary>
-    public sealed class CSXParser2
+    public sealed class CSXElementParser
     {
         private readonly string _src;
         private int _i;
 
-        public CSXParser2(string source)
+        public CSXElementParser(string source)
         {
             _src = source ?? "";
             _i = 0;

@@ -1,6 +1,8 @@
 using System.Text;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Text;
+using Microsoft.CodeAnalysis.Formatting;
 
 namespace Paper.CSX
 {
@@ -102,7 +104,7 @@ namespace Paper.CSX
                     sb.AppendLine($"    public static UINode {method.Name}(Props props)");
                     sb.AppendLine("    {");
 
-                    var (preamble, csxContent) = CSXParser.ExtractPreambleAndJsx(method.Body);
+                    var (preamble, csxContent) = CSXCompiler.ExtractPreambleAndJsx(method.Body);
                     if (!string.IsNullOrEmpty(preamble))
                     {
                         foreach (var line in preamble.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
@@ -110,7 +112,7 @@ namespace Paper.CSX
                     }
                     if (!string.IsNullOrEmpty(csxContent))
                     {
-                        var parsedBody = CSXParser.Parse(csxContent);
+                        var parsedBody = CSXCompiler.Parse(csxContent);
                         sb.AppendLine($"        return {parsedBody};");
                     }
                     else
@@ -126,7 +128,12 @@ namespace Paper.CSX
                 sb.AppendLine();
             }
 
-            return sb.ToString();
+            var source = sb.ToString();
+            var tree = CSharpSyntaxTree.ParseText(source);
+            var root = tree.GetRoot();
+            var workspace = new AdhocWorkspace();
+            var formattedRoot = Formatter.Format(root, workspace);
+            return formattedRoot.ToFullString();
         }
 
         private string? ExtractCSXFromString(string methodBody)
@@ -165,7 +172,15 @@ namespace Paper.CSX
                         sb.Append(trimmed.TrimStart('"').TrimEnd('"'));
                     }
                 }
-                return sb.ToString();
+            // Generate the source code as string
+            var generatedCode = sb.ToString();
+            
+            // Format the generated code using Roslyn
+            var syntaxTree = CSharpSyntaxTree.ParseText(generatedCode);
+            var root = syntaxTree.GetRoot().NormalizeWhitespace();
+            generatedCode = root.ToFullString();
+            
+            return generatedCode;
             }
 
             return null;

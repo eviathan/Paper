@@ -4,7 +4,7 @@ using Paper.CSX.Syntax;
 
 namespace Paper.CSX
 {
-    public static class CSXParser
+    public static class CSXCompiler
     {
         /// <summary>
         /// If the file contains "return ( ... );", returns (preamble, jsxContent) so callers can emit preamble + "return " + Parse(jsxContent).
@@ -500,8 +500,8 @@ namespace Paper.CSX
             try
             {
                 string processed = Preprocess(csxContent);
-                var ast = new CSXParser2(processed).ParseFirstElement();
-                return new CSXCodegen().Generate(ast);
+                var ast = new CSXElementParser(processed).ParseFirstElement();
+                return new CSXCodeGenerator().Generate(ast);
             }
             catch (Exception ex)
             {
