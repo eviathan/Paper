@@ -40,34 +40,29 @@ namespace Paper.CSX.Syntax
 
         private static string GenerateBox(CSXElement element, int indent = 0)
         {
-            var indentStr = new string(' ', indent * 4);
-            var props = BuildProps(element, indent + 2);
+            var props = BuildProps(element);
             string? key = GetKey(element);
 
             if (key != null)
-                return $"UI.Box(\n{props},\n{indentStr}{key})";
+                return $"UI.Box(\n{props},\n{key})";
             else
                 return $"UI.Box(\n{props})";
         }
 
         private static string GenerateText(CSXElement element, int indent = 0)
         {
-            var indentStr = new string(' ', indent * 4);
             string content = GenerateInterpolatedText(element.Children);
-            var props = BuildProps(element, indent + 2, extraProp: $".Text({content})");
+            var props = BuildProps(element, extraProp: $".Text({content})");
             string? key = GetKey(element);
 
             if (key != null)
-                return $"new UINode(\"text\",\n{props},\n{indentStr}{key})";
+                return $"new UINode(\"text\",\n{props},\n{key})";
             else
                 return $"new UINode(\"text\",\n{props})";
         }
 
         private static string GenerateButton(CSXElement element, int indent = 0)
         {
-            var indentStr = new string(' ', indent * 4);
-            var nextIndent = new string(' ', (indent + 1) * 4);
-            
             bool hasInteractionStyle = element.Attributes
                 .Any(attribute => attribute.Name is "hoverStyle" or "activeStyle" or "focusStyle");
 
@@ -75,9 +70,9 @@ namespace Paper.CSX.Syntax
 
             if (hasInteractionStyle || key != null)
             {
-                var props = BuildProps(element, indent + 2, extraProp: $".Text({GenerateInterpolatedText(element.Children)})");
+                var props = BuildProps(element, extraProp: $".Text({GenerateInterpolatedText(element.Children)})");
                 if (key != null)
-                    return $"new UINode(\"button\",\n{props},\n{indentStr}{key})";
+                    return $"new UINode(\"button\",\n{props},\n{key})";
                 else
                     return $"new UINode(\"button\",\n{props})";
             }
@@ -98,10 +93,7 @@ namespace Paper.CSX.Syntax
         private static string BuildProps(CSXElement el, int indent = 0, string? extraProp = null)
         {
             var sb = new StringBuilder();
-            var nextIndent = new string(' ', (indent + 1) * 4);
-            var childIndent = new string(' ', (indent + 2) * 4);
-            var propsIndent = new string(' ', indent * 4);
-            sb.Append(propsIndent + "new PropsBuilder()");
+            sb.Append("new PropsBuilder()");
 
             foreach (var a in el.Attributes)
             {
@@ -110,7 +102,7 @@ namespace Paper.CSX.Syntax
                     case "style":
                     {
                         var s = GetStyle(el);
-                        if (s != null) sb.Append($"\n{nextIndent}.Style({s})");
+                        if (s != null) sb.Append($"\n.Style({s})");
                         break;
                     }
                     case "className":
@@ -118,7 +110,7 @@ namespace Paper.CSX.Syntax
                         string cls = a.Value is CSXStringValue sv ? Quote(sv.Value) :
                                      a.Value is CSXExpressionValue ev ? ev.Code :
                                      a.Value is CSXBareValue bv ? Quote(bv.Value) : "\"\"";
-                        sb.Append($"\n{nextIndent}.ClassName({cls})");
+                        sb.Append($"\n.ClassName({cls})");
                         break;
                     }
                     case "id":
@@ -126,12 +118,12 @@ namespace Paper.CSX.Syntax
                         string idVal = a.Value is CSXStringValue idSv ? Quote(idSv.Value) :
                                        a.Value is CSXExpressionValue idEv ? idEv.Code :
                                        a.Value is CSXBareValue idBv ? Quote(idBv.Value) : "\"\"";
-                        sb.Append($"\n{nextIndent}.Id({idVal})");
+                        sb.Append($"\n.Id({idVal})");
                         break;
                     }
                     case "onClick":
                     {
-                        sb.Append($"\n{nextIndent}.OnClick({ToActionLambda(a.Value)})");
+                        sb.Append($"\n.OnClick({ToActionLambda(a.Value)})");
                         break;
                     }
                     case "hoverStyle":
@@ -139,19 +131,19 @@ namespace Paper.CSX.Syntax
                     case "focusStyle":
                     {
                         var s = GetStyleAttr(el, a.Name);
-                        if (s != null) sb.Append($"\n{nextIndent}.Set(\"{a.Name}\", {s})");
+                        if (s != null) sb.Append($"\n.Set(\"{a.Name}\", {s})");
                         break;
                     }
                 }
             }
 
             if (extraProp != null)
-                sb.Append($"\n{nextIndent}{extraProp}");
+                sb.Append($"\n{extraProp}");
 
             var kids = el.Children.Select(c =>
             {
                 if (c is CSXChildElement ce)
-                    return GenerateElement(ce.Element, indent + 1);
+                    return GenerateElement(ce.Element);
                 if (c is CSXExpression ex)
                 {
                     var code = ex.Code?.Trim() ?? "";
@@ -167,29 +159,15 @@ namespace Paper.CSX.Syntax
                 bool hasExpr = el.Children.Any(c => c is CSXExpression ex && (ex.Code?.Trim().Length ?? 0) > 0 && !ex.Code!.TrimStart().StartsWith("/*"));
                 if (hasExpr)
                 {
-                    sb.Append($"\n{nextIndent}.Children(UI.Nodes(");
-                    for (int i = 0; i < kids.Count; i++)
-                    {
-                        if (i > 0) sb.Append($",\n{childIndent}");
-                        else sb.Append($"\n{childIndent}");
-                        sb.Append(kids[i]);
-                    }
-                    sb.Append($"\n{nextIndent}))");
+                    sb.Append($"\n.Children(UI.Nodes({string.Join(", ", kids)}))");
                 }
                 else
                 {
-                    sb.Append($"\n{nextIndent}.Children(");
-                    for (int i = 0; i < kids.Count; i++)
-                    {
-                        if (i > 0) sb.Append($",\n{childIndent}");
-                        else sb.Append($"\n{childIndent}");
-                        sb.Append(kids[i]);
-                    }
-                    sb.Append($"\n{nextIndent})");
+                    sb.Append($"\n.Children({string.Join(", ", kids)})");
                 }
             }
 
-            sb.Append($"\n{nextIndent}.Build()");
+            sb.Append("\n.Build()");
             return sb.ToString();
         }
 
@@ -336,7 +314,7 @@ namespace Paper.CSX.Syntax
             return $"(bool b) => {code}(b)";
         }
 
-        private static string TransformJsxInExpression(string code)
+        private static string TransformJsxInExpression(string code, int indent = 0)
         {
             if (!code.Contains('<')) return code;
 
@@ -368,7 +346,7 @@ namespace Paper.CSX.Syntax
                     {
                         var el = parser.ParseFirstElement();
                         int consumed = parser.Position;
-                        sb.Append(new CSXCodeGenerator().Generate(el));
+                        sb.Append(CSXCodeGenerator.GenerateElement(el, indent));
                         i += consumed;
                         continue;
                     }
