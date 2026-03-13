@@ -144,6 +144,12 @@ namespace Paper.CSX.Syntax
             {
                 if (c is CSXChildElement ce)
                     return GenerateElement(ce.Element);
+                if (c is CSXText ct)
+                {
+                    var text = ct.Text.Trim();
+                    if (string.IsNullOrEmpty(text)) return null;
+                    return $"new UINode(\"text\", new PropsBuilder().Text({Quote(text)}).Build())";
+                }
                 if (c is CSXExpression ex)
                 {
                     var code = ex.Code?.Trim() ?? "";
@@ -154,7 +160,8 @@ namespace Paper.CSX.Syntax
                 return null;
             }).Where(x => x != null).ToList();
 
-            if (kids.Count > 0)
+            bool isTextElement = el.Name == "Text";
+            if (kids.Count > 0 && !isTextElement)
             {
                 bool hasExpr = el.Children.Any(c => c is CSXExpression ex && (ex.Code?.Trim().Length ?? 0) > 0 && !ex.Code!.TrimStart().StartsWith("/*"));
                 if (hasExpr)
