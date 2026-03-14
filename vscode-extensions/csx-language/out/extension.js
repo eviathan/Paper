@@ -238,6 +238,72 @@ class CSSSCompletionProvider {
         return items;
     }
 }
+// ── Generated-C# forwarding ───────────────────────────────────────────────────
+// Maps a CSX (line, character) position to the corresponding position in the
+// co-located .generated.cs file by dynamically scanning both files for their
+// respective preamble start lines.
+const PREAMBLE_COL_OFFSET = 8;
+/** Find the first line of the preamble (method body) in a generated .cs file. */
+function findGenPreambleStart(genLines) {
+    for (let i = 0; i < genLines.length; i++) {
+        if (/^\s*public static UINode\s/.test(genLines[i])) {
+            for (let j = i + 1; j < genLines.length; j++) {
+                if (genLines[j].trim() === '{')
+                    return j + 1;
+            }
+        }
+    }
+    return 10; // safe fallback
+}
+/** Find the first preamble line in the CSX source (line after function declaration). */
+function findCsxPreambleStart(lines) {
+    let i = 0;
+    while (i < lines.length && lines[i].trimStart().startsWith('@import'))
+        i++;
+    for (let j = i; j < lines.length; j++) {
+        if (/^\s*function\s+\w/.test(lines[j]))
+            return j + 1;
+    }
+    return i;
+}
+function mapCsxToGeneratedPos(csxText, genLines, pos) {
+    const csxLines = csxText.split('\n');
+    const csxPreamble = findCsxPreambleStart(csxLines);
+    const genPreamble = findGenPreambleStart(genLines);
+    if (pos.line < csxPreamble)
+        return null; // JSX / import area — not in generated preamble
+    const origLine = pos.line < csxLines.length ? csxLines[pos.line] : '';
+    const leadingWs = origLine.length - origLine.trimStart().length;
+    const genLine = (pos.line - csxPreamble) + genPreamble;
+    const genChar = Math.max(0, pos.character - leadingWs) + PREAMBLE_COL_OFFSET;
+    return new vscode.Position(genLine, genChar);
+}
+async function forwardHoverToGeneratedCs(document, position) {
+    const genPath = document.uri.fsPath.replace(/\.csx$/, '.generated.cs');
+    if (!fs.existsSync(genPath))
+        return null;
+    const genText = fs.readFileSync(genPath, 'utf-8');
+    const genLines = genText.split('\n');
+    const genPos = mapCsxToGeneratedPos(document.getText(), genLines, position);
+    if (!genPos)
+        return null;
+    const genUri = vscode.Uri.file(genPath);
+    const hovers = await vscode.commands.executeCommand('vscode.executeHoverProvider', genUri, genPos);
+    return hovers && hovers.length > 0 ? hovers[0] : null;
+}
+async function forwardCompletionsToGeneratedCs(document, position, triggerChar) {
+    const genPath = document.uri.fsPath.replace(/\.csx$/, '.generated.cs');
+    if (!fs.existsSync(genPath))
+        return null;
+    const genText = fs.readFileSync(genPath, 'utf-8');
+    const genLines = genText.split('\n');
+    const genPos = mapCsxToGeneratedPos(document.getText(), genLines, position);
+    if (!genPos)
+        return null;
+    const genUri = vscode.Uri.file(genPath);
+    const list = await vscode.commands.executeCommand('vscode.executeCompletionItemProvider', genUri, genPos, triggerChar);
+    return list && list.items.length > 0 ? list : null;
+}
 // ── LSP startup ───────────────────────────────────────────────────────────────
 function tryStartLanguageServer(context, fromFilePath) {
     const lsPath = getCSXLanguageServerPath(fromFilePath);
@@ -253,6 +319,35 @@ function tryStartLanguageServer(context, fromFilePath) {
     const clientOptions = {
         documentSelector: [{ scheme: 'file', language: 'csx' }],
         synchronize: { fileEvents: vscode.workspace.createFileSystemWatcher('**/*.csx') },
+        middleware: {
+            // Forward hover to the generated .cs file so the C# extension provides
+            // full documentation (XML docs, overloads, type signatures).
+            // Falls back to our custom LSP hover for JSX-specific positions.
+            async provideHover(document, position, token, next) {
+                const csHover = await forwardHoverToGeneratedCs(document, position);
+                if (csHover)
+                    return csHover;
+                return next(document, position, token);
+            },
+            // For C# context completions (after '.'), prefer the generated .cs results
+            // which include full LINQ / BCL / framework APIs.
+            // For all other contexts (JSX, props, style, imports) use our custom LSP.
+            async provideCompletionItem(document, position, context, token, next) {
+                const doc = document;
+                const pos = position;
+                const text = doc.getText();
+                const offset = doc.offsetAt(pos);
+                const before = text.slice(0, offset);
+                // Only forward to C# extension when cursor is after a '.' (member access)
+                // All other contexts (JSX, style, imports, top-level) use our LSP.
+                if (/\.\s*$/.test(before)) {
+                    const csList = await forwardCompletionsToGeneratedCs(doc, pos, context.triggerCharacter);
+                    if (csList && csList.items.length > 0)
+                        return csList;
+                }
+                return next(document, position, context, token);
+            },
+        },
     };
     client = new node_1.LanguageClient('paperCSXLanguageServer', 'Paper CSX Language Server', serverOptions, clientOptions);
     context.subscriptions.push(client);

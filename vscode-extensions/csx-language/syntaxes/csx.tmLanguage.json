@@ -20,6 +20,8 @@
         { "include": "#cs-keywords" },
         { "include": "#cs-types-builtin" },
         { "include": "#cs-storage" },
+        { "include": "#cs-function-decl" },
+        { "include": "#cs-method-call" },
         { "include": "#cs-type-name" },
         { "include": "#cs-operator" }
     ],
@@ -117,7 +119,10 @@
                 { "include": "#cs-keywords" },
                 { "include": "#cs-types-builtin" },
                 { "include": "#cs-storage" },
-                { "include": "#cs-type-name" }
+                { "include": "#cs-function-decl" },
+                { "include": "#cs-method-call" },
+                { "include": "#cs-type-name" },
+                { "include": "#cs-operator" }
             ]
         },
 
@@ -354,9 +359,21 @@
             "match": "\\b(Hooks|UseState|UseEffect|UseRef|UseReducer|UseContext|UseCallback|UseMemo|Props|UINode|StyleSheet|PaperColour|PaperContext|Thickness|Length|Border|BorderEdges|UI|PropsBuilder)\\b"
         },
 
+        "cs-function-decl": {
+            "comment": "Function declaration — highlights the name after the 'function' keyword",
+            "name": "entity.name.function.csx",
+            "match": "(?<=\\bfunction\\s{1,32})([A-Za-z_][a-zA-Z0-9_]*)"
+        },
+
+        "cs-method-call": {
+            "comment": "Method / function call — any identifier immediately before '('",
+            "name": "entity.name.function.csx",
+            "match": "\\b([a-zA-Z_][a-zA-Z0-9_]*)(?=\\s*\\()"
+        },
+
         "cs-type-name": {
-            "comment": "PascalCase identifiers are types/components",
-            "name": "entity.name.type.csx",
+            "comment": "PascalCase identifiers used as types (not followed by '(' — those are caught above)",
+            "name": "entity.name.type.csx support.class.csx",
             "match": "\\b[A-Z][a-zA-Z0-9_]*\\b"
         },
 
@@ -372,7 +389,7 @@
                 },
                 {
                     "name": "keyword.operator.comparison.csx",
-                    "match": "==|!=|<=|>=|<|>"
+                    "match": "==|!=|<=|>="
                 },
                 {
                     "name": "keyword.operator.logical.csx",
@@ -380,7 +397,7 @@
                 },
                 {
                     "name": "keyword.operator.assignment.csx",
-                    "match": "(?<![=!<>])=(?!=)"
+                    "match": "(?<![=!<>])=(?![=>])"
                 }
             ]
         }

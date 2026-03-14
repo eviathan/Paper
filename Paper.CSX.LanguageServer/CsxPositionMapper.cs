@@ -17,8 +17,8 @@ namespace Paper.CSX.LanguageServer
     /// </summary>
     internal static class CsxPositionMapper
     {
-        internal const int PreambleLineOffset = 12;
-        internal const int PreambleColOffset  = 8;
+        // Column offset: preamble lines are re-indented with 8 spaces in the generated source.
+        internal const int PreambleColOffset = 8;
 
         /// <summary>
         /// Maps a (line, character) cursor in the CSX source to a character offset in
@@ -26,11 +26,12 @@ namespace Paper.CSX.LanguageServer
         /// </summary>
         public static int ToGeneratedOffset(string csxSrc, string generatedSrc, int csxLine, int csxCol)
         {
-            int preambleStart = FindPreambleStartLine(csxSrc);
+            int preambleStart    = FindPreambleStartLine(csxSrc);
+            int genPreambleStart = RoslynSemanticTokens.FindGenPreambleStart(generatedSrc);
 
             // Position is before the preamble (inside an import or function-decl line) — clamp to start
-            int depth = csxLine < preambleStart ? 0 : csxLine - preambleStart;
-            int genLine = PreambleLineOffset + depth;
+            int depth   = csxLine < preambleStart ? 0 : csxLine - preambleStart;
+            int genLine = genPreambleStart + depth;
 
             // Preamble lines are .Trim()-ed then re-indented with 8 spaces.
             // Strip the original leading whitespace from the column so the offset is correct.
@@ -55,11 +56,19 @@ namespace Paper.CSX.LanguageServer
             while (i < lines.Length && lines[i].TrimStart().StartsWith("@import", StringComparison.OrdinalIgnoreCase))
                 i++;
 
-            // Skip the entry function declaration: "function Name(...) {" or "function Name<T>(...) {"
-            if (i < lines.Length && Regex.IsMatch(lines[i].Trim(), @"^function\s+\w"))
-                i++;
+            // Scan forward past blank lines to find the entry function declaration
+            int functionDeclLine = -1;
+            for (int j = i; j < lines.Length; j++)
+            {
+                if (Regex.IsMatch(lines[j].Trim(), @"^function\s+\w"))
+                {
+                    functionDeclLine = j;
+                    break;
+                }
+            }
 
-            return i;
+            // Preamble starts on the line AFTER the function declaration
+            return functionDeclLine >= 0 ? functionDeclLine + 1 : i;
         }
 
         private static int LineColToOffset(string src, int targetLine, int targetCol)

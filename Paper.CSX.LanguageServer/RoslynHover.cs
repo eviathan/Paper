@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -187,37 +188,95 @@ public static class _LsHover_
 
             if (code == null) return null;
 
-            // Label — matches VS/Rider style: "(local variable) int i"
+            // Label — matches VS/Rider style: "(extension) …" for extension methods
             var kind = symbol switch
             {
-                ILocalSymbol => "local variable",
+                ILocalSymbol     => "local variable",
                 IParameterSymbol => "parameter",
-                IMethodSymbol => "method",
-                IPropertySymbol => "property",
-                IFieldSymbol => "field",
-                ITypeSymbol => "type",
-                _ => symbol.Kind.ToString().ToLower(),
+                IMethodSymbol m when m.IsExtensionMethod || m.MethodKind == MethodKind.ReducedExtension
+                                 => "extension",
+                IMethodSymbol    => "method",
+                IPropertySymbol  => "property",
+                IFieldSymbol     => "field",
+                ITypeSymbol      => "type",
+                _                => symbol.Kind.ToString().ToLower(),
             };
+
+            // Count sibling overloads
+            int overloads = 0;
+            if (symbol is IMethodSymbol ms)
+            {
+                var container = ms.ContainingType ?? ms.ReceiverType as INamedTypeSymbol;
+                if (container != null)
+                    overloads = container.GetMembers(ms.Name).OfType<IMethodSymbol>().Count() - 1;
+            }
 
             var sb = new System.Text.StringBuilder();
             sb.Append($"({kind}) `{code}`");
+            if (overloads > 0)
+                sb.Append($" (+ {overloads} overload{(overloads > 1 ? "s" : "")})");
 
-            // Append XML documentation summary if available
+            // Render XML documentation: summary, returns, exceptions
             var xml = symbol.GetDocumentationCommentXml();
-            if (!string.IsNullOrWhiteSpace(xml))
-            {
-                var m = System.Text.RegularExpressions.Regex.Match(xml,
-                    @"<summary>(.*?)</summary>",
-                    System.Text.RegularExpressions.RegexOptions.Singleline);
-                if (m.Success)
-                {
-                    var summary = m.Groups[1].Value.Trim();
-                    if (!string.IsNullOrWhiteSpace(summary))
-                        sb.Append("\n\n").Append(summary);
-                }
-            }
+            AppendXmlDocs(sb, xml);
 
             return sb.ToString();
+        }
+
+        // Resolve <see cref="T:Full.Name"/> → short name, generic backticks → <T>
+        private static string ResolveCref(string cref)
+        {
+            var name = System.Text.RegularExpressions.Regex.Replace(cref, @"^[A-Z]:", "");
+            var dot  = name.LastIndexOf('.');
+            name = dot >= 0 ? name[(dot + 1)..] : name;
+            name = System.Text.RegularExpressions.Regex.Replace(name, @"`\d+", "<T>");
+            var paren = name.IndexOf('(');
+            if (paren >= 0) name = name[..paren];
+            return name;
+        }
+
+        private static string CleanXml(string raw)
+        {
+            const RegexOptions S = RegexOptions.Singleline;
+            var s = raw.Trim();
+            s = Regex.Replace(s, @"<see\s+cref=""([^""]+)""\s*/>",          m => ResolveCref(m.Groups[1].Value));
+            s = Regex.Replace(s, @"<see\s+cref=""([^""]+)""\s*>.*?</see>",  m => ResolveCref(m.Groups[1].Value), S);
+            s = Regex.Replace(s, @"<paramref\s+name=""([^""]+)""\s*/>",     m => m.Groups[1].Value);
+            s = Regex.Replace(s, @"<typeparamref\s+name=""([^""]+)""\s*/>", m => m.Groups[1].Value);
+            s = Regex.Replace(s, @"<[^>]+>", "");
+            s = Regex.Replace(s, @"\s+", " ");
+            return s.Trim();
+        }
+
+        private static void AppendXmlDocs(System.Text.StringBuilder sb, string? xml)
+        {
+            if (string.IsNullOrWhiteSpace(xml)) return;
+
+            const RegexOptions S = RegexOptions.Singleline;
+
+            var summaryM = Regex.Match(xml, @"<summary>(.*?)</summary>", S);
+            if (summaryM.Success)
+            {
+                var summary = CleanXml(summaryM.Groups[1].Value);
+                if (!string.IsNullOrWhiteSpace(summary))
+                    sb.Append("\n\n").Append(summary);
+            }
+
+            var returnsM = Regex.Match(xml, @"<returns>(.*?)</returns>", S);
+            if (returnsM.Success)
+            {
+                var ret = CleanXml(returnsM.Groups[1].Value);
+                if (!string.IsNullOrWhiteSpace(ret))
+                    sb.Append("\n\n**Returns:** ").Append(ret);
+            }
+
+            // Extract exception type from cref attribute, not inner text
+            foreach (Match exM in Regex.Matches(xml, @"<exception\s+cref=""([^""]*)""\s*>(.*?)</exception>", S))
+            {
+                var exType = ResolveCref(exM.Groups[1].Value);
+                if (!string.IsNullOrWhiteSpace(exType))
+                    sb.Append("\n\n**Throws:** ").Append(exType);
+            }
         }
 
         private static object MkHover(string md) => new

@@ -49,7 +49,7 @@ namespace Paper.CSX.CLI
             var componentName = char.ToUpper(fileName[0]) + fileName.Substring(1) + "Component";
             var methodName = char.ToUpper(fileName[0]) + fileName.Substring(1);
 
-            var (preamble, jsxContent) = CSXCompiler.ExtractPreambleAndJsx(content);
+            var (preamble, jsxContent, _, _) = CSXCompiler.ExtractPreambleAndJsx(content);
             var parsedBody = string.IsNullOrWhiteSpace(jsxContent) ? "UI.Fragment()" : CSXCompiler.Parse(jsxContent);
 
             string ns = "Paper.Generated";

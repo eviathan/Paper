@@ -52,6 +52,16 @@ namespace Paper.CSX.LanguageServer
                                     triggerCharacters = new[] { "(", "," },
                                     retriggerCharacters = new[] { ")" },
                                 },
+                                semanticTokensProvider = new
+                                {
+                                    legend = new
+                                    {
+                                        tokenTypes     = RoslynSemanticTokens.TokenTypes,
+                                        tokenModifiers = Array.Empty<string>(),
+                                    },
+                                    full  = true,
+                                    range = false,
+                                },
                             }
                         });
                         break;
@@ -131,6 +141,16 @@ namespace Paper.CSX.LanguageServer
                             _docs.TryGetValue(uri, out var src);
                             var sigHelp = RoslynSignatureHelp.GetSignatureHelp(src ?? "", line, character);
                             await ReplyAsync(id, sigHelp);
+                            break;
+                        }
+
+                    case "textDocument/semanticTokens/full":
+                        {
+                            var parameters = message.RootElement.GetProperty("params");
+                            var uri = parameters.GetProperty("textDocument").GetProperty("uri").GetString() ?? "";
+                            _docs.TryGetValue(uri, out var src);
+                            var data = RoslynSemanticTokens.GetEncodedTokens(src ?? "");
+                            await ReplyAsync(id, new { data });
                             break;
                         }
                 }

@@ -8,6 +8,8 @@ public static partial class AppComponent
 {
     public static UINode App(Props props)
     {
+        List<string> test = [];
+        var hmm = test.Select(x => "");
         return UI.Box(
             new PropsBuilder()
                 .ClassName("root")

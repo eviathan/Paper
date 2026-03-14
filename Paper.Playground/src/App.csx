@@ -1,6 +1,9 @@
 @import "App.csss"
 
 function App() {
+  List<string> test = [];
+  var hmm = test.Select(x => "");
+  
   return (
     <Box className="root">
       {/* 1. Row: flexGrow (equal vs weighted) */}
