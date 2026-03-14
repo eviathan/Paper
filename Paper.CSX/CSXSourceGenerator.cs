@@ -104,7 +104,7 @@ namespace Paper.CSX
                     sb.AppendLine($"    public static UINode {method.Name}(Props props)");
                     sb.AppendLine("    {");
 
-                    var (preamble, csxContent) = CSXCompiler.ExtractPreambleAndJsx(method.Body);
+                    var (preamble, csxContent, _, _) = CSXCompiler.ExtractPreambleAndJsx(method.Body);
                     if (!string.IsNullOrEmpty(preamble))
                     {
                         foreach (var line in preamble.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))

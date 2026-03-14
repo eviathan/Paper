@@ -26,7 +26,7 @@ namespace Paper.CSX.Runtime
 
         public static CSXCompiledComponent Compile(string csxSource, string componentClassName = "CSXHotComponent", string? baseDir = null)
         {
-            var (preamble, jsxContent) = CSXCompiler.ExtractPreambleAndJsx(csxSource, baseDir);
+            var (preamble, jsxContent, hoistedClasses, _) = CSXCompiler.ExtractPreambleAndJsx(csxSource, baseDir);
             string expr = CSXCompiler.Parse(jsxContent);
 
             // Extract `using` directives from the preamble and hoist them to file level.
@@ -60,7 +60,9 @@ using Paper.Core.VirtualDom;
 using Paper.Core.Styles;
 using Paper.Core.Hooks;
 using Paper.Core.Context;
+using Paper.Core.Components;
 {{extraUsingsBlock}}
+{{hoistedClasses}}
 public static class {{componentClassName}}
 {
     public static UINode Render(Props props)

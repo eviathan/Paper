@@ -6,13 +6,18 @@ namespace Paper.CSX
 {
     public static class CSXCompiler
     {
+        // Tracks class component names found in the current file being compiled.
+        // Used so JSX codegen can emit UI.Component<Name>() instead of UI.Component(Name, ...).
+        [System.ThreadStatic]
+        private static HashSet<string>? _currentClassNames;
+
         /// <summary>
         /// If the file contains "return ( ... );", returns (preamble, jsxContent) so callers can emit preamble + "return " + Parse(jsxContent).
         /// Otherwise returns ("", fileContent) so the whole file is parsed as JSX.
         /// Supports multi-function CSX: helper functions before the entry function are converted to Func&lt;Props, UINode&gt; lambdas.
         /// Supports cross-file imports: <c>@import "./Badge.csx"</c> inlines all component functions from the target file.
         /// </summary>
-        public static (string preamble, string jsxContent) ExtractPreambleAndJsx(string fileContent, string? baseDir = null)
+        public static (string preamble, string jsxContent, string hoistedClasses, HashSet<string> classNames) ExtractPreambleAndJsx(string fileContent, string? baseDir = null)
         {
             // Inline any @import "*.csx" files before further processing.
             if (baseDir != null)
@@ -24,7 +29,12 @@ namespace Paper.CSX
                              !(l.Contains(".csss\"") || l.Contains(".csss'")));
             var cleanBody = string.Join('\n', filteredLines).Trim().TrimEnd(';');
             if (string.IsNullOrWhiteSpace(cleanBody))
-                return (string.Empty, string.Empty);
+                return (string.Empty, string.Empty, string.Empty, new HashSet<string>());
+
+            // Extract top-level class component definitions (hoist to file scope).
+            var (cleanBody2, hoistedClasses, classNames) = ExtractClassComponents(cleanBody);
+            cleanBody = cleanBody2;
+            _currentClassNames = classNames;
 
             // Convert any helper function definitions (all but the last) to C# lambda declarations.
             cleanBody = ConvertHelperFunctions(cleanBody);
@@ -105,11 +115,11 @@ namespace Paper.CSX
                     {
                         preamble = preamble.Trim();
                     }
-                    return (preamble, jsxContent);
+                    return (preamble, jsxContent, hoistedClasses, classNames);
                 }
             }
 
-            return (string.Empty, cleanBody.StartsWith("<") ? cleanBody : fileContent);
+            return (string.Empty, cleanBody.StartsWith("<") ? cleanBody : fileContent, hoistedClasses, classNames);
         }
 
         /// <summary>
@@ -495,13 +505,101 @@ namespace Paper.CSX
             return i - 1;
         }
 
+        /// <summary>
+        /// Extracts top-level class definitions from <paramref name="source"/>.
+        /// Returns the source with class blocks removed, the compiled class C# blocks,
+        /// and the set of class names found.
+        /// </summary>
+        private static (string cleanedSource, string hoistedClasses, HashSet<string> classNames) ExtractClassComponents(string source)
+        {
+            var classNames = new HashSet<string>(StringComparer.Ordinal);
+            var sb = new StringBuilder();
+            var classes = new StringBuilder();
+            int pos = 0;
+            var classRegex = new Regex(@"(?<!\w)class\s+(\w+)");
+
+            while (pos < source.Length)
+            {
+                var m = classRegex.Match(source, pos);
+                if (!m.Success) { sb.Append(source[pos..]); break; }
+
+                // Find the opening brace of the class body
+                int openBrace = source.IndexOf('{', m.Index + m.Length);
+                if (openBrace < 0) { sb.Append(source[pos..]); break; }
+
+                // Keep everything before this class
+                sb.Append(source[pos..m.Index]);
+
+                // Extract class body using brace matching
+                int closePos = FindMatchingBrace(source, openBrace);
+                var classBody = source[(openBrace + 1)..closePos];
+
+                // Compile JSX inside the class body
+                var compiledBody = CompileJsxInClassBody(classBody);
+
+                // Reconstruct the class declaration (from "class" keyword through the opening brace)
+                var classDecl = source[m.Index..openBrace];
+                classes.Append(classDecl).Append("{\n").Append(compiledBody).Append("\n}\n\n");
+
+                classNames.Add(m.Groups[1].Value);
+                pos = closePos + 1;
+            }
+
+            return (sb.ToString(), classes.ToString(), classNames);
+        }
+
+        /// <summary>
+        /// Compiles any JSX <c>return (...)</c> blocks found inside a C# class body.
+        /// Non-JSX <c>return</c> statements are left unchanged.
+        /// </summary>
+        private static string CompileJsxInClassBody(string body)
+        {
+            var sb = new StringBuilder();
+            int pos = 0;
+            while (pos < body.Length)
+            {
+                int returnIdx = body.IndexOf("return (", pos, StringComparison.Ordinal);
+                if (returnIdx < 0) { sb.Append(body[pos..]); break; }
+
+                sb.Append(body[pos..returnIdx]);
+
+                // Extract balanced paren content
+                int parenOpen = returnIdx + "return (".Length - 1; // index of '('
+                int depth = 1, i = parenOpen + 1;
+                while (i < body.Length && depth > 0)
+                {
+                    if (body[i] == '(') depth++;
+                    else if (body[i] == ')') depth--;
+                    i++;
+                }
+
+                var content = body[(parenOpen + 1)..(i - 1)].Trim();
+
+                if (content.StartsWith('<'))
+                {
+                    string compiled;
+                    try { compiled = Parse(content); }
+                    catch { compiled = "null!"; }
+                    sb.Append("return ").Append(compiled).Append(';');
+                }
+                else
+                {
+                    // Not JSX — keep as-is
+                    sb.Append("return (").Append(body[(parenOpen + 1)..(i - 1)]).Append(");");
+                }
+                pos = i;
+            }
+            return sb.ToString();
+        }
+
         public static string Parse(string csxContent)
         {
             try
             {
                 string processed = Preprocess(csxContent);
                 var ast = new CSXElementParser(processed).ParseFirstElement();
-                return new CSXCodeGenerator().Generate(ast);
+                var names = _currentClassNames;
+                return new CSXCodeGenerator().Generate(ast, names?.Count > 0 ? names : null);
             }
             catch (Exception ex)
             {

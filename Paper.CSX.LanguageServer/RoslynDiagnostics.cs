@@ -18,7 +18,7 @@ namespace Paper.CSX.LanguageServer
                 var csxLines = csxSrc.Split('\n');
                 int importLines = csxLines.TakeWhile(l => l.TrimStart().StartsWith("@import")).Count();
 
-                var (preamble, jsxRaw) = CSXCompiler.ExtractPreambleAndJsx(csxSrc);
+                var (preamble, jsxRaw, _, _) = CSXCompiler.ExtractPreambleAndJsx(csxSrc);
                 if (string.IsNullOrWhiteSpace(preamble)) return [];
 
                 // Use a placeholder return so we can compile even with JSX present
@@ -37,6 +37,7 @@ using Paper.Core.VirtualDom;
 using Paper.Core.Styles;
 using Paper.Core.Hooks;
 using Paper.Core.Context;
+using Paper.Core.Components;
 
 public static class _LsDiag_
 {

@@ -8,9 +8,14 @@ namespace Paper.CSX.Syntax
     /// </summary>
     public sealed class CSXCodeGenerator
     {
-        public string Generate(CSXElement root)
+        [System.ThreadStatic]
+        private static IReadOnlySet<string>? _classNames;
+
+        public string Generate(CSXElement root, IReadOnlySet<string>? classComponentNames = null)
         {
-            return GenerateElement(root, 1);
+            _classNames = classComponentNames;
+            try { return GenerateElement(root, 1); }
+            finally { _classNames = null; }
         }
 
         private static string GenerateElement(CSXElement element, int indent = 0)
@@ -548,10 +553,16 @@ namespace Paper.CSX.Syntax
             var props = BuildProps(el);
             string? key = GetKey(el);
 
-            if (key != null)
-                return $"UI.Component({el.Name}, {props}, {key})";
-            else
-                return $"UI.Component({el.Name}, {props})";
+            bool isClass = _classNames?.Contains(el.Name) == true;
+            if (isClass)
+            {
+                return key != null
+                    ? $"UI.Component<{el.Name}>({props}, {key})"
+                    : $"UI.Component<{el.Name}>({props})";
+            }
+            return key != null
+                ? $"UI.Component({el.Name}, {props}, {key})"
+                : $"UI.Component({el.Name}, {props})";
         }
 
         private static string GenerateCheckbox(CSXElement el)

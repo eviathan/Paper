@@ -101,7 +101,18 @@ namespace Paper.CSX.LanguageServer
 
         private static (CSharpCompilation, SyntaxTree, string) BuildCompilation(string csxSrc)
         {
-            var (preamble, jsxRaw) = CSXCompiler.ExtractPreambleAndJsx(csxSrc);
+            var (preamble, jsxRaw, hoistedClasses, _) = CSXCompiler.ExtractPreambleAndJsx(csxSrc);
+
+            // Hoist namespace `using` directives to file scope (they can't live inside a method body)
+            var preambleLines = preamble.Split('\n');
+            var extraUsings = preambleLines
+                .Where(l => { var t = l.Trim(); return t.StartsWith("using ") && t.EndsWith(";"); })
+                .Select(l => l.Trim())
+                .Distinct()
+                .ToList();
+            preamble = string.Join('\n', preambleLines
+                .Where(l => { var t = l.Trim(); return !(t.StartsWith("using ") && t.EndsWith(";")); }));
+            string extraUsingsBlock = extraUsings.Count > 0 ? string.Join("\n", extraUsings) + "\n" : "";
 
             // If there is no JSX return expression, wrap an empty body
             string returnExpr;
@@ -120,7 +131,9 @@ using Paper.Core.VirtualDom;
 using Paper.Core.Styles;
 using Paper.Core.Hooks;
 using Paper.Core.Context;
-
+using Paper.Core.Components;
+{{extraUsingsBlock}}
+{{hoistedClasses}}
 public static class _LsHover_
 {
     public static UINode Render(Props props)
