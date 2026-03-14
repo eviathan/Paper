@@ -18,12 +18,12 @@ namespace Paper.CSX.LanguageServer
                 var csxLines = csxSrc.Split('\n');
                 int importLines = csxLines.TakeWhile(l => l.TrimStart().StartsWith("@import")).Count();
 
-                var (preamble, jsxRaw) = CSXParser.ExtractPreambleAndJsx(csxSrc);
+                var (preamble, jsxRaw) = CSXCompiler.ExtractPreambleAndJsx(csxSrc);
                 if (string.IsNullOrWhiteSpace(preamble)) return [];
 
                 // Use a placeholder return so we can compile even with JSX present
                 string returnExpr;
-                try { returnExpr = CSXParser.Parse(jsxRaw); }
+                try { returnExpr = CSXCompiler.Parse(jsxRaw); }
                 catch { returnExpr = "null!"; }
 
                 var indented = string.Join("\n        ", preamble.Split('\n').Select(l => l.Trim()));

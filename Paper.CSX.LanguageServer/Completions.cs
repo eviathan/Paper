@@ -194,15 +194,15 @@ namespace Paper.CSX.LanguageServer
 
             return ctx switch
             {
-                CompletionContext.JsxTagName => BuildTagCompletions(),
+                CompletionContext.JsxTagName  => BuildTagCompletions(),
                 CompletionContext.JsxPropName => BuildPropCompletions(tagName, src),
-                CompletionContext.JsxStyleProp => BuildStylePropCompletions(),
+                CompletionContext.JsxStyleProp  => BuildStylePropCompletions(),
                 CompletionContext.JsxStyleValue => BuildStyleValueCompletions(propName),
-                CompletionContext.JsxClassName => BuildClassNameCompletions(docUri, src),
+                CompletionContext.JsxClassName  => BuildClassNameCompletions(docUri, src),
                 CompletionContext.JsxEventValue => BuildCSharpCompletions(),
-                CompletionContext.JsxPropValue => BuildCSharpCompletions(),
-                CompletionContext.ImportPath => BuildImportPathCompletions(tagName, docUri),
-                CompletionContext.CSharp => BuildCSharpCompletionsWithMembers(src, offset),
+                CompletionContext.JsxPropValue  => BuildCSharpCompletions(),
+                CompletionContext.ImportPath    => BuildImportPathCompletions(tagName, docUri),
+                CompletionContext.CSharp        => BuildCSharpCompletionsWithRoslyn(src, line, ch, offset),
                 _ => BuildCSharpCompletions(),
             };
         }
@@ -393,7 +393,7 @@ namespace Paper.CSX.LanguageServer
                 var propsTypeName = genericMatch.Groups[1].Value;
 
                 // Use the cached Roslyn compilation to find the type and its properties
-                var (compilation, _) = RoslynHover.GetOrBuildCompilation(src);
+                var (compilation, _, _) = RoslynHover.GetOrBuildCompilation(src);
                 var propsType = compilation.GetSymbolsWithName(propsTypeName, SymbolFilter.Type)
                                         .OfType<INamedTypeSymbol>()
                                         .FirstOrDefault();
@@ -537,10 +537,11 @@ namespace Paper.CSX.LanguageServer
             return [.. items];
         }
 
-        private static object[] BuildCSharpCompletionsWithMembers(string csxSrc, int cursorOffset)
+        private static object[] BuildCSharpCompletionsWithRoslyn(string csxSrc, int line, int ch, int cursorOffset)
         {
-            // Check if cursor is after "identifier." — if so, do Roslyn member lookup
             var before = csxSrc[..cursorOffset];
+
+            // Member access: cursor after "identifier." → return instance members of that type
             var memberMatch = Regex.Match(before, @"\b([A-Za-z_][A-Za-z0-9_]*)\.$");
             if (memberMatch.Success)
             {
@@ -550,8 +551,15 @@ namespace Paper.CSX.LanguageServer
                     return memberItems;
             }
 
-            // Also check "type." for static members
-            return BuildCSharpCompletions();
+            // Position-aware Roslyn completions using LookupSymbols at the mapped generated-C# offset.
+            // These replace the static snippet list with live symbols from the semantic model.
+            var roslynItems = RoslynCompletions.GetCompletions(csxSrc, line, ch);
+
+            // Merge with Paper-specific snippets (hooks, UI.*) which aren't in LookupSymbols
+            var snippetItems = BuildCSharpCompletions();
+
+            // Roslyn items first, then snippets (VSCode will blend them with its own ranking)
+            return [.. roslynItems, .. snippetItems];
         }
 
         // ─── Item helpers ─────────────────────────────────────────────────────────

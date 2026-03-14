@@ -47,6 +47,11 @@ namespace Paper.CSX.LanguageServer
                                     completionItem = new { labelDetailsSupport = true },
                                 },
                                 hoverProvider = true,
+                                signatureHelpProvider = new
+                                {
+                                    triggerCharacters = new[] { "(", "," },
+                                    retriggerCharacters = new[] { ")" },
+                                },
                             }
                         });
                         break;
@@ -113,6 +118,21 @@ namespace Paper.CSX.LanguageServer
                             await ReplyAsync(id, hover);
                             break;
                         }
+
+                    case "textDocument/signatureHelp":
+                        {
+                            var parameters = message.RootElement.GetProperty("params");
+                            var textDocument = parameters.GetProperty("textDocument");
+                            var uri = textDocument.GetProperty("uri").GetString() ?? "";
+                            var position = parameters.GetProperty("position");
+                            int line = position.GetProperty("line").GetInt32();
+                            int character = position.GetProperty("character").GetInt32();
+
+                            _docs.TryGetValue(uri, out var src);
+                            var sigHelp = RoslynSignatureHelp.GetSignatureHelp(src ?? "", line, character);
+                            await ReplyAsync(id, sigHelp);
+                            break;
+                        }
                 }
             }
         }
@@ -137,7 +157,7 @@ namespace Paper.CSX.LanguageServer
 
             // 1. CSX parser errors
             bool parseOk = false;
-            try { _ = new CSXParser2(text).ParseFirstElement(); parseOk = true; }
+            try { _ = new Paper.CSX.Syntax.CSXElementParser(text).ParseFirstElement(); parseOk = true; }
             catch (Exception ex)
             {
                 diagnostics.Add(new

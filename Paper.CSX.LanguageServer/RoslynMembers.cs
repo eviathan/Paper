@@ -29,7 +29,7 @@ namespace Paper.CSX.LanguageServer
             try
             {
                 // Extract preamble (C# code before the JSX return expression)
-                var (preamble, _) = CSXParser.ExtractPreambleAndJsx(csxSrc);
+                var (preamble, _) = CSXCompiler.ExtractPreambleAndJsx(csxSrc);
                 if (string.IsNullOrWhiteSpace(preamble)) return [];
 
                 // Build a compilable snippet that includes the preamble and a

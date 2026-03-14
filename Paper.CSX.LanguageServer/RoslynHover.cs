@@ -9,14 +9,14 @@ namespace Paper.CSX.LanguageServer
         // Cache the last compilation so repeated hovers on the same file are fast.
         // Keyed by the CSX source text hash; evicted when source changes.
         private static string? _cachedHash;
-        private static (CSharpCompilation compilation, SyntaxTree tree)? _cached;
+        private static (CSharpCompilation compilation, SyntaxTree tree, string generatedSrc)? _cached;
         private static readonly object _lock = new();
 
         public static object? GetHover(string csxSrc, string word)
         {
             try
             {
-                var (compilation, tree) = GetOrBuildCompilation(csxSrc);
+                var (compilation, tree, _) = GetOrBuildCompilation(csxSrc);
                 var model = compilation.GetSemanticModel(tree);
                 var root = tree.GetRoot();
 
@@ -71,7 +71,7 @@ namespace Paper.CSX.LanguageServer
 
         // ── Compilation cache ─────────────────────────────────────────────────────
 
-        internal static (CSharpCompilation, SyntaxTree) GetOrBuildCompilation(string csxSrc)
+        internal static (CSharpCompilation compilation, SyntaxTree tree, string generatedSrc) GetOrBuildCompilation(string csxSrc)
         {
             // Simple hash: length + checksum of first 512 chars + last 512 chars
             var hash = ComputeHash(csxSrc);
@@ -99,13 +99,13 @@ namespace Paper.CSX.LanguageServer
             return h.ToString("x16");
         }
 
-        private static (CSharpCompilation, SyntaxTree) BuildCompilation(string csxSrc)
+        private static (CSharpCompilation, SyntaxTree, string) BuildCompilation(string csxSrc)
         {
-            var (preamble, jsxRaw) = CSXParser.ExtractPreambleAndJsx(csxSrc);
+            var (preamble, jsxRaw) = CSXCompiler.ExtractPreambleAndJsx(csxSrc);
 
             // If there is no JSX return expression, wrap an empty body
             string returnExpr;
-            try { returnExpr = string.IsNullOrWhiteSpace(jsxRaw) ? "null!" : CSXParser.Parse(jsxRaw); }
+            try { returnExpr = string.IsNullOrWhiteSpace(jsxRaw) ? "null!" : CSXCompiler.Parse(jsxRaw); }
             catch { returnExpr = "null!"; }
 
             // Re-indent preamble the same way RoslynDiagnostics does
@@ -138,7 +138,7 @@ public static class _LsHover_
                 new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary,
                     nullableContextOptions: NullableContextOptions.Enable));
 
-            return (compilation, tree);
+            return (compilation, tree, source);
         }
 
         // ── Symbol formatting ─────────────────────────────────────────────────────
@@ -186,7 +186,25 @@ public static class _LsHover_
                 _ => symbol.Kind.ToString().ToLower(),
             };
 
-            return $"({kind}) `{code}`";
+            var sb = new System.Text.StringBuilder();
+            sb.Append($"({kind}) `{code}`");
+
+            // Append XML documentation summary if available
+            var xml = symbol.GetDocumentationCommentXml();
+            if (!string.IsNullOrWhiteSpace(xml))
+            {
+                var m = System.Text.RegularExpressions.Regex.Match(xml,
+                    @"<summary>(.*?)</summary>",
+                    System.Text.RegularExpressions.RegexOptions.Singleline);
+                if (m.Success)
+                {
+                    var summary = m.Groups[1].Value.Trim();
+                    if (!string.IsNullOrWhiteSpace(summary))
+                        sb.Append("\n\n").Append(summary);
+                }
+            }
+
+            return sb.ToString();
         }
 
         private static object MkHover(string md) => new
