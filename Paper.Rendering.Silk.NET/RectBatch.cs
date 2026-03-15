@@ -115,7 +115,7 @@ namespace Paper.Rendering.Silk.NET
             if (_count == 0) return;
 
             // Upload instance data
-            GlHelpers.UpdateVbo(_gl, _instanceVbo, _instanceData, _count * FloatsPerRect);
+            GlHelpers.UpdateVbo(_gl, _instanceVbo, _instanceData, _count * FloatsPerRect, MaxRects * FloatsPerRect);
 
             _gl.UseProgram(_program);
             _gl.Uniform2(_uResolution, screenW, screenH);

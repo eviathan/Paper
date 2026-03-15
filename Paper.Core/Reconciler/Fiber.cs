@@ -71,5 +71,16 @@ namespace Paper.Core.Reconciler
 
         /// <summary>True when this fiber's state has changed and it needs re-rendering.</summary>
         public bool IsDirty { get; set; } = false;
+
+        // ── Style cache ───────────────────────────────────────────────────────
+
+        /// <summary>
+        /// When true, <see cref="ComputedStyle"/> must be recomputed from props + interaction state.
+        /// Set by the reconciler when props change; also set externally when hover/focus/active changes.
+        /// </summary>
+        public bool StyleDirty { get; set; } = true;
+
+        /// <summary>The interaction state that was in effect when ComputedStyle was last computed.</summary>
+        public InteractionState CachedInteractionState { get; set; }
     }
 }

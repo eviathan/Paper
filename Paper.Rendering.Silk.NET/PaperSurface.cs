@@ -80,6 +80,15 @@ namespace Paper.Rendering.Silk.NET
         private float _scrollbarDragAnchorScroll;
         // Scrollbar fade: maps path → time (seconds) at which scrolling last occurred
         private readonly Dictionary<string, double> _scrollbarLastActive = new();
+        // Dirty-flag rendering: only run LayoutAndDraw when something changed.
+        // _animationDeadline keeps rendering alive while scrollbar fade / CSS transitions run.
+        private volatile bool _layoutDirty = true;
+        /// <summary>
+        /// True when fiber tree structure or window size changed — layout must re-run.
+        /// False for pure scroll/animation frames where only rendering position changes.
+        /// </summary>
+        private bool _needsLayout = true;
+        private double _animationDeadline; // UTC seconds — keep drawing until this time
 
         /// <summary>
         /// When true, Paper reconciles every frame (useful for apps driven by external state).
@@ -146,7 +155,21 @@ namespace Paper.Rendering.Silk.NET
             Mount(_csxHotReload.RootComponent);
         }
 
-        public void RequestRender() => _externalRenderRequested = true;
+        public void RequestRender() { _externalRenderRequested = true; _layoutDirty = true; }
+
+        /// <summary>
+        /// Mark that a draw is needed and extend the animation deadline (keeps rendering alive
+        /// for scrollbar fade / CSS transitions for up to <paramref name="animationSeconds"/> seconds).
+        /// </summary>
+        private void MarkDirty(double animationSeconds = 0)
+        {
+            _layoutDirty = true;
+            if (animationSeconds > 0)
+            {
+                double deadline = DateTime.UtcNow.Ticks / (double)TimeSpan.TicksPerSecond + animationSeconds;
+                if (deadline > _animationDeadline) _animationDeadline = deadline;
+            }
+        }
 
         /// <summary>Run the surface event loop (blocking).</summary>
         public void Run()
@@ -158,10 +181,10 @@ namespace Paper.Rendering.Silk.NET
             options.Size = new Vector2D<int>(_width, _height);
             options.Title = _title;
             options.ShouldSwapAutomatically = true;
+            options.VSync = true; // Lock SwapBuffers to the display refresh — natural 60/120fps pacing without sleep imprecision
             // Continuous render loop: PollEvents (non-blocking) so we get OnRender at FramesPerSecond even when idle.
             // When IsEventDriven is true, GLFW uses WaitEvents() and blocks until input — so hot reload and button updates only appear after a click.
             options.IsEventDriven = false;
-            options.FramesPerSecond = 60.0;
             options.PreferredStencilBufferBits = 8; // Needed for rounded overflow:hidden clipping
 
             _window = Window.Create(options);
@@ -174,7 +197,11 @@ namespace Paper.Rendering.Silk.NET
             DestroyGlfwCursors();
         }
 
-        /// <summary>Run loop: DoEvents + DoUpdate + DoRender as fast as the display can keep up (no fixed framerate cap).</summary>
+        /// <summary>
+        /// Run loop. VSync (enabled above) makes DoRender() block until the next display refresh,
+        /// so it naturally paces renders at the display frame rate (60 or 120 Hz).
+        /// When nothing needs drawing we sleep 4 ms so the thread yields CPU.
+        /// </summary>
         private void RunLoop()
         {
             while (_window != null && !_window.IsClosing)
@@ -183,7 +210,14 @@ namespace Paper.Rendering.Silk.NET
                 if (_window.IsClosing) break;
                 _window.DoUpdate();
                 if (_window.IsClosing) break;
-                _window.DoRender();
+
+                double utcNow = DateTime.UtcNow.Ticks / (double)TimeSpan.TicksPerSecond;
+                bool animating = utcNow < _animationDeadline;
+
+                if (_layoutDirty || animating)
+                    _window.DoRender(); // blocks at vblank — natural frame pacing
+                else
+                    System.Threading.Thread.Sleep(4); // idle: yield CPU, wake at ~250 Hz
             }
             _window?.DoEvents();
             _window?.Reset();
@@ -273,6 +307,7 @@ namespace Paper.Rendering.Silk.NET
                 // Do NOT set _externalRenderRequested here — that forces a full tree re-reconcile.
                 // Normal setState uses per-component reconciliation (forceReconcile: false).
                 prevRequest?.Invoke();
+                _layoutDirty = true; // wake the RunLoop so DoRender() is called next frame
             };
             _reconciler.Mount(_rootFactory!());
 
@@ -598,7 +633,7 @@ namespace Paper.Rendering.Silk.NET
                     var (cx, _) = _scrollOffsets.TryGetValue(_scrollbarDragPath, out var cv) ? cv : (0f, 0f);
                     _scrollOffsets[_scrollbarDragPath] = (cx, newScroll);
                     _scrollbarLastActive[_scrollbarDragPath] = DateTime.UtcNow.Ticks / (double)TimeSpan.TicksPerSecond;
-                    RequestRender();
+                    MarkDirty(animationSeconds: 2.0);
                 }
                 return;
             }
@@ -624,6 +659,7 @@ namespace Paper.Rendering.Silk.NET
 
                 _hovered = target;
                 ApplyGlfwCursor(target?.ComputedStyle.Cursor ?? Paper.Core.Styles.Cursor.Default);
+                MarkDirty(); // hover state affects :hover styles
             }
 
             if (target != null)
@@ -658,50 +694,54 @@ namespace Paper.Rendering.Silk.NET
 
             var (lx, ly) = ToLayoutCoords(mouse.Position);
             var target = HitTest(_reconciler.Root, lx, ly, "", 0, 0f, 0f, p => _scrollOffsets.TryGetValue(p, out var v) ? v : (0f, 0f));
-            if (target != null)
-            {
-                DispatchPointer(target, new PointerEvent
-                {
-                    Type = PointerEventType.Wheel,
-                    X = lx,
-                    Y = ly,
-                    WheelDeltaX = wheel.X,
-                    WheelDeltaY = wheel.Y,
-                });
+            if (target == null) return;
 
-                // Find innermost scrollable ancestor and update its scroll offset
-                var pathToRoot = PathToRoot(target);
-                for (int i = pathToRoot.Count - 1; i >= 0; i--)
+            var evt = new PointerEvent
+            {
+                Type = PointerEventType.Wheel,
+                X = lx,
+                Y = ly,
+                WheelDeltaX = wheel.X,
+                WheelDeltaY = wheel.Y,
+            };
+
+            // Walk innermost→outermost. Fire onWheel prop if present (stops bubbling, like a
+            // component-managed scroll e.g. VirtualList). Otherwise fall through to the first
+            // overflow:scroll/auto container and update _scrollOffsets there.
+            var pathToRoot = PathToRoot(target);
+            for (int i = pathToRoot.Count - 1; i >= 0; i--)
+            {
+                var node = pathToRoot[i];
+
+                // Component-managed scroll (e.g. VirtualList sets onWheel on its container).
+                // Firing it handles the scroll internally — don't also move the page.
+                if (node.Props?.OnWheel != null)
                 {
-                    var node = pathToRoot[i];
-                    var style = node.ComputedStyle;
-                    if (style.OverflowY == Overflow.Scroll || style.OverflowY == Overflow.Auto ||
-                        style.OverflowX == Overflow.Scroll || style.OverflowX == Overflow.Auto)
+                    node.Props.OnWheel(evt);
+                    return; // consumed
+                }
+
+                var style = node.ComputedStyle;
+                if (style.OverflowY == Overflow.Scroll || style.OverflowY == Overflow.Auto ||
+                    style.OverflowX == Overflow.Scroll || style.OverflowX == Overflow.Auto)
+                {
+                    string key = string.Join(".", pathToRoot.Take(i + 1).Select(f => f.Index));
+                    var (sx, sy) = _scrollOffsets.TryGetValue(key, out var v) ? v : (0f, 0f);
+                    const float step = 24f;
+                    // Invert so scroll-down (negative Y) increases scroll offset (content moves up)
+                    float newSx = Math.Max(0, sx - (float)wheel.X * step);
+                    float newSy = Math.Max(0, sy - (float)wheel.Y * step);
+                    // Clamp to content bounds (skip if renderer hasn't recorded geometry yet)
+                    if (_renderer != null && _renderer.RenderedScrollbars.TryGetValue(key, out var sb))
                     {
-                        string key = string.Join(".", pathToRoot.Take(i + 1).Select(f => f.Index));
-                        var (sx, sy) = _scrollOffsets.TryGetValue(key, out var v) ? v : (0f, 0f);
-                        const float step = 24f;
-                        // Invert so scroll-down (negative Y) increases scroll offset (content moves up)
-                        float newSx = Math.Max(0, sx - (float)wheel.X * step);
-                        float newSy = Math.Max(0, sy - (float)wheel.Y * step);
-                        // Clamp to content bounds — scroll offsets and MaxScroll are both in layout/fb space
-                        if (_renderer != null && _renderer.RenderedScrollbars.TryGetValue(key, out var sb))
-                        {
-                            newSy = Math.Min(newSy, sb.MaxScroll);
-                            newSx = Math.Min(newSx, sb.MaxScrollX);
-                        }
-                        else
-                        {
-                            // No scrollbar recorded yet — no overflow, clamp to zero
-                            newSy = 0f;
-                            newSx = 0f;
-                        }
-                        _scrollOffsets[key] = (newSx, newSy);
-                        // Record activity for scrollbar fade-in/out
-                        _scrollbarLastActive[key] = DateTime.UtcNow.Ticks / (double)TimeSpan.TicksPerSecond;
-                        RequestRender();
-                        break;
+                        newSy = Math.Min(newSy, sb.MaxScroll);
+                        newSx = Math.Min(newSx, sb.MaxScrollX);
                     }
+                    _scrollOffsets[key] = (newSx, newSy);
+                    // Record activity for scrollbar fade-in/out (visible 1.2s + fade 0.4s = 1.6s)
+                    _scrollbarLastActive[key] = DateTime.UtcNow.Ticks / (double)TimeSpan.TicksPerSecond;
+                    MarkDirty(animationSeconds: 2.0); // keep rendering for scrollbar fade
+                    break;
                 }
             }
         }
@@ -1259,10 +1299,18 @@ namespace Paper.Rendering.Silk.NET
             if (requested)
                 _externalRenderRequested = false;
             if (requested || _reconciler.NeedsUpdate())
+            {
                 _reconciler.Update(_rootFactory!(), forceReconcile: requested);
+                _layoutDirty = true;
+                _needsLayout = true;
+            }
             var root = _reconciler.Root;
             if (root == null) return;
             LayoutAndDraw();
+            _layoutDirty = false; // reset after drawing — next dirty event will re-set it
+            // If CSS transitions are still running, keep the animation deadline alive
+            if (_renderer?.HasActiveTransitions == true)
+                MarkDirty(animationSeconds: 0.1);
         }
 
         /// <summary>Applies styles, runs layout, and draws the current tree. Used by OnRender and after click-driven Update().</summary>
@@ -1294,20 +1342,27 @@ namespace Paper.Rendering.Silk.NET
             int layoutHeight = fbSize.Y;
 
             if (_layout == null || _measurer == null) return;
-            _layout.GetImageSize = path =>
-            {
-                var resolved = ResolveImagePath(path);
-                var dim = _imageLoader?.GetDimensions(resolved);
-                return dim.HasValue ? ((float)dim.Value.w, (float)dim.Value.h) : ((float, float)?)null;
-            };
-            _layout.Layout(root, layoutWidth, layoutHeight, _measurer);
 
-            // Apply full-screen layout to portal roots so they can position themselves
-            // using position:absolute/fixed relative to the window.
-            if (_reconciler?.PortalRoots is { Count: > 0 } portals)
+            // Only re-run layout when the fiber tree structure or window size changed.
+            // Pure scroll/animation frames skip layout — geometry doesn't change when scrolling.
+            if (_needsLayout)
             {
-                foreach (var portal in portals)
-                    ApplyStylesAndLayout(portal, layoutWidth, layoutHeight);
+                _layout.GetImageSize = path =>
+                {
+                    var resolved = ResolveImagePath(path);
+                    var dim = _imageLoader?.GetDimensions(resolved);
+                    return dim.HasValue ? ((float)dim.Value.w, (float)dim.Value.h) : ((float, float)?)null;
+                };
+                _layout.Layout(root, layoutWidth, layoutHeight, _measurer);
+
+                // Apply full-screen layout to portal roots so they can position themselves
+                // using position:absolute/fixed relative to the window.
+                if (_reconciler?.PortalRoots is { Count: > 0 } portals)
+                {
+                    foreach (var portal in portals)
+                        ApplyStylesAndLayout(portal, layoutWidth, layoutHeight);
+                }
+                _needsLayout = false;
             }
 
             // Update horizontal scroll for single-line input so caret stays in view
@@ -1446,6 +1501,8 @@ namespace Paper.Rendering.Silk.NET
         {
             int w = size.X;
             int h = size.Y;
+            // NOTE: do NOT set _externalRenderRequested here. Resize only changes layout
+            // dimensions — the fiber tree is identical, so forceReconcile is wasteful.
             if (MinimumWindowWidth.HasValue && w < MinimumWindowWidth.Value)
                 w = MinimumWindowWidth.Value;
             if (MinimumWindowHeight.HasValue && h < MinimumWindowHeight.Value)
@@ -1453,16 +1510,14 @@ namespace Paper.Rendering.Silk.NET
             if (w != size.X || h != size.Y)
             {
                 try { _window!.Size = new Vector2D<int>(w, h); } catch { /* fallback if setter not supported */ }
-                _width = w;
-                _height = h;
-                _externalRenderRequested = true;
-                if (_gl != null && _reconciler?.Root != null)
-                    _window?.DoRender();
-                return;
             }
             _width = w;
             _height = h;
-            _externalRenderRequested = true;
+            _layoutDirty = true;
+            _needsLayout = true;
+            // Render immediately so the window content updates during drag resize.
+            // Previously this caused VSync stalls (~300ms render × every pixel), but
+            // now that rendering is ~1ms the VSync wait (~16ms at 60Hz) is acceptable.
             if (_gl != null && _reconciler?.Root != null)
                 _window?.DoRender();
         }
@@ -1485,7 +1540,12 @@ namespace Paper.Rendering.Silk.NET
                 Active: ReferenceEquals(fiber, _pressed),
                 Focus: ReferenceEquals(fiber, _focused));
 
-            fiber.ComputedStyle = StyleResolver.Resolve(fiber.Type, fiber.Props, Styles, state, fiber);
+            if (fiber.StyleDirty || fiber.CachedInteractionState != state)
+            {
+                fiber.ComputedStyle = StyleResolver.Resolve(fiber.Type, fiber.Props, Styles, state, fiber);
+                fiber.StyleDirty = false;
+                fiber.CachedInteractionState = state;
+            }
 
             var child = fiber.Child;
             while (child != null)

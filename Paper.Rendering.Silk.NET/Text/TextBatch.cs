@@ -150,7 +150,7 @@ namespace Paper.Rendering.Silk.NET.Text
         {
             if (_count == 0) return;
 
-            GlHelpers.UpdateVbo(_gl, _instanceVbo, _instanceData, _count * FloatsPerGlyph);
+            GlHelpers.UpdateVbo(_gl, _instanceVbo, _instanceData, _count * FloatsPerGlyph, MaxGlyphs * FloatsPerGlyph);
 
             _gl.UseProgram(_program);
             _gl.Uniform2(_uResolution, screenW, screenH);

@@ -262,8 +262,10 @@ namespace Paper.Core.Reconciler
                 return false;
             }
 
+            // Intrinsic elements (Box, Text, etc.): skip if props are unchanged.
+            // Children are already flattened into Props so ShallowEqual covers them.
             if (current.Type is string)
-                return false;
+                return ShallowEqual(current.Props, node.Props);
 
             return false;
         }
@@ -281,11 +283,13 @@ namespace Paper.Core.Reconciler
                 if (!nextDict.TryGetValue(kvp.Key, out var nextValue))
                     return false;
 
-                // Special handling for children - they're always considered different
-                if (kvp.Key == "children")
-                    return false;
-
-                if (!Equals(kvp.Value, nextValue))
+                // Children are a UINode[] — compare by reference since codegen creates fresh arrays.
+                // Use ReferenceEquals for arrays; for everything else use structural equality.
+                if (kvp.Value is System.Array arr && nextValue is System.Array nextArr)
+                {
+                    if (!ReferenceEquals(arr, nextArr)) return false;
+                }
+                else if (!Equals(kvp.Value, nextValue))
                     return false;
             }
 

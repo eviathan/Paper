@@ -55,12 +55,15 @@ namespace Paper.Rendering.Silk.NET
             return vbo;
         }
 
-        public static unsafe void UpdateVbo(GL gl, uint vbo, float[] data, int count)
+        public static unsafe void UpdateVbo(GL gl, uint vbo, float[] data, int count, int maxCount)
         {
             gl.BindBuffer(GLEnum.ArrayBuffer, vbo);
+            // Orphan the buffer before writing — tells the driver we're done with the old data
+            // so it doesn't stall the CPU waiting for the GPU to finish reading it (pipeline sync).
+            // On macOS's Metal-backed OpenGL this makes a ~100ms stall per call into a ~0ms one.
+            gl.BufferData(GLEnum.ArrayBuffer, (nuint)(maxCount * sizeof(float)), (void*)null, GLEnum.StreamDraw);
             fixed (float* ptr = data)
-                gl.BufferSubData(GLEnum.ArrayBuffer, 0,
-                    (nuint)(count * sizeof(float)), ptr);
+                gl.BufferSubData(GLEnum.ArrayBuffer, 0, (nuint)(count * sizeof(float)), ptr);
         }
     }
 }

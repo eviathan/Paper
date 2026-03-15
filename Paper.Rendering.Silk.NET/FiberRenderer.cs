@@ -92,10 +92,33 @@ namespace Paper.Rendering.Silk.NET
         private double _lastFrameTime = -1.0;
         private float  _frameDt;
 
+        /// <summary>True if any CSS transition is still animating (not yet converged to its target).</summary>
+        public bool HasActiveTransitions
+        {
+            get
+            {
+                const float epsilon = 0.002f;
+                foreach (var ts in _transitions.Values)
+                {
+                    if (!ts.Initialized) continue;
+                    if (Math.Abs(ts.BgCurrent.R - ts.BgTarget.R) > epsilon ||
+                        Math.Abs(ts.BgCurrent.G - ts.BgTarget.G) > epsilon ||
+                        Math.Abs(ts.BgCurrent.B - ts.BgTarget.B) > epsilon ||
+                        Math.Abs(ts.BgCurrent.A - ts.BgTarget.A) > epsilon ||
+                        Math.Abs(ts.OpacityCurrent - ts.OpacityTarget) > epsilon)
+                        return true;
+                }
+                return false;
+            }
+        }
+
+        private static readonly Dictionary<string, Dictionary<string, float>> _transitionSpecCache = new();
+
         /// <summary>Parse a CSS transition spec into a (property → duration-seconds) map.
         /// Handles: "all 0.2s", "background 0.15s", "background 0.2s, opacity 0.3s".</summary>
         private static Dictionary<string, float> ParseTransitionDurations(string spec)
         {
+            if (_transitionSpecCache.TryGetValue(spec, out var cached)) return cached;
             var d = new Dictionary<string, float>(StringComparer.OrdinalIgnoreCase);
             foreach (var part in spec.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
             {
@@ -111,6 +134,7 @@ namespace Paper.Rendering.Silk.NET
                     d[tokens[0]] = Math.Max(0.001f, dur);
                 }
             }
+            _transitionSpecCache[spec] = d;
             return d;
         }
 

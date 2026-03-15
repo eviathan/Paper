@@ -274,14 +274,16 @@ namespace Paper.Core.Hooks
             float containerH,
             int overscan = 3)
         {
-            var scrollRef = UseRef(0f);
+            // Use UpdateState (not UseRef) so the VirtualList fiber is marked dirty and re-renders
+            // when the scroll position changes. UseRef mutation bypasses per-component dirty tracking.
+            var (scrollY, _, updateScrollY) = UseState(0f);
 
             float totalHeight = items.Count * itemHeight;
             float maxScroll   = Math.Max(0f, totalHeight - containerH);
-            float scrollY     = Math.Clamp(scrollRef.Current, 0f, maxScroll);
+            float scrollYClamped = Math.Clamp(scrollY, 0f, maxScroll);
 
-            int firstVisible = (int)Math.Floor(scrollY / itemHeight);
-            int lastVisible  = (int)Math.Ceiling((scrollY + containerH) / itemHeight);
+            int firstVisible = (int)Math.Floor(scrollYClamped / itemHeight);
+            int lastVisible  = (int)Math.Ceiling((scrollYClamped + containerH) / itemHeight);
 
             int start = Math.Max(0, firstVisible - overscan);
             int end   = Math.Min(items.Count - 1, lastVisible + overscan);
@@ -293,11 +295,11 @@ namespace Paper.Core.Hooks
             float paddingTop    = start * itemHeight;
             float paddingBottom = Math.Max(0f, (items.Count - 1 - end) * itemHeight);
 
+            const float ScrollStep = 24f; // pixels per wheel notch — matches outer scroll containers
             void OnWheel(Events.PointerEvent e)
             {
-                float next = Math.Clamp(scrollRef.Current + e.WheelDeltaY, 0f, maxScroll);
-                scrollRef.Current = next;
-                RenderScheduler.RequestRender();
+                // WheelDeltaY > 0 = scroll up (see less content) — invert to get scroll offset direction
+                updateScrollY(prev => Math.Clamp(prev - e.WheelDeltaY * ScrollStep, 0f, maxScroll));
             }
 
             return new VirtualScrollState<T>(visible, paddingTop, paddingBottom, totalHeight, OnWheel);

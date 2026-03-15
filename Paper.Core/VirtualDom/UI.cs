@@ -194,13 +194,58 @@ namespace Paper.Core.VirtualDom
         }
 
         /// <summary>
-        /// Scrollable list: Scroll(style, Box(Map(items, keySelector, renderItem))).
+        /// Virtualized scrollable list — only the visible rows (plus <paramref name="overscan"/> extra rows) are
+        /// reconciled and drawn each frame. Handles scroll internally via wheel events.
         /// </summary>
-        public static UINode List<T>(IEnumerable<T> items, Func<T, string> keySelector, Func<T, UINode> renderItem, StyleSheet? style = null)
+        /// <typeparam name="T">Item type.</typeparam>
+        /// <param name="items">Full item collection.</param>
+        /// <param name="itemHeight">Fixed row height in pixels. Every row must be the same height.</param>
+        /// <param name="containerH">Visible area height in pixels.</param>
+        /// <param name="renderItem">Render function — receives the item and its original index.</param>
+        /// <param name="style">Optional extra style applied to the outer container box.</param>
+        /// <param name="overscan">Extra rows rendered above/below the visible window to avoid pop-in.</param>
+        /// <param name="key">Reconciler key for this node.</param>
+        public static UINode List<T>(
+            IReadOnlyList<T> items,
+            float            itemHeight,
+            float            containerH,
+            Func<T, int, UINode> renderItem,
+            StyleSheet?      style     = null,
+            int              overscan  = 3,
+            string?          key       = null)
         {
-            var children = Map(items, keySelector, renderItem);
-            return Scroll(style ?? StyleSheet.Empty, Box(children));
+            // Box the typed list and render delegate so they fit the Props dictionary (object keys).
+            var boxedItems  = (IReadOnlyList<object>)(items.Count == 0
+                ? Array.Empty<object>()
+                : items.Select(i => (object)i!).ToList());
+            Func<object, int, UINode> boxedRender = (obj, idx) => renderItem((T)obj, idx);
+
+            var props = new PropsBuilder()
+                .Set("items",       boxedItems)
+                .Set("itemHeight",  (float?)itemHeight)
+                .Set("containerH",  (float?)containerH)
+                .Set("renderItem",  boxedRender)
+                .Set("overscan",    (int?)overscan)
+                .Style(style ?? StyleSheet.Empty)
+                .Build();
+
+            return new UINode(Components.Primitives.ListComponent, props, key);
         }
+
+        /// <summary>
+        /// Virtualized scrollable list (convenience overload without index parameter).
+        /// </summary>
+        public static UINode List<T>(
+            IReadOnlyList<T> items,
+            float            itemHeight,
+            float            containerH,
+            Func<T, UINode>  renderItem,
+            StyleSheet?      style    = null,
+            int              overscan = 3,
+            string?          key      = null) =>
+            List(items, itemHeight, containerH,
+                (item, _) => renderItem(item),
+                style, overscan, key);
 
         /// <summary>
         /// Conditionally include a node — returns an empty fragment when <paramref name="condition"/> is false.
