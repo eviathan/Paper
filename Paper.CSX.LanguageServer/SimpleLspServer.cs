@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using Paper.CSX;
 using Paper.CSX.Syntax;
 
 namespace Paper.CSX.LanguageServer
@@ -28,10 +29,12 @@ namespace Paper.CSX.LanguageServer
 
                 var method = methodElement.GetString() ?? "";
 
-                var id = message.RootElement.TryGetProperty("id", out var idElement) 
+                var id = message.RootElement.TryGetProperty("id", out var idElement)
                     ? idElement
                     : (JsonElement?)null;
 
+                try
+                {
                 switch (method)
                 {
                     case "initialize":
@@ -62,6 +65,11 @@ namespace Paper.CSX.LanguageServer
                                     full  = true,
                                     range = false,
                                 },
+                                definitionProvider     = true,
+                                documentSymbolProvider = true,
+                                foldingRangeProvider   = true,
+                                inlayHintProvider      = true,
+                                renameProvider         = true,
                             }
                         });
                         break;
@@ -83,6 +91,9 @@ namespace Paper.CSX.LanguageServer
                             var uri = textDocument.GetProperty("uri").GetString() ?? "";
                             var text = textDocument.GetProperty("text").GetString() ?? "";
                             _docs[uri] = text;
+                            // Pre-warm the Roslyn compilation immediately so the first hover/completion
+                            // doesn't have to wait for a cold build (which can take 5-10 seconds).
+                            _ = Task.Run(() => { try { RoslynHover.GetOrBuildCompilation(text); } catch { } });
                             ScheduleDiagnostics(uri, text);
                             break;
                         }
@@ -153,6 +164,95 @@ namespace Paper.CSX.LanguageServer
                             await ReplyAsync(id, new { data });
                             break;
                         }
+
+                    case "textDocument/definition":
+                        {
+                            var parameters = message.RootElement.GetProperty("params");
+                            var uri        = parameters.GetProperty("textDocument").GetProperty("uri").GetString() ?? "";
+                            var position   = parameters.GetProperty("position");
+                            int line       = position.GetProperty("line").GetInt32();
+                            int character  = position.GetProperty("character").GetInt32();
+
+                            _docs.TryGetValue(uri, out var src);
+                            var location = RoslynDefinition.GetDefinition(src ?? "", uri, line, character);
+                            // Return null (not array) when not found — array when found
+                            await ReplyAsync(id, location != null ? new[] { location } : null);
+                            break;
+                        }
+
+                    case "textDocument/documentSymbol":
+                        {
+                            var parameters = message.RootElement.GetProperty("params");
+                            var uri        = parameters.GetProperty("textDocument").GetProperty("uri").GetString() ?? "";
+
+                            _docs.TryGetValue(uri, out var src);
+                            var symbols = RoslynDocumentSymbols.GetDocumentSymbols(src ?? "", uri);
+                            await ReplyAsync(id, symbols);
+                            break;
+                        }
+
+                    case "textDocument/foldingRange":
+                        {
+                            var uri = message.RootElement
+                                .GetProperty("params")
+                                .GetProperty("textDocument")
+                                .GetProperty("uri").GetString() ?? "";
+                            _docs.TryGetValue(uri, out var src);
+                            var foldingRanges = FoldingRanges.GetFoldingRanges(src ?? "");
+                            await ReplyAsync(id, foldingRanges);
+                            break;
+                        }
+
+                    case "textDocument/inlayHint":
+                        {
+                            var uri = message.RootElement
+                                .GetProperty("params")
+                                .GetProperty("textDocument")
+                                .GetProperty("uri").GetString() ?? "";
+                            _docs.TryGetValue(uri, out var src);
+                            var hints = RoslynInlayHints.GetInlayHints(src ?? "");
+                            await ReplyAsync(id, hints);
+                            break;
+                        }
+
+                    case "textDocument/rename":
+                        {
+                            var parameters = message.RootElement.GetProperty("params");
+                            var uri        = parameters.GetProperty("textDocument").GetProperty("uri").GetString() ?? "";
+                            var position   = parameters.GetProperty("position");
+                            int line       = position.GetProperty("line").GetInt32();
+                            int character  = position.GetProperty("character").GetInt32();
+                            var newName    = parameters.GetProperty("newName").GetString() ?? "";
+
+                            _docs.TryGetValue(uri, out var src);
+                            var edit = RoslynRename.GetRename(src ?? "", uri, line, character, newName);
+                            await ReplyAsync(id, edit);
+                            break;
+                        }
+
+                    case "textDocument/didClose":
+                        {
+                            var uri = message.RootElement
+                                .GetProperty("params")
+                                .GetProperty("textDocument")
+                                .GetProperty("uri").GetString() ?? "";
+                            _docs.Remove(uri);
+                            if (_diagCts.TryGetValue(uri, out var cts))
+                            {
+                                cts.Cancel();
+                                _diagCts.Remove(uri);
+                            }
+                            break;
+                        }
+                }
+                }
+                catch (Exception ex)
+                {
+                    // Reply with a null result so the client doesn't hang waiting for a response.
+                    if (id != null)
+                        await ReplyAsync(id, (object?)null);
+                    // Log to stderr so it can be captured for debugging without polluting stdout.
+                    await Console.Error.WriteLineAsync($"[LSP] Unhandled exception for '{method}': {ex.Message}");
                 }
             }
         }
@@ -175,11 +275,19 @@ namespace Paper.CSX.LanguageServer
 
             var diagnostics = new List<object>();
 
-            // 1. CSX parser errors
-            bool parseOk = false;
-            try { _ = new Paper.CSX.Syntax.CSXElementParser(text).ParseFirstElement(); parseOk = true; }
+            // 1. CSX parser errors — parse only the JSX portion, not the full file.
+            // Passing the full file to CSXElementParser causes it to find the first '<' in
+            // preamble code (e.g. List<string>) and mis-parse it as a JSX element.
+            bool parseOk = true;
+            try
+            {
+                var (_, jsxRaw, _, _) = CSXCompiler.ExtractPreambleAndJsx(text);
+                if (!string.IsNullOrWhiteSpace(jsxRaw))
+                    _ = new Paper.CSX.Syntax.CSXElementParser(jsxRaw).ParseFirstElement();
+            }
             catch (Exception ex)
             {
+                parseOk = false;
                 diagnostics.Add(new
                 {
                     range = new { start = new { line = 0, character = 0 }, end = new { line = 0, character = 1 } },
@@ -189,9 +297,11 @@ namespace Paper.CSX.LanguageServer
                 });
             }
 
-            // 2. Roslyn type-checking (only when parser succeeded, to avoid noise)
+            // 2. Roslyn type-checking — always run to keep compilation cache warm,
+            //    but suppress Roslyn errors when the CSX parser already reported a syntax error.
+            var roslynDiags = RoslynDiagnostics.Compile(text);
             if (parseOk)
-                diagnostics.AddRange(RoslynDiagnostics.Compile(text));
+                diagnostics.AddRange(roslynDiags);
 
             if (token.IsCancellationRequested) return;
             await NotifyAsync("textDocument/publishDiagnostics", new { uri, diagnostics });

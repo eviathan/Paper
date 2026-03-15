@@ -100,19 +100,46 @@ const PAPER_ELEMENTS = [
 
 // ── Activation ────────────────────────────────────────────────────────────────
 
+/**
+ * Forces *.csx → 'csx' language association in workspace settings (once).
+ * Prevents the C# extension from treating .csx files as C# script files,
+ * which would cause spurious Roslyn diagnostics on JSX syntax.
+ */
+function ensureCsxLanguageAssociation(): void {
+    try {
+        const config = vscode.workspace.getConfiguration();
+        const assoc = config.get<Record<string, string>>('files.associations') ?? {};
+        if (assoc['*.csx'] !== 'csx') {
+            config.update(
+                'files.associations',
+                { ...assoc, '*.csx': 'csx' },
+                vscode.ConfigurationTarget.Workspace
+            );
+        }
+    } catch { /* best effort */ }
+}
+
 export function activate(context: vscode.ExtensionContext) {
     console.log('CSX/CSSS Language Support activated');
 
+    // Ensure *.csx is mapped to our 'csx' language, not 'csharp'.
+    // Without this the C# extension analyses .csx files and generates spurious
+    // diagnostics (red squiggles) on JSX syntax like <Box /> and =>.
+    ensureCsxLanguageAssociation();
+
     // Start LSP lazily for CSX files
+    const isCsxFile = (doc: vscode.TextDocument) =>
+        doc.uri.scheme === 'file' && doc.uri.fsPath.endsWith('.csx');
+
     context.subscriptions.push(
         vscode.workspace.onDidOpenTextDocument((doc) => {
-            if (doc.languageId === 'csx' && !client && !clientStarting) {
+            if (isCsxFile(doc) && !client && !clientStarting) {
                 tryStartLanguageServer(context, doc.uri.fsPath);
             }
         })
     );
-    const openCSX = vscode.workspace.textDocuments.find((d) => d.languageId === 'csx');
-    if (openCSX && openCSX.uri.scheme === 'file' && !client && !clientStarting) {
+    const openCSX = vscode.workspace.textDocuments.find(isCsxFile);
+    if (openCSX && !client && !clientStarting) {
         tryStartLanguageServer(context, openCSX.uri.fsPath);
     }
 
@@ -124,6 +151,37 @@ export function activate(context: vscode.ExtensionContext) {
             '$', '.', '#', ':', ' ', '\n'
         )
     );
+
+    // ── CSSS hover ────────────────────────────────────────────────────────────
+    context.subscriptions.push(
+        vscode.languages.registerHoverProvider(
+            { scheme: 'file', language: 'csss' },
+            new CSSSHoverProvider()
+        )
+    );
+
+    // ── CSSS go-to-definition (for $variables) ────────────────────────────────
+    context.subscriptions.push(
+        vscode.languages.registerDefinitionProvider(
+            { scheme: 'file', language: 'csss' },
+            new CSSSDefinitionProvider()
+        )
+    );
+
+    // ── CSSS diagnostics ──────────────────────────────────────────────────────
+    const csssCollection = vscode.languages.createDiagnosticCollection('csss');
+    context.subscriptions.push(csssCollection);
+
+    const updateCSSSDiags = (doc: vscode.TextDocument) => {
+        if (doc.languageId === 'csss') updateCSSSDiagnostics(doc, csssCollection);
+    };
+    context.subscriptions.push(
+        vscode.workspace.onDidOpenTextDocument(updateCSSSDiags),
+        vscode.workspace.onDidChangeTextDocument(e => updateCSSSDiags(e.document)),
+        vscode.workspace.onDidCloseTextDocument(doc => csssCollection.delete(doc.uri))
+    );
+    // Seed diagnostics for already-open CSSS files
+    vscode.workspace.textDocuments.forEach(updateCSSSDiags);
 
     // ── CSX compile commands ──────────────────────────────────────────────────
     context.subscriptions.push(
@@ -165,7 +223,7 @@ export function activate(context: vscode.ExtensionContext) {
     // Auto-compile CSX on save
     context.subscriptions.push(
         vscode.workspace.onDidSaveTextDocument(async (doc) => {
-            if (doc.languageId === 'csx' && doc.uri.scheme === 'file') {
+            if (isCsxFile(doc)) {
                 await compileFile(doc.uri.fsPath);
             }
         })
@@ -278,6 +336,140 @@ class CSSSCompletionProvider implements vscode.CompletionItemProvider {
     }
 }
 
+// ── CSSS hover provider ───────────────────────────────────────────────────────
+
+const CSS_PROP_NAMES = new Set(CSS_PROPS.map(p => p.name));
+
+class CSSSHoverProvider implements vscode.HoverProvider {
+    provideHover(document: vscode.TextDocument, position: vscode.Position): vscode.Hover | null {
+        // Check if hovering over a $variable
+        const varRange = document.getWordRangeAtPosition(position, /\$[\w-]+/);
+        if (varRange) {
+            const varName = document.getText(varRange);
+            const text    = document.getText();
+            const declRe  = new RegExp(`^\\s*(\\${varName})\\s*:\\s*(.+?)\\s*;`, 'm');
+            const match   = declRe.exec(text);
+            if (match) {
+                const md = new vscode.MarkdownString();
+                md.appendCodeblock(`${varName}: ${match[2]}`, 'scss');
+                return new vscode.Hover(md, varRange);
+            }
+            return null;
+        }
+
+        // Check if hovering over a property name (word before `:` at start of line)
+        const wordRange = document.getWordRangeAtPosition(position, /[\w-]+/);
+        if (!wordRange) return null;
+
+        const word      = document.getText(wordRange);
+        const line      = document.lineAt(position).text;
+        const beforeWord = line.slice(0, wordRange.start.character);
+        const afterWord  = line.slice(wordRange.end.character);
+
+        if (/^\s*$/.test(beforeWord) && /^\s*:/.test(afterWord)) {
+            const prop = CSS_PROPS.find(p => p.name === word);
+            if (prop) {
+                const md = new vscode.MarkdownString();
+                md.appendCodeblock(prop.name, 'css');
+                md.appendText(prop.detail);
+                if (prop.values.length > 0) {
+                    md.appendMarkdown(`\n\n**Values:** \`${prop.values.join('`, `')}\``);
+                }
+                return new vscode.Hover(md, wordRange);
+            }
+        }
+
+        return null;
+    }
+}
+
+// ── CSSS go-to-definition ─────────────────────────────────────────────────────
+
+class CSSSDefinitionProvider implements vscode.DefinitionProvider {
+    provideDefinition(document: vscode.TextDocument, position: vscode.Position): vscode.Location | null {
+        const varRange = document.getWordRangeAtPosition(position, /\$[\w-]+/);
+        if (!varRange) return null;
+
+        const varName = document.getText(varRange);
+        const lines   = document.getText().split('\n');
+        for (let i = 0; i < lines.length; i++) {
+            const m = lines[i].match(/^\s*(\$[\w-]+)\s*:/);
+            if (m && m[1] === varName) {
+                const col = lines[i].indexOf(varName);
+                return new vscode.Location(
+                    document.uri,
+                    new vscode.Range(i, col, i, col + varName.length)
+                );
+            }
+        }
+        return null;
+    }
+}
+
+// ── CSSS diagnostics ──────────────────────────────────────────────────────────
+
+function updateCSSSDiagnostics(
+    doc: vscode.TextDocument,
+    collection: vscode.DiagnosticCollection
+): void {
+    const text        = doc.getText();
+    const lines       = text.split('\n');
+    const diagnostics: vscode.Diagnostic[] = [];
+
+    // Collect all declared $variables
+    const declaredVars = new Set<string>();
+    const varDeclRe    = /^\s*(\$[\w-]+)\s*:/gm;
+    let   m: RegExpExecArray | null;
+    while ((m = varDeclRe.exec(text)) !== null) declaredVars.add(m[1]);
+
+    let depth = 0;
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+
+        // Track block depth
+        for (const ch of line) {
+            if (ch === '{') depth++;
+            else if (ch === '}') depth--;
+        }
+
+        // Skip comment lines
+        if (/^\s*\/\//.test(line)) continue;
+
+        if (depth > 0) {
+            // Check for unknown property names  (word followed by `:` at line start)
+            const propMatch = line.match(/^\s*([\w-]+)\s*:/);
+            if (propMatch) {
+                const propName = propMatch[1];
+                if (!propName.startsWith('$') && !CSS_PROP_NAMES.has(propName)) {
+                    const col = line.indexOf(propName);
+                    diagnostics.push(new vscode.Diagnostic(
+                        new vscode.Range(i, col, i, col + propName.length),
+                        `Unknown CSS property '${propName}'`,
+                        vscode.DiagnosticSeverity.Warning
+                    ));
+                }
+            }
+
+            // Check for undefined $variable references
+            const varRefRe = /\$([\w-]+)/g;
+            let   vm: RegExpExecArray | null;
+            while ((vm = varRefRe.exec(line)) !== null) {
+                const ref = '$' + vm[1];
+                if (!declaredVars.has(ref)) {
+                    const col = vm.index;
+                    diagnostics.push(new vscode.Diagnostic(
+                        new vscode.Range(i, col, i, col + ref.length),
+                        `Undefined variable '${ref}'`,
+                        vscode.DiagnosticSeverity.Warning
+                    ));
+                }
+            }
+        }
+    }
+
+    collection.set(doc.uri, diagnostics);
+}
+
 // ── Generated-C# forwarding ───────────────────────────────────────────────────
 // Maps a CSX (line, character) position to the corresponding position in the
 // co-located .generated.cs file by dynamically scanning both files for their
@@ -365,6 +557,90 @@ async function forwardCompletionsToGeneratedCs(
     return list && list.items.length > 0 ? list : null;
 }
 
+/** Map a position in the generated .cs file back to its original .csx position. */
+function mapGeneratedToCsxPos(
+    genText: string,
+    csxText: string,
+    genPos: vscode.Position
+): vscode.Position | null {
+    const genLines  = genText.split('\n');
+    const csxLines  = csxText.split('\n');
+    const genPreamble = findGenPreambleStart(genLines);
+    const csxPreamble = findCsxPreambleStart(csxLines);
+
+    if (genPos.line < genPreamble) return null;
+
+    const csxLine = (genPos.line - genPreamble) + csxPreamble;
+    if (csxLine >= csxLines.length) return null;
+
+    const origLine  = csxLines[csxLine] || '';
+    const leadingWs = origLine.length - origLine.trimStart().length;
+    const csxChar   = Math.max(0, genPos.character - PREAMBLE_COL_OFFSET) + leadingWs;
+    return new vscode.Position(csxLine, csxChar);
+}
+
+async function forwardDefinitionToGeneratedCs(
+    document: vscode.TextDocument,
+    position: vscode.Position
+): Promise<vscode.Location[] | null> {
+    const genPath = document.uri.fsPath.replace(/\.csx$/, '.generated.cs');
+    if (!fs.existsSync(genPath)) return null;
+
+    const genText  = fs.readFileSync(genPath, 'utf-8');
+    const genLines = genText.split('\n');
+    const genPos   = mapCsxToGeneratedPos(document.getText(), genLines, position);
+    if (!genPos) return null;
+
+    const genUri = vscode.Uri.file(genPath);
+    const locs   = await vscode.commands.executeCommand<vscode.Location[]>(
+        'vscode.executeDefinitionProvider', genUri, genPos
+    );
+    if (!locs || locs.length === 0) return null;
+
+    const csxText = document.getText();
+    return locs.map(loc => {
+        if (loc.uri.fsPath === genPath) {
+            const mappedStart = mapGeneratedToCsxPos(genText, csxText, loc.range.start);
+            if (mappedStart) {
+                const mappedEnd = mapGeneratedToCsxPos(genText, csxText, loc.range.end) ?? mappedStart;
+                return new vscode.Location(document.uri, new vscode.Range(mappedStart, mappedEnd));
+            }
+        }
+        return loc;
+    });
+}
+
+async function forwardReferencesToGeneratedCs(
+    document: vscode.TextDocument,
+    position: vscode.Position
+): Promise<vscode.Location[] | null> {
+    const genPath = document.uri.fsPath.replace(/\.csx$/, '.generated.cs');
+    if (!fs.existsSync(genPath)) return null;
+
+    const genText  = fs.readFileSync(genPath, 'utf-8');
+    const genLines = genText.split('\n');
+    const genPos   = mapCsxToGeneratedPos(document.getText(), genLines, position);
+    if (!genPos) return null;
+
+    const genUri = vscode.Uri.file(genPath);
+    const locs   = await vscode.commands.executeCommand<vscode.Location[]>(
+        'vscode.executeReferenceProvider', genUri, genPos
+    );
+    if (!locs || locs.length === 0) return null;
+
+    const csxText = document.getText();
+    return locs.map(loc => {
+        if (loc.uri.fsPath === genPath) {
+            const mappedStart = mapGeneratedToCsxPos(genText, csxText, loc.range.start);
+            if (mappedStart) {
+                const mappedEnd = mapGeneratedToCsxPos(genText, csxText, loc.range.end) ?? mappedStart;
+                return new vscode.Location(document.uri, new vscode.Range(mappedStart, mappedEnd));
+            }
+        }
+        return loc;
+    });
+}
+
 // ── LSP startup ───────────────────────────────────────────────────────────────
 
 function tryStartLanguageServer(context: vscode.ExtensionContext, fromFilePath: string): void {
@@ -386,33 +662,48 @@ function tryStartLanguageServer(context: vscode.ExtensionContext, fromFilePath: 
             // full documentation (XML docs, overloads, type signatures).
             // Falls back to our custom LSP hover for JSX-specific positions.
             async provideHover(document, position, token, next) {
-                const csHover = await forwardHoverToGeneratedCs(
-                    document as vscode.TextDocument,
-                    position as vscode.Position
-                );
-                if (csHover) return csHover;
+                // For Paper elements (Box, Text, etc.) go straight to LSP — it has element docs.
+                // For everything else forward to the generated .cs for C# type info.
+                const wordRange = (document as vscode.TextDocument).getWordRangeAtPosition(position as vscode.Position);
+                const word = wordRange ? (document as vscode.TextDocument).getText(wordRange) : '';
+                const isPaperElement = PAPER_ELEMENTS.includes(word);
+                if (!isPaperElement) {
+                    try {
+                        const csHover = await forwardHoverToGeneratedCs(
+                            document as vscode.TextDocument,
+                            position as vscode.Position
+                        );
+                        if (csHover) return csHover;
+                    } catch { /* generated.cs not in project — fall through to LSP */ }
+                }
                 return next(document, position, token);
             },
 
-            // For C# context completions (after '.'), prefer the generated .cs results
-            // which include full LINQ / BCL / framework APIs.
-            // For all other contexts (JSX, props, style, imports) use our custom LSP.
-            async provideCompletionItem(document, position, context, token, next) {
-                const doc  = document as vscode.TextDocument;
-                const pos  = position as vscode.Position;
-                const text = doc.getText();
-                const offset = doc.offsetAt(pos);
-                const before = text.slice(0, offset);
-
-                // Only forward to C# extension when cursor is after a '.' (member access)
-                // All other contexts (JSX, style, imports, top-level) use our LSP.
-                if (/\.\s*$/.test(before)) {
-                    const csList = await forwardCompletionsToGeneratedCs(
-                        doc, pos, context.triggerCharacter
+            // Forward go-to-definition to generated.cs (maps result back to .csx)
+            async provideDefinition(document, position, token, next) {
+                try {
+                    const locs = await forwardDefinitionToGeneratedCs(
+                        document as vscode.TextDocument,
+                        position as vscode.Position
                     );
-                    if (csList && csList.items.length > 0) return csList;
-                }
+                    if (locs && locs.length > 0) return locs;
+                } catch { /* fall through */ }
+                return next(document, position, token);
+            },
 
+            // Forward find-references to generated.cs (maps results back to .csx)
+            async provideReferences(document, position, context, token, next) {
+                try {
+                    const locs = await forwardReferencesToGeneratedCs(
+                        document as vscode.TextDocument,
+                        position as vscode.Position
+                    );
+                    if (locs && locs.length > 0) return locs;
+                } catch { /* fall through */ }
+                return next(document, position, context, token);
+            },
+
+            async provideCompletionItem(document, position, context, token, next) {
                 return next(document, position, context, token);
             },
         },

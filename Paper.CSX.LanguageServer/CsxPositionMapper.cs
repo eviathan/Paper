@@ -21,6 +21,22 @@ namespace Paper.CSX.LanguageServer
         internal const int PreambleColOffset = 8;
 
         /// <summary>
+        /// Counts the number of leading whitespace characters on <paramref name="line"/>,
+        /// expanding tabs to the nearest tab stop so that LSP character offsets are correct.
+        /// </summary>
+        internal static int CountLeadingWhitespace(string line, int tabSize = 4)
+        {
+            int col = 0;
+            foreach (char c in line)
+            {
+                if (c == ' ')  { col++; continue; }
+                if (c == '\t') { col += tabSize - (col % tabSize); continue; }
+                break;
+            }
+            return col;
+        }
+
+        /// <summary>
         /// Maps a (line, character) cursor in the CSX source to a character offset in
         /// <paramref name="generatedSrc"/>.  Returns -1 if the position is not inside the preamble.
         /// </summary>
@@ -35,9 +51,10 @@ namespace Paper.CSX.LanguageServer
 
             // Preamble lines are .Trim()-ed then re-indented with 8 spaces.
             // Strip the original leading whitespace from the column so the offset is correct.
+            // Tab characters are expanded to tab stops so that LSP character offsets align correctly.
             var csxLines = csxSrc.Split('\n');
             string origLine = csxLine < csxLines.Length ? csxLines[csxLine] : "";
-            int leadingWs = origLine.Length - origLine.TrimStart().Length;
+            int leadingWs = CountLeadingWhitespace(origLine);
             int genCol = Math.Max(0, csxCol - leadingWs) + PreambleColOffset;
 
             return LineColToOffset(generatedSrc, genLine, genCol);

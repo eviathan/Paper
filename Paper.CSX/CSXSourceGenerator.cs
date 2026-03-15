@@ -89,6 +89,7 @@ namespace Paper.CSX
             sb.AppendLine("using Paper.Core.VirtualDom;");
             sb.AppendLine("using Paper.Core.Styles;");
             sb.AppendLine("using Paper.Core.Hooks;");
+            sb.AppendLine("using Paper.Core.Context;");
             sb.AppendLine();
 
             sb.AppendLine($"namespace {fileNode.Namespace};");

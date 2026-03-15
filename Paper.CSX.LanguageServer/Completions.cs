@@ -240,6 +240,11 @@ namespace Paper.CSX.LanguageServer
                 return (CompletionContext.JsxStyleProp, "", "");
             }
 
+            // Check if inside a string attribute value like prop="val|ue" — no prop completions here
+            if (Regex.IsMatch(before, @"\b[a-zA-Z_][a-zA-Z0-9_]*\s*=\s*""[^""]*$") ||
+                Regex.IsMatch(before, @"\b[a-zA-Z_][a-zA-Z0-9_]*\s*=\s*'[^']*$"))
+                return (CompletionContext.CSharp, "", "");
+
             // Check if inside a JSX open tag — find the last unclosed <TagName
             var tagMatch = FindUnclosedTag(before);
             if (tagMatch != null)
@@ -541,25 +546,63 @@ namespace Paper.CSX.LanguageServer
         {
             var before = csxSrc[..cursorOffset];
 
-            // Member access: cursor after "identifier." → return instance members of that type
-            var memberMatch = Regex.Match(before, @"\b([A-Za-z_][A-Za-z0-9_]*)\.$");
-            if (memberMatch.Success)
+            // Member access: cursor after "expr." → return instance members of that type
+            var expr = ExtractExpressionBeforeDot(before);
+            if (expr != null)
             {
-                var identifier = memberMatch.Groups[1].Value;
-                var memberItems = RoslynMembers.GetMembers(csxSrc, identifier, cursorOffset);
+                // Simple identifier: use the lightweight GetMembers path
+                object[] memberItems;
+                if (Regex.IsMatch(expr, @"^[A-Za-z_][A-Za-z0-9_]*$"))
+                    memberItems = RoslynMembers.GetMembers(csxSrc, expr, cursorOffset);
+                else
+                    memberItems = RoslynMembers.GetMembersForExpression(csxSrc, expr);
+
                 if (memberItems.Length > 0)
                     return memberItems;
             }
 
             // Position-aware Roslyn completions using LookupSymbols at the mapped generated-C# offset.
-            // These replace the static snippet list with live symbols from the semantic model.
             var roslynItems = RoslynCompletions.GetCompletions(csxSrc, line, ch);
 
             // Merge with Paper-specific snippets (hooks, UI.*) which aren't in LookupSymbols
             var snippetItems = BuildCSharpCompletions();
 
-            // Roslyn items first, then snippets (VSCode will blend them with its own ranking)
             return [.. roslynItems, .. snippetItems];
+        }
+
+        /// <summary>
+        /// Extracts the expression before a trailing dot, handling simple identifiers,
+        /// property chains (a.B.C), and method call chains (list.Where(...)).
+        /// Returns null if the text doesn't end with a member-access dot.
+        /// </summary>
+        private static string? ExtractExpressionBeforeDot(string before)
+        {
+            if (!before.EndsWith('.')) return null;
+            var s = before[..^1]; // strip trailing dot
+
+            // If last char is `)`, walk back to find the matching `(` for method call chains
+            if (s.Length > 0 && s[^1] == ')')
+            {
+                int depth = 0, i = s.Length - 1;
+                while (i >= 0)
+                {
+                    if (s[i] == ')') depth++;
+                    else if (s[i] == '(') { depth--; if (depth == 0) break; }
+                    i--;
+                }
+                if (i >= 0)
+                {
+                    // Extract the identifier chain before the opening paren
+                    var chain = s[..i];
+                    var chainMatch = Regex.Match(chain, @"\b([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)$");
+                    if (chainMatch.Success)
+                        return chainMatch.Groups[1].Value + s[i..]; // e.g. "myList.Where(x => x > 0)"
+                }
+            }
+
+            // Simple identifier or dotted chain
+            var m = Regex.Match(s, @"\b([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)$");
+            return m.Success ? m.Groups[1].Value : null;
         }
 
         // ─── Item helpers ─────────────────────────────────────────────────────────

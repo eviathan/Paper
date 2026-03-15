@@ -38,6 +38,21 @@
         "path": "./syntaxes/csss.tmLanguage.json"
       }
     ],
+    "configurationDefaults": {
+      "editor.tokenColorCustomizations": {
+        "textMateRules": [
+          {
+            "scope": "keyword.operator.arrow.csx",
+            "settings": { "foreground": "#569CD6" }
+          }
+        ]
+      },
+      "editor.semanticTokenColorCustomizations": {
+        "rules": {
+          "operator:csx": { "foreground": "#569CD6" }
+        }
+      }
+    },
     "configuration": {
       "title": "Paper CSX",
       "properties": {
@@ -92,7 +107,10 @@
       ]
     }
   },
-  "activationEvents": [],
+  "activationEvents": [
+    "onLanguage:csharp",
+    "workspaceContains:**/*.csx"
+  ],
   "main": "./out/extension.js",
   "scripts": {
     "vscode:prepublish": "npm run compile",

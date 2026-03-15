@@ -1,6 +1,7 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Paper.CSX;
 
 namespace Paper.CSX.LanguageServer
 {
@@ -25,6 +26,7 @@ namespace Paper.CSX.LanguageServer
             "field",         // 9
             "variable",      // 10
             "parameter",     // 11
+            "operator",      // 12  — used for => lambda arrow
         ];
 
         private record struct TokenEntry(int Line, int Col, int Length, int TypeIndex);
@@ -44,6 +46,10 @@ namespace Paper.CSX.LanguageServer
                 int genPreambleStart = FindGenPreambleStart(generatedSrc);
                 int csxPreambleStart = CsxPositionMapper.FindPreambleStartLine(csxSrc);
 
+                // Only emit tokens for the preamble — stop before the JSX return statement.
+                var (preamble, _, _, _) = Paper.CSX.CSXCompiler.ExtractPreambleAndJsx(csxSrc);
+                int genPreambleEnd = genPreambleStart + (preamble?.Split('\n').Length ?? 0);
+
                 var csxLines = csxSrc.Split('\n');
                 var entries  = new List<TokenEntry>();
 
@@ -53,15 +59,19 @@ namespace Paper.CSX.LanguageServer
                     int genLine  = lineSpan.StartLinePosition.Line;
                     int genCol   = lineSpan.StartLinePosition.Character;
 
-                    // Only tokens inside the preamble (method body)
-                    if (genLine < genPreambleStart) continue;
+                    // Only tokens inside the preamble (not JSX return)
+                    if (genLine < genPreambleStart || genLine >= genPreambleEnd) continue;
+
+                    // Skip compiler-generated identifiers
+                    var identText = node.Identifier.Text;
+                    if (identText.StartsWith("__") || identText.StartsWith("<>") || identText.Contains('<')) continue;
 
                     int csxLine = (genLine - genPreambleStart) + csxPreambleStart;
                     if (csxLine < 0 || csxLine >= csxLines.Length) continue;
 
                     // Reverse the column shift: genCol = (csxCol - leadingWs) + PreambleColOffset
                     string origLine = csxLines[csxLine];
-                    int leadingWs   = origLine.Length - origLine.TrimStart().Length;
+                    int leadingWs   = CsxPositionMapper.CountLeadingWhitespace(origLine);
                     int csxCol      = genCol - CsxPositionMapper.PreambleColOffset + leadingWs;
                     if (csxCol < 0) csxCol = 0;
 
@@ -69,6 +79,29 @@ namespace Paper.CSX.LanguageServer
                     if (typeIndex == null) continue;
 
                     entries.Add(new TokenEntry(csxLine, csxCol, node.Identifier.Text.Length, typeIndex.Value));
+                }
+
+                // Emit semantic tokens for => (lambda arrow) in the preamble.
+                // Roslyn SyntaxKind.EqualsGreaterThanToken is the only source of => in code (not strings/comments).
+                foreach (var token in root.DescendantTokens())
+                {
+                    if (token.RawKind != (int)SyntaxKind.EqualsGreaterThanToken) continue;
+
+                    var lineSpan = tree.GetLineSpan(token.Span);
+                    int genLine  = lineSpan.StartLinePosition.Line;
+                    int genCol   = lineSpan.StartLinePosition.Character;
+
+                    if (genLine < genPreambleStart || genLine >= genPreambleEnd) continue;
+
+                    int csxLine = (genLine - genPreambleStart) + csxPreambleStart;
+                    if (csxLine < 0 || csxLine >= csxLines.Length) continue;
+
+                    string origLine = csxLines[csxLine];
+                    int leadingWs   = CsxPositionMapper.CountLeadingWhitespace(origLine);
+                    int csxCol      = genCol - CsxPositionMapper.PreambleColOffset + leadingWs;
+                    if (csxCol < 0) csxCol = 0;
+
+                    entries.Add(new TokenEntry(csxLine, csxCol, 2, 12)); // length=2 (=>), type=operator
                 }
 
                 // LSP requires tokens sorted by position

@@ -4,14 +4,20 @@
     "scopeName": "source.csx",
     "fileTypes": ["csx"],
     "patterns": [
+        { "name": "keyword.operator.arrow.csx", "match": "=>" },
         { "include": "#at-import" },
+        { "include": "#cs-attribute" },
         { "include": "#jsx-comment" },
         { "include": "#comment-block" },
+        { "include": "#comment-doc" },
         { "include": "#comment-line" },
-        { "include": "#jsx-tag-self-closing" },
+        { "include": "#jsx-fragment-close" },
+        { "include": "#jsx-fragment-open" },
         { "include": "#jsx-tag-open" },
         { "include": "#jsx-tag-close" },
         { "include": "#jsx-expression" },
+        { "include": "#cs-raw-string-interp" },
+        { "include": "#cs-raw-string" },
         { "include": "#cs-interpolated-string" },
         { "include": "#cs-verbatim-string" },
         { "include": "#cs-string" },
@@ -22,8 +28,9 @@
         { "include": "#cs-storage" },
         { "include": "#cs-function-decl" },
         { "include": "#cs-method-call" },
-        { "include": "#cs-type-name" },
-        { "include": "#cs-operator" }
+        { "include": "#cs-operator" },
+        { "include": "#cs-generics" },
+        { "include": "#cs-type-name" }
     ],
     "repository": {
 
@@ -46,9 +53,26 @@
             "captures": { "0": { "name": "punctuation.definition.comment.csx" } }
         },
 
+        "comment-doc": {
+            "name": "comment.line.documentation.csx",
+            "match": "///.*$"
+        },
+
         "comment-line": {
             "name": "comment.line.double-slash.csx",
             "match": "//.*$"
+        },
+
+        "jsx-fragment-open": {
+            "name": "meta.tag.jsx.fragment.csx",
+            "match": "<>",
+            "captures": { "0": { "name": "punctuation.definition.tag.csx" } }
+        },
+
+        "jsx-fragment-close": {
+            "name": "meta.tag.jsx.fragment.close.csx",
+            "match": "</>",
+            "captures": { "0": { "name": "punctuation.definition.tag.csx" } }
         },
 
         "jsx-comment": {
@@ -59,24 +83,11 @@
             "captures": { "0": { "name": "punctuation.definition.comment.csx" } }
         },
 
-        "jsx-tag-self-closing": {
-            "comment": "<Tag attr=... />",
-            "name": "meta.tag.jsx.self-closing.csx",
-            "begin": "(<)([A-Z][a-zA-Z0-9]*)(?=\\s|/>)",
-            "end": "/>",
-            "beginCaptures": {
-                "1": { "name": "punctuation.definition.tag.begin.csx" },
-                "2": { "name": "entity.name.tag.jsx.csx support.class.component.csx" }
-            },
-            "endCaptures": { "0": { "name": "punctuation.definition.tag.end.csx" } },
-            "patterns": [{ "include": "#jsx-attrs" }]
-        },
-
         "jsx-tag-open": {
-            "comment": "<Tag attr=...>",
-            "name": "meta.tag.jsx.open.csx",
-            "begin": "(<)([A-Z][a-zA-Z0-9]*)(?=\\s|>)",
-            "end": "(?<!/)>",
+            "comment": "<Tag attr=...> or <Tag attr=... /> — handles both open and self-closing tags",
+            "name": "meta.tag.jsx.csx",
+            "begin": "(<)([A-Z][a-zA-Z0-9]*)(?=\\s|/>|>)",
+            "end": "/?>",
             "beginCaptures": {
                 "1": { "name": "punctuation.definition.tag.begin.csx" },
                 "2": { "name": "entity.name.tag.jsx.csx support.class.component.csx" }
@@ -104,13 +115,18 @@
             "beginCaptures": { "0": { "name": "punctuation.section.embedded.begin.csx" } },
             "endCaptures":   { "0": { "name": "punctuation.section.embedded.end.csx" } },
             "patterns": [
+                { "name": "keyword.operator.arrow.csx", "match": "=>" },
                 { "include": "#jsx-comment" },
                 { "include": "#comment-block" },
+                { "include": "#comment-doc" },
                 { "include": "#comment-line" },
-                { "include": "#jsx-tag-self-closing" },
+                { "include": "#jsx-fragment-close" },
+                { "include": "#jsx-fragment-open" },
                 { "include": "#jsx-tag-open" },
                 { "include": "#jsx-tag-close" },
                 { "include": "#jsx-expression" },
+                { "include": "#cs-raw-string-interp" },
+                { "include": "#cs-raw-string" },
                 { "include": "#cs-interpolated-string" },
                 { "include": "#cs-verbatim-string" },
                 { "include": "#cs-string" },
@@ -121,6 +137,7 @@
                 { "include": "#cs-storage" },
                 { "include": "#cs-function-decl" },
                 { "include": "#cs-method-call" },
+                { "include": "#cs-generics" },
                 { "include": "#cs-type-name" },
                 { "include": "#cs-operator" }
             ]
@@ -182,6 +199,7 @@
             },
             "endCaptures": { "0": { "name": "punctuation.section.embedded.end.csx" } },
             "patterns": [
+                { "name": "keyword.operator.arrow.csx", "match": "=>" },
                 { "include": "#cs-interpolated-string" },
                 { "include": "#cs-verbatim-string" },
                 { "include": "#cs-string" },
@@ -204,6 +222,7 @@
             },
             "endCaptures": { "0": { "name": "punctuation.section.embedded.end.csx" } },
             "patterns": [
+                { "name": "keyword.operator.arrow.csx", "match": "=>" },
                 { "include": "#jsx-expression" },
                 { "include": "#cs-interpolated-string" },
                 { "include": "#cs-verbatim-string" },
@@ -272,6 +291,65 @@
             "match": "\\b(flex|block|inline|inline-flex|inline-block|grid|none|auto|row|column|row-reverse|column-reverse|wrap|nowrap|stretch|center|flex-start|flex-end|space-between|space-around|space-evenly|hidden|visible|scroll|relative|absolute|fixed|sticky|pointer|text|default|crosshair|ellipsis|break-word|pre|pre-wrap|contain|cover|fill|border-box|content-box|bold|normal|italic|underline|start|end|left|right|top|bottom|baseline)\\b"
         },
 
+        "cs-attribute": {
+            "comment": "[AttributeName] and [AttributeName(args)] syntax",
+            "name": "meta.attribute.csx",
+            "begin": "\\[(?=[A-Z])",
+            "end": "\\]",
+            "beginCaptures": { "0": { "name": "punctuation.definition.attribute.begin.csx" } },
+            "endCaptures": { "0": { "name": "punctuation.definition.attribute.end.csx" } },
+            "patterns": [
+                { "include": "#cs-types-builtin" },
+                { "name": "entity.name.type.attribute.csx", "match": "[A-Z][a-zA-Z0-9_]*" },
+                { "include": "#cs-string" },
+                { "include": "#cs-number" }
+            ]
+        },
+
+        "cs-raw-string-interp": {
+            "comment": "Interpolated raw string $\"\"\"...\"\"\"",
+            "name": "string.interpolated.raw.cs.csx",
+            "begin": "\\$+\"\"\"",
+            "end": "\"\"\"",
+            "patterns": [
+                {
+                    "name": "meta.interpolation.cs.csx",
+                    "begin": "(?<!\\\\)\\{",
+                    "end": "\\}",
+                    "beginCaptures": { "0": { "name": "punctuation.section.interpolation.begin.csx" } },
+                    "endCaptures":   { "0": { "name": "punctuation.section.interpolation.end.csx" } },
+                    "patterns": [
+                        { "include": "#cs-keywords" },
+                        { "include": "#cs-types-builtin" },
+                        { "include": "#cs-string" },
+                        { "include": "#cs-number" }
+                    ]
+                }
+            ]
+        },
+
+        "cs-raw-string": {
+            "comment": "Raw string literal \"\"\"...\"\"\"",
+            "name": "string.quoted.raw.cs.csx",
+            "begin": "(?<!\\$)\"\"\"",
+            "end": "\"\"\""
+        },
+
+        "cs-generics": {
+            "comment": "Generic type parameters, e.g. List<string>, Func<int, bool>",
+            "begin": "(?<=[A-Za-z0-9_])(<)(?=[A-Za-z?\\[])",
+            "end": "(?<![=>])(>)",
+            "beginCaptures": { "1": { "name": "punctuation.definition.typeparameters.begin.csx" } },
+            "endCaptures":   { "1": { "name": "punctuation.definition.typeparameters.end.csx" } },
+            "patterns": [
+                { "include": "#cs-types-builtin" },
+                { "include": "#cs-generics" },
+                { "name": "punctuation.separator.comma.csx", "match": "," },
+                { "name": "keyword.operator.nullable.csx", "match": "\\?" },
+                { "name": "entity.name.type.csx", "match": "\\b[A-Za-z_][A-Za-z0-9_]*\\b" }
+            ]
+        },
+
         "cs-string": {
             "name": "string.quoted.double.cs.csx",
             "begin": "(?<![\\$@])\"",
@@ -320,14 +398,14 @@
 
         "cs-number": {
             "name": "constant.numeric.csx",
-            "match": "\\b(0x[0-9a-fA-F]+[uUlL]*|0b[01]+[uUlL]*|\\d+\\.?\\d*([eE][+-]?\\d+)?[fFdDmMuUlL]*)\\b"
+            "match": "\\b(0x[0-9a-fA-F_]+[uUlL]*|0b[01_]+[uUlL]*|[0-9][0-9_]*\\.?[0-9_]*([eE][+-]?[0-9_]+)?[fFdDmMuUlL]*)\\b"
         },
 
         "cs-keywords": {
             "patterns": [
                 {
                     "name": "keyword.control.csx",
-                    "match": "\\b(if|else|switch|case|default|break|continue|return|throw|try|catch|finally|do|while|for|foreach|in|when|yield|goto)\\b"
+                    "match": "\\b(if|else|switch|case|default|break|continue|return|throw|try|catch|finally|do|while|for|foreach|in|when|yield|goto|select|from|where|orderby|join|group|by|into|let|on|equals|ascending|descending)\\b"
                 },
                 {
                     "name": "keyword.other.csx",
@@ -366,15 +444,15 @@
         },
 
         "cs-method-call": {
-            "comment": "Method / function call — any identifier immediately before '('",
+            "comment": "Method / function call — identifier before '(', excluding C# keywords",
             "name": "entity.name.function.csx",
-            "match": "\\b([a-zA-Z_][a-zA-Z0-9_]*)(?=\\s*\\()"
+            "match": "\\b(?!if\\b|else\\b|while\\b|for\\b|foreach\\b|switch\\b|catch\\b|using\\b|return\\b|new\\b|typeof\\b|sizeof\\b|nameof\\b|stackalloc\\b|checked\\b|unchecked\\b|lock\\b|fixed\\b|await\\b|when\\b)([a-zA-Z_][a-zA-Z0-9_]*)(?=\\s*\\()"
         },
 
         "cs-type-name": {
-            "comment": "PascalCase identifiers used as types (not followed by '(' — those are caught above)",
+            "comment": "PascalCase identifiers used as types (not method calls, caught above by cs-method-call)",
             "name": "entity.name.type.csx support.class.csx",
-            "match": "\\b[A-Z][a-zA-Z0-9_]*\\b"
+            "match": "\\b[A-Z][a-zA-Z0-9_]*\\b(?!\\s*\\()"
         },
 
         "cs-operator": {

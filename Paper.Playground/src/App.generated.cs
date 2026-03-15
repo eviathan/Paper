@@ -1,3 +1,6 @@
+using System.Collections.Generic;
+using System.Linq;
+using Paper.Core.Context;
 using Paper.Core.Hooks;
 using Paper.Core.Styles;
 using Paper.Core.VirtualDom;
@@ -8,8 +11,7 @@ public static partial class AppComponent
 {
     public static UINode App(Props props)
     {
-        List<string> test = [];
-        var hmm = test.Select(x => "");
+        var test = ["test"];
         return UI.Box(
             new PropsBuilder()
                 .ClassName("root")
@@ -171,7 +173,7 @@ public static partial class AppComponent
                                                             Width = Length.Px(60),
                                                             MinWidth = Length.Px(60),
                                                             Height = Length.Px(48),
-                                                            Ackground = new PaperColour(
+                                                            Background = new PaperColour(
                                                                 0.54509807f,
                                                                 0.36078432f,
                                                                 0.9647059f,

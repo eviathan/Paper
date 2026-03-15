@@ -1,9 +1,8 @@
 @import "App.csss"
 
 function App() {
-  List<string> test = [];
-  var hmm = test.Select(x => "");
-  
+  var test = [ "test" ];
+
   return (
     <Box className="root">
       {/* 1. Row: flexGrow (equal vs weighted) */}
@@ -21,7 +20,7 @@ function App() {
         <Text className="section-label">justifyContent: space-between</Text>
         <Box className="demo-panel" style={{ justifyContent: 'space-between', gap: 8, height: 48 }}>
           <Box style={{ width: 60, minWidth: 60, height: 48, background: '#6366f1' }} />
-          <Box style={{ width: 60, minWidth: 60, height: 48, b ackground: '#8b5cf6' }} />
+          <Box style={{ width: 60, minWidth: 60, height: 48, background: '#8b5cf6' }} />
           <Box style={{ width: 60, minWidth: 60, height: 48, background: '#a855f7' }} />
         </Box>
       </Box>

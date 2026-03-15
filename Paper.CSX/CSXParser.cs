@@ -23,10 +23,10 @@ namespace Paper.CSX
             if (baseDir != null)
                 fileContent = InlineCSXImports(fileContent, baseDir);
 
-            // Strip @import "*.csss" directives — these are handled by the hot-reload layer, not compiled to C#.
+            // Strip ALL @import directives — stylesheet imports (.cscc/.csss) are handled by the hot-reload layer;
+            // CSX component imports (.csx) are already inlined above by InlineCSXImports.
             var filteredLines = fileContent.Split('\n')
-                .Where(l => !l.Trim().StartsWith("@import", StringComparison.OrdinalIgnoreCase) ||
-                             !(l.Contains(".csss\"") || l.Contains(".csss'")));
+                .Where(l => !l.Trim().StartsWith("@import", StringComparison.OrdinalIgnoreCase));
             var cleanBody = string.Join('\n', filteredLines).Trim().TrimEnd(';');
             if (string.IsNullOrWhiteSpace(cleanBody))
                 return (string.Empty, string.Empty, string.Empty, new HashSet<string>());

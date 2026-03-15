@@ -67,9 +67,12 @@ namespace Paper.CSX.CLI
             }
 
             var sb = new StringBuilder();
+            sb.AppendLine("using System.Collections.Generic;");
+            sb.AppendLine("using System.Linq;");
             sb.AppendLine("using Paper.Core.VirtualDom;");
             sb.AppendLine("using Paper.Core.Styles;");
             sb.AppendLine("using Paper.Core.Hooks;");
+            sb.AppendLine("using Paper.Core.Context;");
             sb.AppendLine();
             sb.AppendLine($"namespace {ns};");
             sb.AppendLine();

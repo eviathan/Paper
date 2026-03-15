@@ -6,8 +6,8 @@ namespace Paper.CSX.LanguageServer
     internal static class RoslynDiagnostics
     {
         // Number of lines before the preamble in the generated C# source template
-        // (usings × 7 + blank + class + { + method sig + { = 12 lines, preamble at line 12)
-        private const int PreambleLineOffset = 12;
+        // (8 usings + blank + class + { + method sig + { = 13 lines, preamble starts at line 13)
+        private const int PreambleLineOffset = 13;
         private const int PreambleColOffset = 8;  // 2 × 4-space indent inside the method
 
         public static IEnumerable<object> Compile(string csxSrc)
@@ -60,8 +60,15 @@ public static class _LsDiag_
 
                 int preambleLineCount = preamble.Split('\n').Length;
 
+                // Diagnostics suppressed because the language-server Roslyn version may be
+                // older than what the project actually compiles with, causing false positives.
+                var suppressedIds = new HashSet<string>(StringComparer.Ordinal)
+                {
+                    "CS9176", // 'No target type' for collection expressions (C# 12 feature Roslyn may not know)
+                };
+
                 return compilation.GetDiagnostics()
-                    .Where(d => d.Severity == DiagnosticSeverity.Error)
+                    .Where(d => d.Severity == DiagnosticSeverity.Error && !suppressedIds.Contains(d.Id))
                     .Select(d =>
                     {
                         var span = d.Location.GetLineSpan();
