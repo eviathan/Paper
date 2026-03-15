@@ -1120,6 +1120,74 @@ public static partial class AppComponent
                                 )
                             )
                             .Build()
+                    ),
+                    UI.Box(
+                        new PropsBuilder()
+                            .ClassName("section")
+                            .Children(
+                                UI.Nodes(
+                                    new UINode(
+                                        "text",
+                                        new PropsBuilder()
+                                            .ClassName("section-label")
+                                            .Text("UI.List — 200 items, virtualized")
+                                            .Build()
+                                    ),
+                                    UI.List(
+                                        Enumerable.Range(1, 200).ToArray(),
+                                        itemHeight: 36,
+                                        containerH: 180,
+                                        renderItem: (n, i) =>
+                                            UI.Box(
+                                                new PropsBuilder()
+                                                    .Style(
+                                                        new StyleSheet
+                                                        {
+                                                            Height = Length.Px(36),
+                                                            Padding = new Thickness(8f),
+                                                            Background = new PaperColour(
+                                                                0.101960786f,
+                                                                0.101960786f,
+                                                                0.13333334f,
+                                                                1f
+                                                            ),
+                                                            BorderBottom = new Border(
+                                                                1f,
+                                                                new PaperColour(
+                                                                    0.16470589f,
+                                                                    0.16470589f,
+                                                                    0.20784314f,
+                                                                    1f
+                                                                )
+                                                            ),
+                                                        }
+                                                    )
+                                                    .Children(
+                                                        new UINode(
+                                                            "text",
+                                                            new PropsBuilder()
+                                                                .Style(
+                                                                    new StyleSheet
+                                                                    {
+                                                                        Color = new PaperColour(
+                                                                            0.627451f,
+                                                                            0.627451f,
+                                                                            0.72156864f,
+                                                                            1f
+                                                                        ),
+                                                                    }
+                                                                )
+                                                                .Text($"{$"Item {n}"}")
+                                                                .Build()
+                                                        )
+                                                    )
+                                                    .Build(),
+                                                i.ToString()
+                                            )
+                                    )
+                                )
+                            )
+                            .Build()
                     )
                 )
                 .Build()

@@ -115,6 +115,20 @@ function App() {
           <Box style={{ height: 28, background: '#16a34a' }} />
         </Box>
       </Box>
+
+      {/* 8. Virtualized List — 200 items, only visible rows rendered */}
+      <Box className="section">
+        <Text className="section-label">UI.List — 200 items, virtualized</Text>
+        {UI.List(
+          Enumerable.Range(1, 200).ToArray(),
+          itemHeight: 36,
+          containerH: 180,
+          renderItem: (n, i) =>
+            <Box key={i.ToString()} style={{ height: 36, padding: 8, background: '#1a1a22', borderBottom: '1px solid #2a2a35' }}>
+              <Text style={{ color: '#a0a0b8' }}>{$"Item {n}"}</Text>
+            </Box>
+        )}
+      </Box>
     </Box>
   );
 }
