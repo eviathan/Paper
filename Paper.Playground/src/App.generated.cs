@@ -1188,6 +1188,11 @@ public static partial class AppComponent
                                 )
                             )
                             .Build()
+                    ),
+                    UI.Box(
+                        new PropsBuilder()
+                            .Style(new StyleSheet { MinHeight = Length.Px(24) })
+                            .Build()
                     )
                 )
                 .Build()

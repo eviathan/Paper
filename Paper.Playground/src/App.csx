@@ -129,6 +129,8 @@ function App() {
             </Box>
         )}
       </Box>
+
+      <Box style={{ minHeight: 24 }} />
     </Box>
   );
 }
