@@ -227,6 +227,7 @@ namespace Paper.Core.Reconciler
                 if (ShouldSkipReconciliation(current, node, forceReconcile))
                 {
                     current.EffectTag = EffectTag.None;
+                    current.Parent = parent; // keep Parent in sync when reusing a fiber under a new parent
                     return current;
                 }
 

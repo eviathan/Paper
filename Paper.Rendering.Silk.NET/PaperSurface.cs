@@ -89,6 +89,7 @@ namespace Paper.Rendering.Silk.NET
         /// </summary>
         private bool _needsLayout = true;
         private double _animationDeadline; // UTC seconds — keep drawing until this time
+        private int _lastStyleRegistryVersion = -1; // tracks StyleRegistry.Version; -1 forces first-frame invalidation
 
         /// <summary>
         /// When true, Paper reconciles every frame (useful for apps driven by external state).
@@ -709,6 +710,8 @@ namespace Paper.Rendering.Silk.NET
             // component-managed scroll e.g. VirtualList). Otherwise fall through to the first
             // overflow:scroll/auto container and update _scrollOffsets there.
             var pathToRoot = PathToRoot(target);
+            Console.Error.WriteLine($"[Scroll] target={target.Type}/{target.Index} pathLen={pathToRoot.Count} path=[{string.Join(">", pathToRoot.Select(f => $"{f.Type}/{f.Index}/oy={f.ComputedStyle.OverflowY}/whl={f.Props?.OnWheel != null}"))}]");
+            bool scrollHandled = false;
             for (int i = pathToRoot.Count - 1; i >= 0; i--)
             {
                 var node = pathToRoot[i];
@@ -717,6 +720,7 @@ namespace Paper.Rendering.Silk.NET
                 // Firing it handles the scroll internally — don't also move the page.
                 if (node.Props?.OnWheel != null)
                 {
+                    Console.Error.WriteLine($"[Scroll] consumed by OnWheel at i={i} type={node.Type}/{node.Index}");
                     node.Props.OnWheel(evt);
                     return; // consumed
                 }
@@ -726,6 +730,8 @@ namespace Paper.Rendering.Silk.NET
                     style.OverflowX == Overflow.Scroll || style.OverflowX == Overflow.Auto)
                 {
                     string key = string.Join(".", pathToRoot.Take(i + 1).Select(f => f.Index));
+                    Console.Error.WriteLine($"[Scroll] found scroll at i={i} type={node.Type}/{node.Index} key={key}");
+                    scrollHandled = true;
                     var (sx, sy) = _scrollOffsets.TryGetValue(key, out var v) ? v : (0f, 0f);
                     const float step = 24f;
                     // Invert so scroll-down (negative Y) increases scroll offset (content moves up)
@@ -744,6 +750,8 @@ namespace Paper.Rendering.Silk.NET
                     break;
                 }
             }
+            if (!scrollHandled)
+                Console.Error.WriteLine($"[Scroll] DROPPED — no scroll container found in path");
         }
 
         private void OnKeyDown(IKeyboard keyboard, Key key, int _)
@@ -1333,6 +1341,15 @@ namespace Paper.Rendering.Silk.NET
                 else
                     _focused = null;
             }
+            // If the style registry changed (CSSS sheet loaded/reloaded, class registered),
+            // mark all fibers dirty so stale cached ComputedStyles are recomputed.
+            int registryVersion = Styles.Version;
+            if (registryVersion != _lastStyleRegistryVersion)
+            {
+                InvalidateStyleTree(root);
+                _lastStyleRegistryVersion = registryVersion;
+                _needsLayout = true;
+            }
             ApplyComputedStyles(root);
 
             var fbSize = _window!.FramebufferSize;
@@ -1530,6 +1547,16 @@ namespace Paper.Rendering.Silk.NET
             if (string.IsNullOrWhiteSpace(path)) return path;
             if (Path.IsPathRooted(path)) return path;
             return Path.Combine(AppContext.BaseDirectory, path);
+        }
+
+        private static void InvalidateStyleTree(Fiber? fiber)
+        {
+            while (fiber != null)
+            {
+                fiber.StyleDirty = true;
+                InvalidateStyleTree(fiber.Child);
+                fiber = fiber.Sibling;
+            }
         }
 
         private void ApplyComputedStyles(Fiber fiber)

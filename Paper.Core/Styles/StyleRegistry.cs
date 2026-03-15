@@ -6,7 +6,17 @@ namespace Paper.Core.Styles
         private readonly object _csssLock = new();
         private List<object> _csssSheets = []; // typed as object to avoid a hard reference to Paper.CSSS
 
-        public void SetClass(string className, StyleSheet style) => _classStyles[className] = style;
+        /// <summary>
+        /// Increments whenever the registry changes (class added, CSSS sheet added/replaced/removed).
+        /// Consumers can compare against a stored version to detect staleness.
+        /// </summary>
+        public int Version { get; private set; }
+
+        public void SetClass(string className, StyleSheet style)
+        {
+            _classStyles[className] = style;
+            Version++;
+        }
 
         public bool TryGetClass(string className, out StyleSheet style)
         {
@@ -25,7 +35,10 @@ namespace Paper.Core.Styles
             lock (_csssLock)
             {
                 if (!_csssSheets.Contains(sheet))
+                {
                     _csssSheets = [.. _csssSheets, sheet];
+                    Version++;
+                }
             }
         }
 
@@ -41,11 +54,13 @@ namespace Paper.Core.Styles
                     {
                         list[i] = newSheet;
                         _csssSheets = list;
+                        Version++;
                         return;
                     }
                 }
                 list.Add(newSheet);
                 _csssSheets = list;
+                Version++;
             }
         }
 
@@ -53,7 +68,10 @@ namespace Paper.Core.Styles
         public void RemoveCSSSSheet(string sourcePath)
         {
             lock (_csssLock)
+            {
                 _csssSheets = _csssSheets.Where(s => s is not ICSSSSheet cs || cs.SourcePath != sourcePath).ToList();
+                Version++;
+            }
         }
 
         /// <summary>Snapshot of CSSS sheets — safe to iterate from any thread.</summary>
