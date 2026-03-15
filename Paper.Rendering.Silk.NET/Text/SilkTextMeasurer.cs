@@ -5,42 +5,45 @@ namespace Paper.Rendering.Silk.NET.Text
 {
     internal sealed class SilkTextMeasurer : ILayoutMeasurer
     {
-        private readonly PaperFontSet _fonts;
+        private readonly FontRegistry _fonts;
 
         private const float DefaultFontPx           = 16f;
         private const float ApproxCharWidthFactor   = 0.6f;
         private const float DefaultLineHeightFactor = 1.2f;
 
-        public SilkTextMeasurer(PaperFontSet fonts) => _fonts = fonts;
+        public SilkTextMeasurer(FontRegistry fonts) => _fonts = fonts;
 
         public (float width, float height) MeasureText(string text, StyleSheet style, float? maxWidth = null)
         {
             if (string.IsNullOrEmpty(text))
                 return (0f, 0f);
 
-            float fontPx = ResolveFontPx(style);
-            float w       = _fonts.MeasureWidth(text.AsSpan(), fontPx);
-            float lineHPx = _fonts.LineHeight(fontPx);
+            float fontPx  = ResolveFontPx(style);
+            string? fam   = style.FontFamily;
+            var weight    = style.FontWeight;
+
+            float w       = _fonts.MeasureWidth(text.AsSpan(), fontPx, fam, weight);
+            float lineHPx = _fonts.LineHeight(fontPx, fam, weight);
             float lineH   = lineHPx * Math.Max(0.5f, style.LineHeight ?? 1.4f);
 
             // Heuristic fallback if atlas not ready
             if (w <= 0 || lineH <= 0)
             {
-                w      = text.Length * fontPx * ApproxCharWidthFactor;
-                lineH  = fontPx * (style.LineHeight is > 0 ? style.LineHeight.Value : DefaultLineHeightFactor);
+                w     = text.Length * fontPx * ApproxCharWidthFactor;
+                lineH = fontPx * (style.LineHeight is > 0 ? style.LineHeight.Value : DefaultLineHeightFactor);
             }
 
             // Word wrap
             bool doWrap = style.WhiteSpace == WhiteSpace.Normal && maxWidth is > 0 && w > maxWidth.Value;
             if (doWrap)
             {
-                float spaceW = _fonts.MeasureWidth(" ".AsSpan(), fontPx);
+                float spaceW = _fonts.MeasureWidth(" ".AsSpan(), fontPx, fam, weight);
                 if (spaceW <= 0) spaceW = fontPx * 0.3f;
                 int numLines = 1;
                 float lineW  = 0;
                 foreach (var word in text.Split(' '))
                 {
-                    float wordW = _fonts.MeasureWidth(word.AsSpan(), fontPx);
+                    float wordW = _fonts.MeasureWidth(word.AsSpan(), fontPx, fam, weight);
                     if (lineW > 0 && lineW + spaceW + wordW > maxWidth!.Value)
                     {
                         numLines++;

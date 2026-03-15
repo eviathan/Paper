@@ -18,27 +18,39 @@ namespace Paper.Core.Hooks
         /// <summary>For UseEffect: the effect to run after commit.</summary>
         public Func<Action?>? PendingEffect { get; set; }
 
-        /// <summary>Queued state updaters (e.g. from rapid events) applied in order when state is read during the next render.</summary>
+        /// <summary>
+        /// Queued state updaters applied in order when state is read during the next render.
+        /// Guarded by <see cref="_updatersLock"/> so background threads (e.g. UseAsync) can enqueue safely.
+        /// </summary>
         private List<Func<object?, object?>>? _pendingStateUpdaters;
+        private readonly object _updatersLock = new();
 
-        internal bool HasPendingUpdaters => _pendingStateUpdaters != null && _pendingStateUpdaters.Count > 0;
+        internal bool HasPendingUpdaters
+        {
+            get { lock (_updatersLock) return _pendingStateUpdaters != null && _pendingStateUpdaters.Count > 0; }
+        }
 
         internal void EnqueueStateUpdater(Func<object?, object?> updater)
         {
-            _pendingStateUpdaters ??= new List<Func<object?, object?>>();
-            _pendingStateUpdaters.Add(updater);
+            lock (_updatersLock)
+            {
+                _pendingStateUpdaters ??= new List<Func<object?, object?>>();
+                _pendingStateUpdaters.Add(updater);
+            }
         }
 
         /// <summary>Apply all queued state updaters and clear the queue. Call when reading state at start of render.</summary>
         internal void DrainStateUpdaters()
         {
-            if (_pendingStateUpdaters == null || _pendingStateUpdaters.Count == 0)
-                return;
-
-            foreach (var u in _pendingStateUpdaters)
+            List<Func<object?, object?>>? snapshot;
+            lock (_updatersLock)
+            {
+                if (_pendingStateUpdaters == null || _pendingStateUpdaters.Count == 0) return;
+                snapshot = new List<Func<object?, object?>>(_pendingStateUpdaters);
+                _pendingStateUpdaters.Clear();
+            }
+            foreach (var u in snapshot)
                 State = u(State);
-                
-            _pendingStateUpdaters.Clear();
         }
     }
 }

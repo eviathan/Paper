@@ -1,7 +1,7 @@
 @import "App.csss"
 
 function App() {
-  var test = [ "test" ];
+  List<string> test = ["test"];
 
   return (
     <Box className="root">

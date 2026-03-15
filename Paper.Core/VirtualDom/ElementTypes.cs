@@ -27,5 +27,11 @@ namespace Paper.Core.VirtualDom
         public const string TableCell = "table-cell";
         public const string RadioGroup = "radio-group";
         public const string RadioOption = "radio-option";
+        /// <summary>
+        /// A portal — reconciles children normally but renders them into a separate
+        /// overlay pass on top of the main tree (after z-index deferred items).
+        /// Use for modals, tooltips, dropdowns, and toasts.
+        /// </summary>
+        public const string Portal = "portal";
     }
 }

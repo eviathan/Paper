@@ -11,7 +11,7 @@ public static partial class AppComponent
 {
     public static UINode App(Props props)
     {
-        var test = ["test"];
+        List<string> test = ["test"];
         return UI.Box(
             new PropsBuilder()
                 .ClassName("root")

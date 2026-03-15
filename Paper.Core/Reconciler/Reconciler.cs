@@ -7,10 +7,17 @@ namespace Paper.Core.Reconciler
 {
     public sealed class Reconciler
     {
-        private Fiber? _current;     
+        private Fiber? _current;
         private bool   _renderRequested;
 
         public Fiber? Root => _current;
+
+        /// <summary>
+        /// Fibers collected from <see cref="ElementTypes.Portal"/> elements during reconciliation.
+        /// The renderer flushes these after the main tree pass so portals always appear on top.
+        /// Reset at the start of each <see cref="Update"/> / <see cref="Mount"/> call.
+        /// </summary>
+        public List<Fiber> PortalRoots { get; } = new();
 
         public event Action? AfterCommit;
 
@@ -21,6 +28,7 @@ namespace Paper.Core.Reconciler
 
         public void Mount(UINode root)
         {
+            PortalRoots.Clear();
             try
             {
                 _current = Render(root, null, null);
@@ -40,6 +48,7 @@ namespace Paper.Core.Reconciler
         /// <param name="forceReconcile">When true, always re-run all components (e.g. for hot reload).</param>
         public void Update(UINode root, bool forceReconcile = false)
         {
+            PortalRoots.Clear();
             try
             {
                 var wip = Reconcile(_current, root, null, forceReconcile);
@@ -66,82 +75,81 @@ namespace Paper.Core.Reconciler
 
         private Fiber Render(UINode node, Fiber? current, Fiber? parent)
         {
+            var fiber = new Fiber
+            {
+                Type = node.Type,
+                Key = node.Key,
+                Props = node.Props,
+                Parent = parent,
+                Alternate = current,
+                EffectTag = current == null ? EffectTag.Placement : EffectTag.Update,
+            };
+
+            if (current != null)
+                foreach (var slot in current.HookSlots)
+                    fiber.HookSlots.Add(slot);
+
+            // Mark class components that implement IErrorBoundary.
+            if (node.Type is Type t && typeof(Components.IErrorBoundary).IsAssignableFrom(t))
+                fiber.IsErrorBoundary = true;
+
+            var children = ExpandNode(node, fiber);
+
+            foreach (var (slotIndex, effect, deps) in HookContext.PendingEffects)
+            {
+                if (slotIndex < fiber.HookSlots.Count)
+                {
+                    fiber.HookSlots[slotIndex].PendingEffect = () =>
+                    {
+                        var result = effect();
+                        return result;
+                    };
+                }
+            }
+
+            // Context providers push their value before child reconciliation so that any
+            // UseContext calls inside child component functions see the correct value.
+            ContextProviderBase? provider = node.Type as ContextProviderBase;
+            provider?.Push();
             try
             {
-                var fiber = new Fiber
-                {
-                    Type = node.Type,
-                    Key = node.Key,
-                    Props = node.Props,
-                    Parent = parent,
-                    Alternate = current,
-                    EffectTag = current == null ? EffectTag.Placement : EffectTag.Update,
-                };
-
-                if (current != null)
-                    foreach (var slot in current.HookSlots)
-                        fiber.HookSlots.Add(slot);
-
-                var children = ExpandNode(node, fiber);
-
-                foreach (var (slotIndex, effect, deps) in HookContext.PendingEffects)
-                {
-                    if (slotIndex < fiber.HookSlots.Count)
-                    {
-                        fiber.HookSlots[slotIndex].PendingEffect = () =>
-                        {
-                            var result = effect();
-                            return result;
-                        };
-                    }
-                }
-
-                // Context providers push their value before child reconciliation so that any
-                // UseContext calls inside child component functions see the correct value.
-                ContextProviderBase? provider = node.Type as ContextProviderBase;
-                provider?.Push();
-                try
-                {
-                    ReconcileChildren(fiber, children, current);
-                }
-                finally
-                {
-                    provider?.Pop();
-                }
-
-                return fiber;
+                ReconcileChildren(fiber, children, current);
             }
-            catch (Exception ex)
+            finally
             {
-                Console.Error.WriteLine("[Paper] Render error: " + ex.ToString());
-                var errorProps = new Props(new Dictionary<string, object?> { { "text", $"Error: {ex.Message}" } });
-                var errorNode = new UINode("Text", errorProps);
-                return Render(errorNode, null, parent);
+                provider?.Pop();
             }
+
+            return fiber;
         }
 
         private List<UINode> ExpandNode(UINode node, Fiber fiber)
         {
-            try
+            // Errors propagate up — caught by the nearest error boundary's ReconcileChildren,
+            // or by the top-level Mount/Update catch.
+
+            if (node.Type is string s2 && s2 == ElementTypes.Portal)
             {
-                return node.Type switch
+                // Portal: reconcile children normally but attach fibers to PortalRoots so the
+                // renderer can flush them in a separate top-most pass.
+                foreach (var child in node.Children)
                 {
-                    string s when s == ElementTypes.RadioGroup => ExpandRadioGroup(node),
-                    string => node.Children.ToList(),
-                    Type t when typeof(Components.Component).IsAssignableFrom(t)
-                        => new List<UINode> { RenderClassComponent(t, node.Props, fiber) },
-                    Func<Props, UINode> fn
-                        => new List<UINode> { RenderFunctionComponent(fn, node.Props, fiber) },
-                    _ => node.Children.ToList(),
-                };
+                    var portalFiber = Render(child, null, null);
+                    PortalRoots.Add(portalFiber);
+                }
+                return new List<UINode>(); // portal itself has no layout children
             }
-            catch (Exception ex)
+
+            return node.Type switch
             {
-                Console.Error.WriteLine("[Paper] ExpandNode error: " + ex.ToString());
-                var errorProps = new Props(new Dictionary<string, object?> { { "text", $"Error: {ex.Message}" } });
-                var errorNode = new UINode("Text", errorProps);
-                return new List<UINode> { errorNode };
-            }
+                string s when s == ElementTypes.RadioGroup => ExpandRadioGroup(node),
+                string => node.Children.ToList(),
+                Type t when typeof(Components.Component).IsAssignableFrom(t)
+                    => new List<UINode> { RenderClassComponent(t, node.Props, fiber) },
+                Func<Props, UINode> fn
+                    => new List<UINode> { RenderFunctionComponent(fn, node.Props, fiber) },
+                _ => node.Children.ToList(),
+            };
         }
 
         private static List<UINode> ExpandRadioGroup(UINode node)
@@ -169,47 +177,46 @@ namespace Paper.Core.Reconciler
 
         private UINode RenderClassComponent(Type type, Props props, Fiber fiber)
         {
+            Components.Component instance;
+            if (fiber.Instance != null && fiber.Instance.GetType() == type)
+            {
+                instance = fiber.Instance;
+            }
+            else
+            {
+                instance = (Components.Component)Activator.CreateInstance(type)!;
+                fiber.Instance = instance;
+            }
+            instance.Props = props;
+
+            HookContext.Begin(fiber.HookSlots);
             try
             {
-                Components.Component instance;
-                if (fiber.Instance != null && fiber.Instance.GetType() == type)
-                {
-                    instance = fiber.Instance;
-                }
-                else
-                {
-                    instance = (Components.Component)Activator.CreateInstance(type)!;
-                    fiber.Instance = instance;
-                }
-                instance.Props = props;
-
-                HookContext.Begin(fiber.HookSlots);
                 var result = instance.Render();
                 HookContext.End();
                 return result;
             }
-            catch (Exception ex)
+            catch
             {
-                Console.Error.WriteLine("[Paper] Class component error: " + ex.ToString());
-                var errorProps = new Props(new Dictionary<string, object?> { { "text", $"Component Error: {ex.Message}" } });
-                return new UINode("Text", errorProps);
+                HookContext.End();
+                throw;
             }
         }
 
         private UINode RenderFunctionComponent(Func<Props, UINode> fn, Props props, Fiber fiber)
         {
+            HookContext.Begin(fiber.HookSlots);
             try
             {
-                HookContext.Begin(fiber.HookSlots);
                 var result = fn(props);
                 HookContext.End();
                 return result;
             }
-            catch (Exception ex)
+            catch
             {
-                Console.Error.WriteLine("[Paper] Function component error: " + ex.ToString());
-                var errorProps = new Props(new Dictionary<string, object?> { { "text", $"Function Component Error: {ex.Message}" } });
-                return new UINode("Text", errorProps);
+                // Ensure HookContext is cleaned up before the exception propagates to the boundary.
+                HookContext.End();
+                throw;
             }
         }
 
@@ -298,7 +305,33 @@ namespace Paper.Core.Reconciler
                 string lookupKey = childNode.Key ?? $"${index}";
                 Fiber? oldChild = keyedOld.TryGetValue(lookupKey, out var found) ? found : null;
 
-                var newFiber = Reconcile(oldChild, childNode, parent);
+                Fiber newFiber;
+                if (parent.IsErrorBoundary)
+                {
+                    try
+                    {
+                        newFiber = Reconcile(oldChild, childNode, parent);
+                        parent.CaughtError = null; // subtree rendered successfully; clear any prior error
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.Error.WriteLine("[Paper] Error boundary caught: " + ex.ToString());
+                        parent.CaughtError = ex;
+                        // Render the boundary's fallback as its only child; discard remaining siblings.
+                        var fallback = ((Components.IErrorBoundary)parent.Instance!).RenderFallback(ex);
+                        parent.Child    = null;
+                        prevSibling     = null;
+                        newFiber        = Render(fallback, null, parent);
+                        newFiber.Index  = 0;
+                        parent.Child    = newFiber;
+                        return; // skip remaining children
+                    }
+                }
+                else
+                {
+                    newFiber = Reconcile(oldChild, childNode, parent);
+                }
+
                 newFiber.Index = index;
 
                 if (prevSibling == null)

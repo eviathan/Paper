@@ -40,7 +40,7 @@ namespace Paper.Rendering.Silk.NET
         private GL? _gl;
         private RectBatch? _rects;
         private TexturedQuadRenderer? _viewports;
-        private PaperFontSet? _fontSet;
+        private FontRegistry? _fontSet;
         private TextBatch? _text => _fontSet?.Default;
         private Reconciler? _reconciler;
         private LayoutEngine? _layout;
@@ -201,16 +201,45 @@ namespace Paper.Rendering.Silk.NET
             _gl.Enable(EnableCap.Blend);
             _gl.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
 
-            // Load font for text rendering (degrades gracefully if not found)
-            var fontPath = Path.Combine(AppContext.BaseDirectory, "Assets", "fonts", "roboto.ttf");
-            Console.WriteLine($"Font path: {fontPath}");
-            Console.WriteLine($"Font exists: {File.Exists(fontPath)}");
-            if (File.Exists(fontPath))
+            // Load fonts for text rendering (degrades gracefully if not found).
+            // Discovers regular + bold variants by checking common naming conventions
+            // next to the primary font file (e.g. roboto.ttf → roboto-bold.ttf).
+            var fontRegistry = new FontRegistry();
+            var fontDir  = Path.Combine(AppContext.BaseDirectory, "Assets", "fonts");
+            if (Directory.Exists(fontDir))
             {
-                var atlases = PaperFontLoader.LoadSet(_gl, fontPath);
-                _fontSet = new PaperFontSet(atlases, _gl);
-                Console.WriteLine($"Font set loaded: {atlases.Count} sizes");
-                _measurer = new SilkTextMeasurer(_fontSet);
+                foreach (var regularPath in Directory.GetFiles(fontDir, "*.ttf"))
+                {
+                    // Skip files that look like weight variants — they are registered via the primary file.
+                    var fname = Path.GetFileNameWithoutExtension(regularPath);
+                    if (fname.EndsWith("-bold",    StringComparison.OrdinalIgnoreCase)) continue;
+                    if (fname.EndsWith("-italic",  StringComparison.OrdinalIgnoreCase)) continue;
+                    if (fname.EndsWith("-bolditalic", StringComparison.OrdinalIgnoreCase)) continue;
+                    if (fname.EndsWith("bold",     StringComparison.OrdinalIgnoreCase) && fname.Length > 4) continue;
+
+                    var regular = new PaperFontSet(PaperFontLoader.LoadSet(_gl, regularPath), _gl);
+
+                    // Look for a bold variant next to the regular file.
+                    PaperFontSet? bold = null;
+                    foreach (var suffix in new[] { "-bold", "-Bold", "bold", "Bold" })
+                    {
+                        var boldPath = Path.Combine(fontDir, fname + suffix + ".ttf");
+                        if (File.Exists(boldPath))
+                        {
+                            bold = new PaperFontSet(PaperFontLoader.LoadSet(_gl, boldPath), _gl);
+                            break;
+                        }
+                    }
+
+                    // Register under the filename (e.g. "roboto") and as "default" for the first font.
+                    fontRegistry.Register(fname.ToLowerInvariant(), regular, bold);
+                }
+            }
+
+            if (fontRegistry.Default != null)
+            {
+                _fontSet  = fontRegistry;
+                _measurer = new SilkTextMeasurer(fontRegistry);
             }
 
             // Create long-lived renderer (holds CSS transition animation state across frames).
@@ -1273,6 +1302,14 @@ namespace Paper.Rendering.Silk.NET
             };
             _layout.Layout(root, layoutWidth, layoutHeight, _measurer);
 
+            // Apply full-screen layout to portal roots so they can position themselves
+            // using position:absolute/fixed relative to the window.
+            if (_reconciler?.PortalRoots is { Count: > 0 } portals)
+            {
+                foreach (var portal in portals)
+                    ApplyStylesAndLayout(portal, layoutWidth, layoutHeight);
+            }
+
             // Update horizontal scroll for single-line input so caret stays in view
             if (_text != null && _focused != null && _focused.Type is string fit && fit == ElementTypes.Input)
             {
@@ -1320,6 +1357,7 @@ namespace Paper.Rendering.Silk.NET
             renderer.FocusedInputCaretVisible = ComputeCaretVisible();
             renderer.FocusedInputScrollX = _inputScrollX;
             renderer.HoveredPath = _hovered != null ? GetPathString(_hovered) : null;
+            renderer.PortalRoots = _reconciler?.PortalRoots;
             renderer.Render(root);
             _rects!.Flush(fbSize.X, fbSize.Y);
             _text?.Flush(fbSize.X, fbSize.Y);
@@ -1455,6 +1493,17 @@ namespace Paper.Rendering.Silk.NET
                 ApplyComputedStyles(child);
                 child = child.Sibling;
             }
+        }
+
+        /// <summary>
+        /// Applies computed styles and runs layout for a portal root fiber.
+        /// Portals are laid out against the full window/framebuffer area so that
+        /// <c>position:absolute/fixed</c> elements within them can be placed anywhere on screen.
+        /// </summary>
+        private void ApplyStylesAndLayout(Fiber fiber, int width, int height)
+        {
+            ApplyComputedStyles(fiber);
+            _layout?.Layout(fiber, width, height, _measurer!);
         }
     }
 }

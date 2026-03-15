@@ -59,6 +59,14 @@ namespace Paper.Core.Reconciler
         /// </summary>
         public StyleSheet ComputedStyle { get; set; } = StyleSheet.Empty;
 
+        // ── Error boundary ────────────────────────────────────────────────────
+
+        /// <summary>True when this fiber's class component implements <see cref="Components.IErrorBoundary"/>.</summary>
+        public bool IsErrorBoundary { get; set; }
+
+        /// <summary>The exception caught from a descendant, if any. Cleared when the boundary re-renders successfully.</summary>
+        public Exception? CaughtError { get; set; }
+
         // ── Stale / dirty flag ────────────────────────────────────────────────
 
         /// <summary>True when this fiber's state has changed and it needs re-rendering.</summary>

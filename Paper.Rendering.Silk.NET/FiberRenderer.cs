@@ -17,7 +17,7 @@ namespace Paper.Rendering.Silk.NET
     {
         private readonly RectBatch _rects;
         private readonly TexturedQuadRenderer _viewports;
-        private readonly PaperFontSet? _fonts;
+        private readonly FontRegistry? _fonts;
         // Convenience accessor for places that only need the default (16px) atlas metrics.
         private TextBatch? _text => _fonts?.Default;
         private readonly GL? _gl;
@@ -63,7 +63,7 @@ namespace Paper.Rendering.Silk.NET
         public float FocusedInputScrollX { get; set; }
 
         public FiberRenderer(RectBatch rects, TexturedQuadRenderer viewports,
-                             PaperFontSet? fonts, float screenW, float screenH,
+                             FontRegistry? fonts, float screenW, float screenH,
                              GL? gl = null)
         {
             _rects = rects;
@@ -130,6 +130,12 @@ namespace Paper.Rendering.Silk.NET
         private readonly List<ZIndexedFiber> _zIndexedList = new();
         private List<ZIndexedFiber>? _zIndexed;
 
+        /// <summary>
+        /// Portal fibers from <see cref="Paper.Core.Reconciler.Reconciler.PortalRoots"/>.
+        /// Set by the host each frame. Portals are rendered last — on top of everything including z-indexed elements.
+        /// </summary>
+        public List<Paper.Core.Reconciler.Fiber>? PortalRoots { get; set; }
+
         public void Render(Fiber? fiber, float inheritedOpacity = 1f)
         {
             double now = DateTime.UtcNow.Ticks / (double)TimeSpan.TicksPerSecond;
@@ -147,6 +153,13 @@ namespace Paper.Rendering.Silk.NET
                     RenderFiber(z.Fiber, z.Opacity, z.Path, z.ScrollX, z.ScrollY);
             }
             _zIndexed = null;
+
+            // Portals render last — always on top of the entire main tree.
+            if (PortalRoots is { Count: > 0 })
+            {
+                for (int pi = 0; pi < PortalRoots.Count; pi++)
+                    Render(PortalRoots[pi], inheritedOpacity, "portal", pi, 0f, 0f);
+            }
         }
 
         private void Render(Fiber? fiber, float inheritedOpacity, string parentPath, int indexInParent, float scrollX, float scrollY)
@@ -888,13 +901,15 @@ namespace Paper.Rendering.Silk.NET
             int lineSelStart = Math.Max(selMin, lineStart) - lineStart;
             int lineSelEnd   = Math.Min(selMax, lineEnd) - lineStart;
             if (lineSelStart >= lineSelEnd || lineSelStart < 0 || lineSelEnd > line.Length) return;
-            float fontPx = SilkTextMeasurer.ResolveFontPx(style);
-            float textH  = _fonts.LineHeight(fontPx);
+            float fontPx   = SilkTextMeasurer.ResolveFontPx(style);
+            string? fam    = style.FontFamily;
+            var weight     = style.FontWeight;
+            float textH    = _fonts.LineHeight(fontPx, fam, weight);
             var (padTop, _, _, padLeft) = BoxModel.PaddingPixels(style, fullLb.Width, fullLb.Height);
             float xLayout  = fullLb.AbsoluteX + padLeft - inputScrollX;
             float baseline = lineBox.AbsoluteY + padTop + (textH * 0.8f);
-            float w0 = _fonts.MeasureWidth(line.AsSpan(0, lineSelStart), fontPx);
-            float w1 = _fonts.MeasureWidth(line.AsSpan(0, lineSelEnd), fontPx);
+            float w0 = _fonts.MeasureWidth(line.AsSpan(0, lineSelStart), fontPx, fam, weight);
+            float w1 = _fonts.MeasureWidth(line.AsSpan(0, lineSelEnd), fontPx, fam, weight);
             float x0 = (xLayout - scrollX + w0) * ScaleX;
             float y0 = (baseline - scrollY - textH * 0.8f) * ScaleY;
             float w  = (w1 - w0) * ScaleX;
@@ -908,12 +923,14 @@ namespace Paper.Rendering.Silk.NET
         {
             if (!FocusedInputCaretVisible || _fonts == null || FocusedInputCaret < lineStart || FocusedInputCaret > lineEnd + 1) return;
             float fontPx   = SilkTextMeasurer.ResolveFontPx(style);
-            float textH    = _fonts.LineHeight(fontPx);
+            string? fam    = style.FontFamily;
+            var weight     = style.FontWeight;
+            float textH    = _fonts.LineHeight(fontPx, fam, weight);
             var (padTop, _, _, padLeft) = BoxModel.PaddingPixels(style, fullLb.Width, fullLb.Height);
             float xLayout  = fullLb.AbsoluteX + padLeft - inputScrollX;
             float baseline = lineBox.AbsoluteY + padTop + (textH * 0.8f);
             int   caretOffset = Math.Min(FocusedInputCaret - lineStart, line.Length);
-            float caretX   = xLayout + (caretOffset <= 0 ? 0 : _fonts.MeasureWidth(line.AsSpan(0, caretOffset), fontPx));
+            float caretX   = xLayout + (caretOffset <= 0 ? 0 : _fonts.MeasureWidth(line.AsSpan(0, caretOffset), fontPx, fam, weight));
             DrawCaretAt(caretX, baseline, 1f, textH, col, opacity, scrollX, scrollY);
         }
 
@@ -933,8 +950,10 @@ namespace Paper.Rendering.Silk.NET
             if (_fonts == null) return;
 
             float fontPx     = SilkTextMeasurer.ResolveFontPx(style);
-            var (batch, batchScale) = _fonts.Get(fontPx);
-            float atlasLineH = _fonts.LineHeight(fontPx);
+            string? fam      = style.FontFamily;
+            var weight       = style.FontWeight;
+            var (batch, batchScale) = _fonts.Get(fontPx, fam, weight);
+            float atlasLineH = _fonts.LineHeight(fontPx, fam, weight);
 
             // Padding from style (respects individual PaddingTop/Right/Bottom/Left overrides)
             var (padTop, padRight, padBottom, padLeft) = BoxModel.PaddingPixels(style, lb.Width, lb.Height);
@@ -954,7 +973,7 @@ namespace Paper.Rendering.Silk.NET
             }
 
             // Horizontal alignment (TextAlign). When inputScrollX is set (single-line input), left-align and apply scroll.
-            float textW    = _fonts.MeasureWidth(label.AsSpan(), fontPx);
+            float textW    = _fonts.MeasureWidth(label.AsSpan(), fontPx, fam, weight);
             float contentW = lb.Width - padLeft - padRight;
 
             // TextOverflow: Ellipsis — truncate label to fit contentW if needed
@@ -963,7 +982,7 @@ namespace Paper.Rendering.Silk.NET
                 (style.TextOverflow ?? TextOverflow.Clip) == TextOverflow.Ellipsis)
             {
                 const string ellipsis = "…";
-                float ellipsisW = _fonts.MeasureWidth(ellipsis.AsSpan(), fontPx);
+                float ellipsisW = _fonts.MeasureWidth(ellipsis.AsSpan(), fontPx, fam, weight);
                 float available = contentW - ellipsisW;
                 if (available > 0)
                 {
@@ -971,13 +990,13 @@ namespace Paper.Rendering.Silk.NET
                     while (lo < hi)
                     {
                         int mid = (lo + hi + 1) / 2;
-                        if (_fonts.MeasureWidth(label.AsSpan(0, mid), fontPx) <= available)
+                        if (_fonts.MeasureWidth(label.AsSpan(0, mid), fontPx, fam, weight) <= available)
                             lo = mid;
                         else
                             hi = mid - 1;
                     }
                     label = label[..lo] + ellipsis;
-                    textW = _fonts.MeasureWidth(label.AsSpan(), fontPx);
+                    textW = _fonts.MeasureWidth(label.AsSpan(), fontPx, fam, weight);
                 }
                 else
                 {
@@ -992,7 +1011,7 @@ namespace Paper.Rendering.Silk.NET
                           contentW > 0 && textW > contentW;
             if (doWrap)
             {
-                float spaceW      = _fonts.MeasureWidth(" ".AsSpan(), fontPx);
+                float spaceW      = _fonts.MeasureWidth(" ".AsSpan(), fontPx, fam, weight);
                 if (spaceW <= 0) spaceW = atlasLineH * 0.3f;
                 float lineSpacing = atlasLineH * Math.Max(0.5f, style.LineHeight ?? 1.4f);
                 float wrapBaseline = lb.AbsoluteY + padTop + (atlasLineH * 0.8f);
@@ -1004,7 +1023,7 @@ namespace Paper.Rendering.Silk.NET
 
                 foreach (var word in words)
                 {
-                    float wordW = _fonts.MeasureWidth(word.AsSpan(), fontPx);
+                    float wordW = _fonts.MeasureWidth(word.AsSpan(), fontPx, fam, weight);
                     if (lineWords.Count > 0 && lineW + spaceW + wordW > contentW)
                     {
                         float lx = (xOrigin - scrollX) * ScaleX;
