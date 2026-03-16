@@ -258,7 +258,7 @@ namespace Paper.Layout
 
             foreach (var fi in line.Items)
             {
-                float cross = AlignCross(fi, style, line.LineCrossSize);
+                float cross = AlignCross(fi, style, crossSize);
 
                 float x, y, w, h;
                 if (isRow)

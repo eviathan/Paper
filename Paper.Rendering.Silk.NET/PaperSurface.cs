@@ -29,7 +29,7 @@ namespace Paper.Rendering.Silk.NET
     ///   surface.Run();
     /// </code>
     /// </summary>
-    public sealed class PaperSurface
+    public sealed class PaperSurface : IDisposable
     {
         private readonly string _title;
         private int _width;
@@ -172,7 +172,7 @@ namespace Paper.Rendering.Silk.NET
             }
         }
 
-        /// <summary>Run the surface event loop (blocking).</summary>
+        /// <summary>Run the surface event loop (blocking). Disposes all GPU resources before returning.</summary>
         public void Run()
         {
             if (_rootFactory == null)
@@ -194,8 +194,49 @@ namespace Paper.Rendering.Silk.NET
             _window.Resize += OnResize;
             Console.WriteLine("Window created, running event loop...");
             _window.Initialize();
-            RunLoop();
+            try
+            {
+                RunLoop();
+            }
+            finally
+            {
+                DisposeResources();
+            }
+        }
+
+        /// <summary>
+        /// Releases all GPU and managed resources. Called automatically at the end of <see cref="Run"/>.
+        /// Safe to call manually if <see cref="Run"/> was not used (e.g. in tests or headless scenarios).
+        /// </summary>
+        public void Dispose() => DisposeResources();
+
+        private void DisposeResources()
+        {
+            _caretBlinkTimer?.Dispose();
+            _caretBlinkTimer = null;
+
+            _csxHotReload?.Dispose();
+            _csxHotReload = null;
+
+            _inputContext?.Dispose();
+            _inputContext = null;
+
+            _imageLoader?.Dispose();
+            _imageLoader = null;
+
+            _rects?.Dispose();
+            _rects = null;
+
+            _fontSet?.Dispose();
+            _fontSet = null;
+
+            _viewports?.Dispose();
+            _viewports = null;
+
             DestroyGlfwCursors();
+
+            _window?.Dispose();
+            _window = null;
         }
 
         /// <summary>
@@ -221,7 +262,6 @@ namespace Paper.Rendering.Silk.NET
                     System.Threading.Thread.Sleep(4); // idle: yield CPU, wake at ~250 Hz
             }
             _window?.DoEvents();
-            _window?.Reset();
         }
 
         private void OnWindowLoad()
@@ -710,8 +750,6 @@ namespace Paper.Rendering.Silk.NET
             // component-managed scroll e.g. VirtualList). Otherwise fall through to the first
             // overflow:scroll/auto container and update _scrollOffsets there.
             var pathToRoot = PathToRoot(target);
-            Console.Error.WriteLine($"[Scroll] target={target.Type}/{target.Index} pathLen={pathToRoot.Count} path=[{string.Join(">", pathToRoot.Select(f => $"{f.Type}/{f.Index}/oy={f.ComputedStyle.OverflowY}/whl={f.Props?.OnWheel != null}"))}]");
-            bool scrollHandled = false;
             for (int i = pathToRoot.Count - 1; i >= 0; i--)
             {
                 var node = pathToRoot[i];
@@ -720,7 +758,6 @@ namespace Paper.Rendering.Silk.NET
                 // Firing it handles the scroll internally — don't also move the page.
                 if (node.Props?.OnWheel != null)
                 {
-                    Console.Error.WriteLine($"[Scroll] consumed by OnWheel at i={i} type={node.Type}/{node.Index}");
                     node.Props.OnWheel(evt);
                     return; // consumed
                 }
@@ -730,8 +767,6 @@ namespace Paper.Rendering.Silk.NET
                     style.OverflowX == Overflow.Scroll || style.OverflowX == Overflow.Auto)
                 {
                     string key = string.Join(".", pathToRoot.Take(i + 1).Select(f => f.Index));
-                    Console.Error.WriteLine($"[Scroll] found scroll at i={i} type={node.Type}/{node.Index} key={key}");
-                    scrollHandled = true;
                     var (sx, sy) = _scrollOffsets.TryGetValue(key, out var v) ? v : (0f, 0f);
                     const float step = 24f;
                     // Invert so scroll-down (negative Y) increases scroll offset (content moves up)
@@ -750,8 +785,6 @@ namespace Paper.Rendering.Silk.NET
                     break;
                 }
             }
-            if (!scrollHandled)
-                Console.Error.WriteLine($"[Scroll] DROPPED — no scroll container found in path");
         }
 
         private void OnKeyDown(IKeyboard keyboard, Key key, int _)

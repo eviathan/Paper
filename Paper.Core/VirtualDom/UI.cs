@@ -154,6 +154,20 @@ namespace Paper.Core.VirtualDom
                 .Build());
 
         /// <summary>
+        /// Renders <paramref name="children"/> into a separate overlay layer managed by the host renderer.
+        /// Portal children are collected in <see cref="Paper.Core.Reconciler.Reconciler.PortalRoots"/> and
+        /// rendered above the main scene.
+        /// </summary>
+        public static UINode Portal(params UINode[] children) =>
+            new(ElementTypes.Portal, new PropsBuilder().Children(children).Build());
+
+        /// <summary>
+        /// Renders <paramref name="children"/> into a separate overlay layer.
+        /// </summary>
+        public static UINode Portal(UINode[] children, string? key = null) =>
+            new(ElementTypes.Portal, new PropsBuilder().Children(children).Build(), key);
+
+        /// <summary>
         /// Renders an OpenGL texture as a viewport panel. The texture handle is typically
         /// obtained from the embedded engine's game-view framebuffer.
         /// </summary>
@@ -162,6 +176,49 @@ namespace Paper.Core.VirtualDom
                 .Set("textureHandle", textureHandle)
                 .Style(style ?? StyleSheet.Empty)
                 .Build(), key);
+
+        // ── Primitive components ──────────────────────────────────────────────
+
+        /// <summary>
+        /// Wraps <paramref name="children"/> in a tooltip that appears on hover.
+        /// </summary>
+        public static UINode Tooltip(string text, StyleSheet? style = null, string? key = null, params UINode[] children) =>
+            new(Components.Primitives.TooltipComponent,
+                new PropsBuilder().Set("text", text).Children(children).Style(style ?? StyleSheet.Empty).Build(),
+                key);
+
+        /// <summary>
+        /// Full-screen modal overlay. Renders <paramref name="children"/> centred on screen when <paramref name="isOpen"/> is true.
+        /// </summary>
+        public static UINode Modal(bool isOpen, Action? onClose = null, StyleSheet? style = null, string? key = null, params UINode[] children) =>
+            new(Components.Primitives.ModalComponent,
+                new PropsBuilder()
+                    .Set("isOpen", isOpen)
+                    .Set("onClose", onClose)
+                    .Children(children)
+                    .Style(style ?? StyleSheet.Empty)
+                    .Build(),
+                key);
+
+        /// <summary>
+        /// Positioned context menu floating at (<paramref name="x"/>, <paramref name="y"/>) in window pixels.
+        /// <paramref name="items"/> are (Label, OnSelect) pairs. Calls <paramref name="onClose"/> after selection or backdrop click.
+        /// </summary>
+        public static UINode ContextMenu(
+            bool isOpen,
+            float x, float y,
+            IReadOnlyList<(string Label, Action? OnSelect)> items,
+            Action? onClose = null,
+            string? key = null) =>
+            new(Components.Primitives.ContextMenuComponent,
+                new PropsBuilder()
+                    .Set("isOpen", isOpen)
+                    .Set("x", (float?)x)
+                    .Set("y", (float?)y)
+                    .Set("items", items)
+                    .Set("onClose", onClose)
+                    .Build(),
+                key);
 
         // ── Function components ───────────────────────────────────────────────
 
@@ -231,6 +288,20 @@ namespace Paper.Core.VirtualDom
 
             return new UINode(Components.Primitives.ListComponent, props, key);
         }
+
+        /// <summary>
+        /// Virtualized scrollable list — each item rendered as <c>UI.Text(item.ToString()!)</c>.
+        /// </summary>
+        public static UINode List<T>(
+            IReadOnlyList<T> items,
+            float            itemHeight,
+            float            containerH,
+            StyleSheet?      style    = null,
+            int              overscan = 3,
+            string?          key      = null) =>
+            List(items, itemHeight, containerH,
+                (item, _) => UI.Text(item!.ToString()!),
+                style, overscan, key);
 
         /// <summary>
         /// Virtualized scrollable list (convenience overload without index parameter).

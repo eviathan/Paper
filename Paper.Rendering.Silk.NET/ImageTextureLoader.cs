@@ -24,7 +24,7 @@ namespace Paper.Rendering.Silk.NET
     /// Loads images from file paths (e.g. PNG) into OpenGL textures and caches them by path.
     /// Exposes dimensions for layout (aspect ratio) and rendering (object-fit).
     /// </summary>
-    public sealed class ImageTextureLoader
+    public sealed class ImageTextureLoader : IDisposable
     {
         private readonly GL _gl;
         private readonly ConcurrentDictionary<string, ImageTextureResult> _cache = new();
@@ -66,6 +66,13 @@ namespace Paper.Rendering.Silk.NET
             var r = GetOrLoad(path);
             if (r.Handle == 0 || r.Width <= 0 || r.Height <= 0) return null;
             return (r.Width, r.Height);
+        }
+
+        public void Dispose()
+        {
+            foreach (var entry in _cache.Values)
+                if (entry.Handle != 0) _gl.DeleteTexture(entry.Handle);
+            _cache.Clear();
         }
 
         private unsafe ImageTextureResult LoadFromFile(string path)

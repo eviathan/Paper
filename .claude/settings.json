@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -n \"class RectBatch\\\\|class FiberRenderer\\\\|class FontRegistry\\\\|class ImageTexture\\\\|class TexturedQuad\" /Users/brian/Dev/Frameworks/Paper/Paper.Rendering.Silk.NET/**/*.cs)",
+      "Bash(head -5 grep -n \"IDisposable\\\\|Dispose\" /Users/brian/Dev/Frameworks/Paper/Paper.Rendering.Silk.NET/ImageTextureLoader.cs)",
+      "Bash(head -20 grep -n \"IDisposable\\\\|Dispose\\\\|_textures\\\\|_cache\\\\|gl\\\\.Delete\" /Users/brian/Dev/Frameworks/Paper/Paper.Rendering.Silk.NET/ImageTextureLoader.cs)",
+      "Bash(grep -n \"TargetPath\\\\|CurrentTarget\\\\|struct PointerEvent\\\\|class PointerEvent\" /Users/brian/Dev/Frameworks/Paper/Paper.Core/Events/*.cs)",
+      "Bash(python3 -m json.tool)",
+      "Bash(dotnet new:*)",
+      "Bash(ls Paper.Rendering.Silk.NET/*.cs)",
+      "Bash(dotnet script:*)"
+    ]
+  }
+}

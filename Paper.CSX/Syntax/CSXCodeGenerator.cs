@@ -39,6 +39,7 @@ namespace Paper.CSX.Syntax
                 "TableCell" => GenerateTableCell(element, indent),
                 "RadioGroup" => GenerateRadioGroup(element, indent),
                 "Select" => GenerateSelect(element, indent),
+                "Portal" => GeneratePortal(element, indent),
                 _ => GenerateCustom(element, indent),
             };
         }
@@ -546,6 +547,14 @@ namespace Paper.CSX.Syntax
                     onSelect = ToStringLambda(a.Value);
             }
             return $"UI.Component(Paper.Core.Components.Primitives.SelectComponent, new PropsBuilder().Set(\"options\", {options}).Set(\"selectedValue\", {selectedValue}).Set(\"onSelect\", {onSelect}).Style({style}).Build())";
+        }
+
+        private static string GeneratePortal(CSXElement el, int indent = 0)
+        {
+            var children = GenerateChildrenArray(el);
+            if (children.Count > 0)
+                return $"UI.Portal(new UINode[]{{ {string.Join(", ", children)} }})";
+            return "UI.Portal()";
         }
 
         private static string GenerateCustom(CSXElement el, int indent = 0)

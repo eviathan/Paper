@@ -36,7 +36,7 @@ namespace Paper.CSX.LanguageServer
                 int genPreambleEnd = genPreambleStart + (preamble?.Split('\n').Length ?? 0);
                 var csxLines = csxSrc.Split('\n');
 
-                var edits = new List<object>();
+                var edits = new HashSet<RenameEdit>();
 
                 // Walk all identifier nodes and tokens that resolve to the same symbol
                 foreach (var node in tree.GetRoot().DescendantNodes().OfType<IdentifierNameSyntax>())
@@ -59,11 +59,9 @@ namespace Paper.CSX.LanguageServer
                     var declared = model.GetDeclaredSymbol(token2.Parent!);
                     if (declared == null || !SymbolsMatch(symbol, declared)) continue;
 
-                    // Avoid duplicates already caught by identifier node walk
                     var edit = MakeEdit(tree, token2.Span, genPreambleStart, genPreambleEnd,
                                         csxPreambleStart, csxLines, newName);
-                    if (edit != null && !edits.Any(e => EditsOverlap(e, edit)))
-                        edits.Add(edit);
+                    if (edit != null) edits.Add(edit); // HashSet deduplicates by value
                 }
 
                 if (edits.Count == 0) return null;
@@ -72,7 +70,7 @@ namespace Paper.CSX.LanguageServer
                 {
                     changes = new Dictionary<string, object[]>
                     {
-                        [csxUri] = edits.ToArray()
+                        [csxUri] = edits.Select(e => e.ToLspEdit()).ToArray()
                     }
                 };
             }
@@ -82,14 +80,14 @@ namespace Paper.CSX.LanguageServer
             }
         }
 
-        private static object? MakeEdit(
+        private static RenameEdit? MakeEdit(
             SyntaxTree tree, Microsoft.CodeAnalysis.Text.TextSpan span,
             int genPreambleStart, int genPreambleEnd,
             int csxPreambleStart, string[] csxLines, string newName)
         {
             var lineSpan = tree.GetLineSpan(span);
-            int genLine  = lineSpan.StartLinePosition.Line;
-            int genCol   = lineSpan.StartLinePosition.Character;
+            int genLine   = lineSpan.StartLinePosition.Line;
+            int genCol    = lineSpan.StartLinePosition.Character;
             int genEndCol = lineSpan.EndLinePosition.Character;
 
             if (genLine < genPreambleStart || genLine >= genPreambleEnd) return null;
@@ -102,25 +100,25 @@ namespace Paper.CSX.LanguageServer
             int csxStart    = Math.Max(0, genCol    - CsxPositionMapper.PreambleColOffset) + leadingWs;
             int csxEnd      = Math.Max(0, genEndCol - CsxPositionMapper.PreambleColOffset) + leadingWs;
 
-            return new
-            {
-                range = new
-                {
-                    start = new { line = csxLine, character = csxStart },
-                    end   = new { line = csxLine, character = csxEnd },
-                },
-                newText = newName,
-            };
+            return new RenameEdit(csxLine, csxStart, csxEnd, newName);
         }
 
         private static bool SymbolsMatch(ISymbol a, ISymbol b)
             => SymbolEqualityComparer.Default.Equals(a, b)
             || SymbolEqualityComparer.Default.Equals(a.OriginalDefinition, b.OriginalDefinition);
+    }
 
-        private static bool EditsOverlap(object a, object b)
+    /// <summary>Concrete edit record so deduplication works by value, not object identity.</summary>
+    internal sealed record RenameEdit(int Line, int StartChar, int EndChar, string NewText)
+    {
+        public object ToLspEdit() => new
         {
-            // Simple heuristic: compare JSON representation length to avoid deep reflection
-            return a.GetHashCode() == b.GetHashCode();
-        }
+            range = new
+            {
+                start = new { line = Line, character = StartChar },
+                end   = new { line = Line, character = EndChar   },
+            },
+            newText = NewText,
+        };
     }
 }

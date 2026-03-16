@@ -140,6 +140,21 @@ namespace Paper.CSX
 
             string trimmedValue = value.Trim().Trim('"', '\'', ' ', '\t');
 
+            // rgb()/rgba() may contain spaces — handle before the space-split branch.
+            if (trimmedValue.StartsWith("rgb", StringComparison.OrdinalIgnoreCase))
+            {
+                var rgb = ParseRgbColor(trimmedValue);
+                if (rgb != null) return rgb;
+            }
+
+            // FontWeight numeric values ("100"–"900") must be checked before the generic
+            // numeric path, which would otherwise emit Length.Px(value).
+            if (string.Equals(propertyName, "FontWeight", StringComparison.OrdinalIgnoreCase))
+            {
+                var fw = ParseFontWeight(trimmedValue);
+                if (fw != null) return fw;
+            }
+
             if (trimmedValue.Contains(' '))
             {
                 if (string.Equals(propertyName, "Padding", StringComparison.OrdinalIgnoreCase) ||

@@ -5,10 +5,28 @@ using Paper.Core.VirtualDom;
 
 namespace Paper.Core.Reconciler
 {
+    /// <summary>The phase of the reconciler lifecycle in which an error occurred.</summary>
+    public enum ReconcilerErrorPhase { Mount, Update, Effect }
+
+    /// <summary>Structured error information delivered via <see cref="Reconciler.OnError"/>.</summary>
+    public readonly struct ReconcilerError
+    {
+        /// <summary>The exception that was thrown.</summary>
+        public Exception Exception { get; init; }
+        /// <summary>Which lifecycle phase the error occurred in.</summary>
+        public ReconcilerErrorPhase Phase { get; init; }
+        /// <summary>
+        /// True when the error was caught by an <see cref="IErrorBoundary"/> component;
+        /// false when it reached the top-level fallback.
+        /// </summary>
+        public bool IsBoundary { get; init; }
+    }
+
     public sealed class Reconciler
     {
         private Fiber? _current;
         private bool   _renderRequested;
+        private readonly List<Fiber> _pendingDeletions = new();
 
         public Fiber? Root => _current;
 
@@ -21,6 +39,13 @@ namespace Paper.Core.Reconciler
 
         public event Action? AfterCommit;
 
+        /// <summary>
+        /// Raised whenever the reconciler catches an exception. Subscribe to receive structured
+        /// error information for logging, telemetry, or custom crash UI.
+        /// The default <see cref="Console.Error"/> output is preserved regardless of subscribers.
+        /// </summary>
+        public event Action<ReconcilerError>? OnError;
+
         public Reconciler()
         {
             RenderScheduler.OnRenderRequested = () => _renderRequested = true;
@@ -29,6 +54,7 @@ namespace Paper.Core.Reconciler
         public void Mount(UINode root)
         {
             PortalRoots.Clear();
+            _pendingDeletions.Clear();
             try
             {
                 _current = Render(root, null, null);
@@ -37,6 +63,7 @@ namespace Paper.Core.Reconciler
             }
             catch (Exception ex)
             {
+                OnError?.Invoke(new ReconcilerError { Exception = ex, Phase = ReconcilerErrorPhase.Mount, IsBoundary = false });
                 Console.Error.WriteLine("[Paper] Mount error: " + ex.ToString());
                 var errorProps = new Props(new Dictionary<string, object?> { { "text", $"Error: {ex.Message}" } });
                 var errorNode = new UINode("Text", errorProps);
@@ -49,10 +76,12 @@ namespace Paper.Core.Reconciler
         public void Update(UINode root, bool forceReconcile = false)
         {
             PortalRoots.Clear();
+            _pendingDeletions.Clear();
             try
             {
                 var wip = Reconcile(_current, root, null, forceReconcile);
                 Commit(wip);
+                CommitDeletions();
                 _current = wip;
                 FlushEffects(_current);
                 AfterCommit?.Invoke();
@@ -60,6 +89,7 @@ namespace Paper.Core.Reconciler
             }
             catch (Exception ex)
             {
+                OnError?.Invoke(new ReconcilerError { Exception = ex, Phase = ReconcilerErrorPhase.Update, IsBoundary = false });
                 Console.Error.WriteLine("[Paper] Update error: " + ex.ToString());
                 var errorProps = new Props(new Dictionary<string, object?> { { "text", $"Error: {ex.Message}" } });
                 var errorNode = new UINode("Text", errorProps);
@@ -86,8 +116,14 @@ namespace Paper.Core.Reconciler
             };
 
             if (current != null)
+            {
                 foreach (var slot in current.HookSlots)
                     fiber.HookSlots.Add(slot);
+
+                // Transfer the class-component instance so RenderClassComponent can reuse it
+                // rather than creating a new one on every update.
+                fiber.Instance = current.Instance;
+            }
 
             // Mark class components that implement IErrorBoundary.
             if (node.Type is Type t && typeof(Components.IErrorBoundary).IsAssignableFrom(t))
@@ -236,7 +272,10 @@ namespace Paper.Core.Reconciler
             else
             {
                 if (current != null)
+                {
                     current.EffectTag = EffectTag.Deletion;
+                    _pendingDeletions.Add(current);
+                }
 
                 return Render(node, null, parent);
             }
@@ -320,6 +359,7 @@ namespace Paper.Core.Reconciler
                     }
                     catch (Exception ex)
                     {
+                        OnError?.Invoke(new ReconcilerError { Exception = ex, Phase = ReconcilerErrorPhase.Update, IsBoundary = true });
                         Console.Error.WriteLine("[Paper] Error boundary caught: " + ex.ToString());
                         parent.CaughtError = ex;
                         // Render the boundary's fallback as its only child; discard remaining siblings.
@@ -348,12 +388,22 @@ namespace Paper.Core.Reconciler
                 index++;
             }
 
+            // Terminate the sibling chain. A reused fiber (returned by ShouldSkipReconciliation)
+            // retains its old Sibling pointer from the previous render. If the child order changed
+            // (e.g. keyed reorder) the old Sibling may point back to another fiber in the new list,
+            // creating a cycle that causes Commit/FlushEffects to loop forever.
+            if (prevSibling != null)
+                prevSibling.Sibling = null;
+
             var newKeySet = new HashSet<string>(
                 newChildren.Select((n, i) => n.Key ?? $"${i}"));
             foreach (var kv in keyedOld)
             {
                 if (!newKeySet.Contains(kv.Key))
+                {
                     kv.Value.EffectTag = EffectTag.Deletion;
+                    _pendingDeletions.Add(kv.Value);
+                }
             }
         }
 
@@ -372,10 +422,11 @@ namespace Paper.Core.Reconciler
             Commit(fiber.Sibling);
         }
 
-        private static void CommitDeletions(Fiber fiber)
+        private void CommitDeletions()
         {
-            if (fiber.EffectTag == EffectTag.Deletion)
+            foreach (var fiber in _pendingDeletions)
                 UnmountFiber(fiber);
+            _pendingDeletions.Clear();
         }
 
         private static void UnmountFiber(Fiber fiber)
@@ -391,7 +442,7 @@ namespace Paper.Core.Reconciler
             }
         }
 
-        private static void FlushEffects(Fiber? fiber)
+        private void FlushEffects(Fiber? fiber)
         {
             if (fiber == null) return;
 
@@ -410,6 +461,7 @@ namespace Paper.Core.Reconciler
                     }
                     catch (Exception ex)
                     {
+                        OnError?.Invoke(new ReconcilerError { Exception = ex, Phase = ReconcilerErrorPhase.Effect, IsBoundary = false });
                         Console.Error.WriteLine("[Paper] Effect error: " + ex.ToString());
                         slot.Cleanup = null;
                     }
