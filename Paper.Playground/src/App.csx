@@ -35,6 +35,21 @@ function App() {
     updateToasts(prev => prev.Where(t => t.Id != id).ToList());
   }
 
+  // ── TextInput state ───────────────────────────────────────────────────────
+  var (inputText, setInputText, _) = Hooks.UseState("Hello Paper!");
+  var (passwordText, setPasswordText, _) = Hooks.UseState("");
+
+  // ── Textarea state ────────────────────────────────────────────────────────
+  var (textareaText, setTextareaText, _) = Hooks.UseState("Multi-line\ntext goes here.\nEdit me!");
+
+  // ── Checkbox state ────────────────────────────────────────────────────────
+  var (checkA, setCheckA, _) = Hooks.UseState(true);
+  var (checkB, setCheckB, _) = Hooks.UseState(false);
+  var (checkC, setCheckC, _) = Hooks.UseState(false);
+
+  // ── Radio state ───────────────────────────────────────────────────────────
+  var (radioVal, setRadioVal, _) = Hooks.UseState("option1");
+
   // ── Drag and drop state ───────────────────────────────────────────────────
   var (draggedItem, setDraggedItem, _) = Hooks.UseState<string?>(null);
   var (droppedOn, setDroppedOn, _) = Hooks.UseState<string?>(null);
@@ -181,6 +196,63 @@ function App() {
           >
             <Text style={{ color: dropTextColor }}>{dropText}</Text>
           </Box>
+        </Box>
+      </Box>
+
+      {/* ── TextInput ───────────────────────────────────────────────────────── */}
+      <Box className="section">
+        <Text className="section-label">TextInput</Text>
+        <Box className="demo-col-panel" style={{ gap: 12, padding: 12 }}>
+          <Box style={{ display: 'flex', flexDirection: 'row', gap: 12, alignItems: 'center' }}>
+            <Text style={{ color: '#a0a0b8', width: 80 }}>Text</Text>
+            <Input value={inputText} onChange={setInputText} style={{ width: 220 }} />
+          </Box>
+          <Box style={{ display: 'flex', flexDirection: 'row', gap: 12, alignItems: 'center' }}>
+            <Text style={{ color: '#a0a0b8', width: 80 }}>Second</Text>
+            <Input value={passwordText} onChange={setPasswordText} style={{ width: 220 }} />
+          </Box>
+          <Box style={{ display: 'flex', flexDirection: 'row', gap: 12, alignItems: 'center' }}>
+            <Text style={{ color: '#a0a0b8', width: 80 }}>Value:</Text>
+            <Text style={{ color: '#6366f1' }}>{inputText}</Text>
+          </Box>
+        </Box>
+      </Box>
+
+      {/* ── Textarea ─────────────────────────────────────────────────────────── */}
+      <Box className="section">
+        <Text className="section-label">Textarea</Text>
+        <Box className="demo-col-panel" style={{ gap: 12, padding: 12 }}>
+          <Textarea value={textareaText} onChange={setTextareaText} rows={4} style={{ width: 320 }} />
+          <Box style={{ display: 'flex', flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+            <Text style={{ color: '#a0a0b8' }}>Lines:</Text>
+            <Text style={{ color: '#6366f1' }}>{textareaText.Split('\n').Length.ToString()}</Text>
+          </Box>
+        </Box>
+      </Box>
+
+      {/* ── Checkboxes ───────────────────────────────────────────────────────── */}
+      <Box className="section">
+        <Text className="section-label">Checkboxes</Text>
+        <Box className="demo-col-panel" style={{ gap: 10, padding: 12 }}>
+          <Checkbox checked={checkA} onCheckedChange={setCheckA} label="Enable notifications" />
+          <Checkbox checked={checkB} onCheckedChange={setCheckB} label="Dark mode" />
+          <Checkbox checked={checkC} onCheckedChange={setCheckC} label="Auto-save" />
+          <Text style={{ color: '#a0a0b8', fontSize: 12 }}>
+            {$"Notifications: {(checkA ? "on" : "off")}  Dark mode: {(checkB ? "on" : "off")}"}
+          </Text>
+        </Box>
+      </Box>
+
+      {/* ── Radio Buttons ────────────────────────────────────────────────────── */}
+      <Box className="section">
+        <Text className="section-label">Radio Buttons</Text>
+        <Box className="demo-col-panel" style={{ gap: 12, padding: 12 }}>
+          <RadioGroup
+            options={new[] { ("option1", "Option One"), ("option2", "Option Two"), ("option3", "Option Three") }}
+            selectedValue={radioVal}
+            onSelect={setRadioVal}
+          />
+          <Text style={{ color: '#6366f1', fontSize: 13 }}>{$"Selected: {radioVal}"}</Text>
         </Box>
       </Box>
 
