@@ -33,6 +33,23 @@ namespace Paper.Rendering.Silk.NET
         public record struct ScrollbarHit(float TrackX, float TrackY, float TrackH, float ThumbY, float ThumbH, float MaxScroll, float MaxScrollX);
         public readonly Dictionary<string, ScrollbarHit> RenderedScrollbars = new();
 
+        // ── Markdown editor render cache ──────────────────────────────────────
+        // Pre-computes token segments with x-offsets so the hot render loop does
+        // zero MeasureWidth calls — just batch.Add per visible segment per row.
+        private readonly record struct MdSegment(string Text, float XOffset, float R, float G, float B, float A);
+        private sealed class MdCache
+        {
+            public int TextHash; public int TextLen;
+            public int WidthInt; public int FontPxInt;
+            // Rows: needed for selection/caret hit-testing (char offsets).
+            public (string Text, int Start, int End)[] Rows = Array.Empty<(string, int, int)>();
+            // RowSegments: pre-computed (text, xOffset, color) — used for rendering, no MeasureWidth needed.
+            public MdSegment[][] RowSegments = Array.Empty<MdSegment[]>();
+        }
+        // One entry per MarkdownEditor path.
+        private readonly Dictionary<string, MdCache> _mdCache = new();
+
+
         /// <summary>Optional: returns current scrollbar thumb opacity [0,1] for a given scroll container path (used for fade-out).</summary>
         public Func<string, float>? GetScrollbarOpacity { get; set; }
 
@@ -618,40 +635,80 @@ namespace Paper.Rendering.Silk.NET
                         _gl.Enable(EnableCap.ScissorTest);
                         _gl.Scissor((int)dx, (int)(_screenH - (dy + dh)), (uint)Math.Max(0, (int)dw), (uint)Math.Max(0, (int)dh));
                     }
-                    var mdTokens     = MarkdownTokenizer.Tokenize(label);
                     var mdTheme      = MarkdownTheme.Dark;
                     float fontPx     = SilkTextMeasurer.ResolveFontPx(style);
                     float atlasLineH = _fonts!.LineHeight(fontPx);
                     float textH      = atlasLineH * Math.Max(0.5f, style.LineHeight ?? 1.4f);
-                    var logicalLines = label.Split('\n');
                     var (padTop, padRight, _, padLeft) = BoxModel.PaddingPixels(style, lb.Width, lb.Height);
                     float contentWidth = lb.Width - padLeft - padRight;
                     string? fam   = style.FontFamily;
                     var wt        = style.FontWeight;
                     var fs        = style.FontStyle;
-                    int idx = 0;
-                    int row = 0;
-                    for (int li = 0; li < logicalLines.Length; li++)
+
+                    // Rebuild token list and wrapped rows only when text or layout width changes.
+                    int textHash = label.GetHashCode();
+                    int widthInt = (int)contentWidth;
+                    int fontPxInt = (int)(fontPx * 10);
+                    if (!_mdCache.TryGetValue(path, out var mdCached) ||
+                        mdCached.TextHash != textHash || mdCached.TextLen != label.Length ||
+                        mdCached.WidthInt != widthInt || mdCached.FontPxInt != fontPxInt)
                     {
-                        var logLine = logicalLines[li];
-                        var wrappedSegments = WrapTextLine(logLine, idx, contentWidth, fontPx);
-                        foreach (var seg in wrappedSegments)
+                        var tokens = MarkdownTokenizer.Tokenize(label);
+                        var logicalLines = label.Split('\n');
+                        var rows = new System.Collections.Generic.List<(string, int, int)>();
+                        int idx = 0;
+                        for (int li = 0; li < logicalLines.Length; li++)
                         {
-                            int lineStart = seg.Start;
-                            int lineEnd   = seg.End;
-                            var lineBox   = lb;
-                            lineBox.AbsoluteY = lb.AbsoluteY + padTop + row * textH;
-                            lineBox.Y         = lb.Y + padTop + row * textH;
-                            lineBox.Height    = textH;
-                            if (isFocusedInput)
-                                DrawSelectionForLine(seg.Text, lineStart, lineEnd, lb, lineBox, style, scrollX, scrollY);
-                            DrawMarkdownSegment(seg.Text, lineStart, lineEnd, lineBox, style, mdTokens, mdTheme,
-                                fontPx, fam, wt, fs, atlasLineH, col, opacity, scrollX, scrollY, padLeft);
-                            if (isFocusedInput)
-                                DrawCaretForLine(seg.Text, lineStart, lineEnd, lb, lineBox, style, col, opacity, scrollX, scrollY);
-                            row++;
+                            var logLine = logicalLines[li];
+                            foreach (var seg in WrapTextLine(logLine, idx, contentWidth, fontPx))
+                                rows.Add(seg);
+                            idx += logicalLines[li].Length + 1;
                         }
-                        idx += logLine.Length + 1;
+                        // Pre-compute per-row render segments with x-offsets so the render loop
+                        // needs zero MeasureWidth calls on cache hits.
+                        var rowArr = rows.ToArray();
+                        var rowSegs = new MdSegment[rowArr.Length][];
+                        for (int ri = 0; ri < rowArr.Length; ri++)
+                        {
+                            var (lineText, lineStart, lineEnd) = rowArr[ri];
+                            rowSegs[ri] = BuildRowSegments(lineText, lineStart, lineEnd, tokens, mdTheme, col, fontPx, fam, wt, fs);
+                        }
+                        mdCached = new MdCache
+                        {
+                            TextHash = textHash, TextLen = label.Length,
+                            WidthInt = widthInt, FontPxInt = fontPxInt,
+                            Rows = rowArr, RowSegments = rowSegs,
+                        };
+                        _mdCache[path] = mdCached;
+                    }
+
+                    var (mdBatch, mdScale) = _fonts!.Get(fontPx, fam, wt, fs);
+                    var (padTop2, _, padBottom2, _) = BoxModel.PaddingPixels(style, lb.Width, lb.Height);
+                    float contentH2 = textH - padTop2 - padBottom2;
+                    float baselineBase = contentH2 >= atlasLineH * 1.4f
+                        ? padTop2 + (contentH2 - atlasLineH) / 2f + atlasLineH * 0.8f
+                        : padTop2 + atlasLineH * 0.8f;
+                    float xOrigin = lb.AbsoluteX + padLeft;
+
+                    for (int row = 0; row < mdCached.Rows.Length; row++)
+                    {
+                        var seg = mdCached.Rows[row];
+                        int lineStart = seg.Start;
+                        int lineEnd   = seg.End;
+                        var lineBox   = lb;
+                        lineBox.AbsoluteY = lb.AbsoluteY + padTop + row * textH;
+                        lineBox.Y         = lb.Y + padTop + row * textH;
+                        lineBox.Height    = textH;
+                        if (isFocusedInput)
+                            DrawSelectionForLine(seg.Text, lineStart, lineEnd, lb, lineBox, style, scrollX, scrollY);
+                        // Render pre-computed segments — no MeasureWidth in hot path.
+                        float rowBaseline = lineBox.AbsoluteY + baselineBase;
+                        float ry = (rowBaseline - scrollY) * ScaleY;
+                        foreach (var ms in mdCached.RowSegments[row])
+                            mdBatch.Add(ms.Text.AsSpan(), (xOrigin + ms.XOffset - scrollX) * ScaleX, ry,
+                                ms.R, ms.G, ms.B, ms.A * opacity, mdScale);
+                        if (isFocusedInput)
+                            DrawCaretForLine(seg.Text, lineStart, lineEnd, lb, lineBox, style, col, opacity, scrollX, scrollY);
                     }
                     if (_gl != null)
                     {
@@ -1071,24 +1128,19 @@ namespace Paper.Rendering.Silk.NET
             DrawRect(x, y, caretW, h, col.R, col.G, col.B, col.A * opacity, 0, 0, 0, 0, 0, 0);
         }
 
-        private void DrawMarkdownSegment(
+        /// <summary>
+        /// Called ONCE on cache miss. Computes (text, xOffset, color) for every segment in a row.
+        /// The render loop then just does batch.Add per segment with the pre-computed xOffset.
+        /// </summary>
+        private MdSegment[] BuildRowSegments(
             string lineText, int lineStart, int lineEnd,
-            LayoutBox lineBox, StyleSheet style,
             IReadOnlyList<MarkdownToken> tokens, MarkdownTheme theme,
-            float fontPx, string? fam, FontWeight? weight, FontStyle? fontStyle,
-            float atlasLineH, PaperColour defaultCol, float opacity,
-            float scrollX, float scrollY, float padLeft)
+            PaperColour defaultCol, float fontPx, string? fam, FontWeight? weight, FontStyle? fontStyle)
         {
-            if (_fonts == null) return;
-            var (batch, batchScale) = _fonts.Get(fontPx, fam, weight, fontStyle);
-            var (padTop, _, padBottom, _) = BoxModel.PaddingPixels(style, lineBox.Width, lineBox.Height);
-            float contentH = lineBox.Height - padTop - padBottom;
-            float baseline = contentH >= atlasLineH * 1.4f
-                ? lineBox.AbsoluteY + padTop + (contentH - atlasLineH) / 2f + atlasLineH * 0.8f
-                : lineBox.AbsoluteY + padTop + atlasLineH * 0.8f;
-            float xOrigin = lineBox.AbsoluteX + padLeft;
-
-            int cursor = 0; // position within lineText
+            if (_fonts == null) return Array.Empty<MdSegment>();
+            var result = new System.Collections.Generic.List<MdSegment>();
+            int cursor = 0;
+            float runW = 0f;
             foreach (var tok in tokens)
             {
                 if (tok.End <= lineStart || tok.Start >= lineEnd) continue;
@@ -1097,30 +1149,23 @@ namespace Paper.Rendering.Silk.NET
                 // Plain text before this token
                 if (cursor < tokLocalStart)
                 {
-                    float preW = _fonts.MeasureWidth(lineText.AsSpan(0, cursor), fontPx, fam, weight, fontStyle);
-                    float x = (xOrigin + preW - scrollX) * ScaleX;
-                    float y = (baseline - scrollY) * ScaleY;
-                    batch.Add(lineText.AsSpan(cursor, tokLocalStart - cursor), x, y,
-                        defaultCol.R, defaultCol.G, defaultCol.B, defaultCol.A * opacity, batchScale);
+                    var span = lineText.AsSpan(cursor, tokLocalStart - cursor);
+                    result.Add(new MdSegment(lineText[cursor..tokLocalStart], runW,
+                        defaultCol.R, defaultCol.G, defaultCol.B, defaultCol.A));
+                    runW += _fonts.MeasureWidth(span, fontPx, fam, weight, fontStyle);
+                    cursor = tokLocalStart;
                 }
-                // Token text with its colour
                 var tokCol = GetMarkdownTokenColor(tok.Type, theme, defaultCol);
-                float tokPreW = _fonts.MeasureWidth(lineText.AsSpan(0, tokLocalStart), fontPx, fam, weight, fontStyle);
-                float tx = (xOrigin + tokPreW - scrollX) * ScaleX;
-                float ty = (baseline - scrollY) * ScaleY;
-                batch.Add(lineText.AsSpan(tokLocalStart, tokLocalEnd - tokLocalStart), tx, ty,
-                    tokCol.R, tokCol.G, tokCol.B, tokCol.A * opacity, batchScale);
+                result.Add(new MdSegment(lineText[tokLocalStart..tokLocalEnd], runW,
+                    tokCol.R, tokCol.G, tokCol.B, tokCol.A));
+                runW += _fonts.MeasureWidth(lineText.AsSpan(tokLocalStart, tokLocalEnd - tokLocalStart), fontPx, fam, weight, fontStyle);
                 cursor = tokLocalEnd;
             }
             // Trailing plain text
             if (cursor < lineText.Length)
-            {
-                float trailPreW = _fonts.MeasureWidth(lineText.AsSpan(0, cursor), fontPx, fam, weight, fontStyle);
-                float x = (xOrigin + trailPreW - scrollX) * ScaleX;
-                float y = (baseline - scrollY) * ScaleY;
-                batch.Add(lineText.AsSpan(cursor), x, y,
-                    defaultCol.R, defaultCol.G, defaultCol.B, defaultCol.A * opacity, batchScale);
-            }
+                result.Add(new MdSegment(lineText[cursor..], runW,
+                    defaultCol.R, defaultCol.G, defaultCol.B, defaultCol.A));
+            return result.ToArray();
         }
 
         private static PaperColour GetMarkdownTokenColor(MarkdownTokenType type, MarkdownTheme theme, PaperColour fallback) => type switch
