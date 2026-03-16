@@ -42,6 +42,9 @@ function App() {
   // ── Textarea state ────────────────────────────────────────────────────────
   var (textareaText, setTextareaText, _) = Hooks.UseState("Multi-line\ntext goes here.\nEdit me!");
 
+  // ── MarkdownEditor state ──────────────────────────────────────────────────
+  var (mdText, setMdText, _) = Hooks.UseState("# Hello Markdown\n\nThis is **bold**, *italic*, and `inline code`.\n\n> Blockquote here\n\n- Item one\n- Item two\n\n```\ncode block\n```\n\n---\n\nPlain prose paragraph.");
+
   // ── Checkbox state ────────────────────────────────────────────────────────
   var (checkA, setCheckA, _) = Hooks.UseState(true);
   var (checkB, setCheckB, _) = Hooks.UseState(false);
@@ -222,11 +225,20 @@ function App() {
       <Box className="section">
         <Text className="section-label">Textarea</Text>
         <Box className="demo-col-panel" style={{ gap: 12, padding: 12 }}>
-          <Textarea value={textareaText} onChange={setTextareaText} rows={4} style={{ width: 320 }} />
+          <Textarea value={textareaText} onChange={setTextareaText} rows={3} style={{ width: 320 }} />
           <Box style={{ display: 'flex', flexDirection: 'row', gap: 8, alignItems: 'center' }}>
             <Text style={{ color: '#a0a0b8' }}>Lines:</Text>
             <Text style={{ color: '#6366f1' }}>{textareaText.Split('\n').Length.ToString()}</Text>
           </Box>
+        </Box>
+      </Box>
+
+      {/* ── MarkdownEditor ───────────────────────────────────────────────────── */}
+      <Box className="section">
+        <Text className="section-label">Markdown Editor</Text>
+        <Box className="demo-col-panel" style={{ gap: 12, padding: 12 }}>
+          <MarkdownEditor value={mdText} onChange={setMdText} rows={12} style={{ width: 480 }} />
+          <Text style={{ color: '#a0a0b8', fontSize: 12 }}>{$"{mdText.Length} chars · {mdText.Split('\n').Length} lines"}</Text>
         </Box>
       </Box>
 
