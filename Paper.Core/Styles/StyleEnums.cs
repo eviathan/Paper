@@ -199,4 +199,22 @@ namespace Paper.Core.Styles
         Pre,
         PreWrap,
     }
+
+    // ── Font Style ────────────────────────────────────────────────────────────
+
+    public enum FontStyle
+    {
+        Normal,
+        Italic,
+    }
+
+    // ── Text Transform ────────────────────────────────────────────────────────
+
+    public enum TextTransform
+    {
+        None,
+        Uppercase,
+        Lowercase,
+        Capitalize,
+    }
 }

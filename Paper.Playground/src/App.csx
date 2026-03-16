@@ -1,11 +1,193 @@
 @import "App.csss"
 
 function App() {
-  List<string> test = ["test"];
+  // ── Slider state ─────────────────────────────────────────────────────────
+  var (volume, setVolume, _) = Hooks.UseState(40f);
+  var (opacity, setOpacity, _) = Hooks.UseState(80f);
+  string volText = ((int)volume).ToString();
+  string opacText = ((int)opacity).ToString() + "%";
+
+  // ── NumberInput state ─────────────────────────────────────────────────────
+  var (qty, setQty, _) = Hooks.UseState(5f);
+  var (price, setPrice, _) = Hooks.UseState(9.99f);
+
+  // ── Tabs state ────────────────────────────────────────────────────────────
+  var (activeTab, setActiveTab, _) = Hooks.UseState("overview");
+
+  // ── Popover state ─────────────────────────────────────────────────────────
+  var (popOpen, setPopOpen, _) = Hooks.UseState(false);
+  string popBtnLabel = popOpen ? "Close Popover" : "Open Popover";
+  void TogglePop() { setPopOpen(!popOpen); }
+
+  // ── Toast state ───────────────────────────────────────────────────────────
+  var (toasts, setToasts, _) = Hooks.UseState(new List<Primitives.ToastEntry> {
+    new Primitives.ToastEntry("t0", "App started successfully!", "success"),
+    new Primitives.ToastEntry("t1", "Welcome to Paper UI.", "info"),
+  });
+  void AddToast(string msg, string variant) {
+    var next = new List<Primitives.ToastEntry>(toasts) {
+      new Primitives.ToastEntry("t" + System.Environment.TickCount64.ToString(), msg, variant)
+    };
+    setToasts(next);
+  }
+  void DismissToast(string id) {
+    setToasts(toasts.Where(t => t.Id != id).ToList());
+  }
+
+  // ── Drag and drop state ───────────────────────────────────────────────────
+  var (draggedItem, setDraggedItem, _) = Hooks.UseState<string?>(null);
+  var (droppedOn, setDroppedOn, _) = Hooks.UseState<string?>(null);
+  string dragStatus = draggedItem != null
+    ? ("Dragging: " + draggedItem)
+    : (droppedOn != null ? ("Last dropped on: " + droppedOn) : "Drag a card onto the target zone");
+  string dropBg = draggedItem != null ? "#1a2a1a" : "#1a1a2a";
+  string dropTextColor = draggedItem != null ? "#22c55e" : "#5a5a7a";
+  string dropText = draggedItem != null ? "Drop here!" : "Target Zone";
 
   return (
     <Box className="root">
-      {/* 1. Row: flexGrow (equal vs weighted) */}
+
+      {/* ═══════════════════════════════════════════════════════════════════════
+          NEW COMPONENTS
+          ═══════════════════════════════════════════════════════════════════════ */}
+
+      {/* ── Slider ─────────────────────────────────────────────────────────── */}
+      <Box className="section">
+        <Text className="section-label">Slider</Text>
+        <Box className="demo-col-panel" style={{ gap: 12, padding: 12 }}>
+          <Box style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
+            <Text style={{ color: '#a0a0b8', width: 64 }}>Volume</Text>
+            <Slider value={volume} min={0f} max={100f} step={1f} onChange={setVolume} style={{ width: 200 }} />
+            <Text style={{ color: '#6366f1', width: 36 }}>{volText}</Text>
+          </Box>
+          <Box style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
+            <Text style={{ color: '#a0a0b8', width: 64 }}>Opacity</Text>
+            <Slider value={opacity} min={0f} max={100f} step={5f} onChange={setOpacity} style={{ width: 200 }} />
+            <Text style={{ color: '#6366f1', width: 36 }}>{opacText}</Text>
+          </Box>
+        </Box>
+      </Box>
+
+      {/* ── NumberInput ─────────────────────────────────────────────────────── */}
+      <Box className="section">
+        <Text className="section-label">NumberInput</Text>
+        <Box className="demo-col-panel" style={{ gap: 12, padding: 12 }}>
+          <Box style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
+            <Text style={{ color: '#a0a0b8', width: 80 }}>Quantity</Text>
+            <NumberInput value={qty} min={1f} max={99f} step={1f} onChange={setQty} />
+          </Box>
+          <Box style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
+            <Text style={{ color: '#a0a0b8', width: 80 }}>Price ($)</Text>
+            <NumberInput value={price} min={0f} step={0.5f} onChange={setPrice} />
+          </Box>
+        </Box>
+      </Box>
+
+      {/* ── Tabs ────────────────────────────────────────────────────────────── */}
+      <Box className="section">
+        <Text className="section-label">Tabs</Text>
+        <Tabs
+          tabs={new[] { ("overview", "Overview"), ("details", "Details"), ("logs", "Logs") }}
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+        >
+          <Box style={{ padding: 16, background: '#334155' }}>
+            <Text style={{ color: '#a0a0b8' }}>Overview panel — high-level summary goes here.</Text>
+          </Box>
+          <Box style={{ padding: 16, background: '#334155' }}>
+            <Text style={{ color: '#a0a0b8' }}>Details panel — in-depth information goes here.</Text>
+          </Box>
+          <Box style={{ padding: 16, background: '#334155' }}>
+            <Text style={{ color: '#a0a0b8' }}>Logs panel — recent activity listed here.</Text>
+          </Box>
+        </Tabs>
+      </Box>
+
+      {/* ── Popover ─────────────────────────────────────────────────────────── */}
+      <Box className="section">
+        <Text className="section-label">Popover</Text>
+        <Box className="demo-panel" style={{ padding: 16, minHeight: 48 }}>
+          <Popover isOpen={popOpen} onClose={TogglePop} placement="bottom">
+            <Button onClick={TogglePop}>{popBtnLabel}</Button>
+            <Box style={{ padding: 12, flexDirection: 'column', gap: 8, minWidth: 200 }}>
+              <Text style={{ color: '#e0e0f0', fontWeight: '600' }}>Popover Title</Text>
+              <Text style={{ color: '#a0a0b8' }}>Floats anchored to the trigger button.</Text>
+              <Button onClick={TogglePop}>Dismiss</Button>
+            </Box>
+          </Popover>
+        </Box>
+      </Box>
+
+      {/* ── Toast ───────────────────────────────────────────────────────────── */}
+      <Box className="section">
+        <Text className="section-label">Toast Notifications (two shown on start)</Text>
+        <Box className="demo-panel" style={{ gap: 8, padding: 12 }}>
+          <Button onClick={() => AddToast("Operation succeeded!", "success")}>Success</Button>
+          <Button onClick={() => AddToast("Something went wrong.", "error")}>Error</Button>
+          <Button onClick={() => AddToast("Heads up!", "info")}>Info</Button>
+          <Button onClick={() => AddToast("Proceed with caution.", "warning")}>Warning</Button>
+        </Box>
+      </Box>
+
+      {/* ── FontStyle & TextTransform ────────────────────────────────────────── */}
+      <Box className="section">
+        <Text className="section-label">FontStyle & TextTransform</Text>
+        <Box className="demo-col-panel" style={{ gap: 10, padding: 12 }}>
+          <Text style={{ color: '#e0e0f0', fontStyle: 'italic' }}>Italic — fontStyle: italic</Text>
+          <Text style={{ color: '#e0e0f0', textTransform: 'uppercase' }}>uppercase text</Text>
+          <Text style={{ color: '#e0e0f0', textTransform: 'lowercase' }}>LOWERCASE TEXT</Text>
+          <Text style={{ color: '#e0e0f0', textTransform: 'capitalize' }}>capitalize every word</Text>
+        </Box>
+      </Box>
+
+      {/* ── AspectRatio ─────────────────────────────────────────────────────── */}
+      <Box className="section">
+        <Text className="section-label">AspectRatio</Text>
+        <Box className="demo-panel" style={{ gap: 12, padding: 12, alignItems: 'flex-start' }}>
+          <Box style={{ width: 160, aspectRatio: '16/9', background: '#6366f1', borderRadius: 6, alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={{ color: 'white' }}>16:9</Text>
+          </Box>
+          <Box style={{ width: 80, aspectRatio: '1/1', background: '#22c55e', borderRadius: 6, alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={{ color: 'white' }}>1:1</Text>
+          </Box>
+          <Box style={{ width: 60, aspectRatio: '9/16', background: '#f97316', borderRadius: 6, alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={{ color: 'white', fontSize: 10 }}>9:16</Text>
+          </Box>
+        </Box>
+      </Box>
+
+      {/* ── Drag and Drop ───────────────────────────────────────────────────── */}
+      <Box className="section">
+        <Text className="section-label">Drag and Drop</Text>
+        <Box className="demo-col-panel" style={{ gap: 12, padding: 12 }}>
+          <Text style={{ color: '#a0a0b8' }}>{dragStatus}</Text>
+          <Box style={{ flexDirection: 'row', gap: 8 }}>
+            {new[] { "Card A", "Card B", "Card C" }.Select(label =>
+              <Box
+                key={label}
+                onDragStart={(e) => setDraggedItem(label)}
+                onDragEnd={(e) => setDraggedItem(null)}
+                style={{ padding: 10, background: '#2a2a3a', borderRadius: 6, cursor: 'pointer', border: '1px solid #3a3a55' }}
+              >
+                <Text style={{ color: '#e0e0f0' }}>{label}</Text>
+              </Box>
+            )}
+          </Box>
+          <Box
+            onDrop={(e) => { setDroppedOn(draggedItem); setDraggedItem(null); }}
+            onDragOver={(e) => {}}
+            style={{ width: 160, height: 64, background: dropBg, border: '2px dashed #3a3a55', borderRadius: 8, alignItems: 'center', justifyContent: 'center' }}
+          >
+            <Text style={{ color: dropTextColor }}>{dropText}</Text>
+          </Box>
+        </Box>
+      </Box>
+
+      {/* ═══════════════════════════════════════════════════════════════════════
+          LAYOUT DEMOS
+          ═══════════════════════════════════════════════════════════════════════ */}
+
+      {/* 1. flexGrow (equal vs weighted) */}
       <Box className="section">
         <Text className="section-label">flexGrow (1, 2, 1)</Text>
         <Box className="demo-panel" style={{ gap: 8, height: 56 }}>
@@ -61,26 +243,12 @@ function App() {
       <Box className="section">
         <Text className="section-label">flexWrap: wrap + gap</Text>
         <Box className="demo-panel" style={{ flexWrap: 'wrap', gap: 8, padding: 8, minHeight: 80 }}>
-          <Box style={{ width: 70, height: 36, background: '#f59e0b' }} />
-          <Box style={{ width: 70, height: 36, background: '#d97706' }} />
-          <Box style={{ width: 70, height: 36, background: '#b45309' }} />
-          <Box style={{ width: 70, height: 36, background: '#92400e' }} />
-          <Box style={{ width: 70, height: 36, background: '#78350f' }} />
-          <Box style={{ width: 70, height: 36, background: '#f59e0b' }} />
-          <Box style={{ width: 70, height: 36, background: '#d97706' }} />
-          <Box style={{ width: 70, height: 36, background: '#b45309' }} />
-          <Box style={{ width: 70, height: 36, background: '#92400e' }} />
-          <Box style={{ width: 70, height: 36, background: '#78350f' }} />
-          <Box style={{ width: 70, height: 36, background: '#f59e0b' }} />
-          <Box style={{ width: 70, height: 36, background: '#d97706' }} />
-          <Box style={{ width: 70, height: 36, background: '#b45309' }} />
-          <Box style={{ width: 70, height: 36, background: '#92400e' }} />
-          <Box style={{ width: 70, height: 36, background: '#78350f' }} />
-          <Box style={{ width: 70, height: 36, background: '#f59e0b' }} />
-          <Box style={{ width: 70, height: 36, background: '#d97706' }} />
-          <Box style={{ width: 70, height: 36, background: '#b45309' }} />
-          <Box style={{ width: 70, height: 36, background: '#92400e' }} />
-          <Box style={{ width: 70, height: 36, background: '#78350f' }} />
+          {new[] { "#f59e0b", "#d97706", "#b45309", "#92400e", "#78350f",
+                   "#f59e0b", "#d97706", "#b45309", "#92400e", "#78350f",
+                   "#f59e0b", "#d97706", "#b45309", "#92400e", "#78350f",
+                   "#f59e0b", "#d97706", "#b45309", "#92400e", "#78350f" }
+            .Select((c, i) => <Box key={i.ToString()} style={{ width: 70, height: 36, background: c }} />)
+          }
         </Box>
       </Box>
 
@@ -100,23 +268,23 @@ function App() {
         <Box className="demo-panel" style={{ flexWrap: 'wrap', gap: 6, padding: 8, minHeight: 40 }}>
           {new[] { "#ef4444", "#f97316", "#eab308", "#22c55e", "#06b6d4", "#6366f1", "#a855f7", "#ec4899" }
             .Select((color, i) =>
-              <Box key={$"swatch-{i}"} style={{ width: 36, height: 36, background: color }} />
+              <Box key={i.ToString()} style={{ width: 36, height: 36, background: color }} />
             )
           }
         </Box>
       </Box>
 
-      {/* 7. Column: fixed header + flexGrow - minHeight so the 120px example is not cropped when window is small */}
-      <Box className="section" style={{ flexGrow: 1, minHeight: 170 }}>
+      {/* 7. Column: fixed header + flexGrow */}
+      <Box className="section" style={{ minHeight: 170 }}>
         <Text className="section-label">Column: fixed header/footer + flexGrow middle</Text>
-        <Box className="demo-col-panel" style={{ gap: 6, height: 120, padding: 8, flexGrow: 1, minHeight: 20 }}>
+        <Box className="demo-col-panel" style={{ gap: 6, padding: 8, flexGrow: 1, minHeight: 120 }}>
           <Box style={{ height: 28, background: '#dc2626' }} />
           <Box className="demo-item" style={{ flexGrow: 1, background: '#2563eb', minHeight: 20 }} />
           <Box style={{ height: 28, background: '#16a34a' }} />
         </Box>
       </Box>
 
-      {/* 8. Virtualized List — 200 items, only visible rows rendered */}
+      {/* 8. Virtualized List */}
       <Box className="section">
         <Text className="section-label">UI.List — 200 items, virtualized</Text>
         {UI.List(
@@ -130,7 +298,11 @@ function App() {
         )}
       </Box>
 
-      <Box style={{ minHeight: 24 }} />
+      <Box style={{ minHeight: 48 }} />
+
+      {/* Toast overlay — always rendered in top-right */}
+      <ToastContainer toasts={toasts} onDismiss={DismissToast} />
+
     </Box>
   );
 }

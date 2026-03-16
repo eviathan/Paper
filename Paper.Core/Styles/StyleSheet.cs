@@ -117,11 +117,21 @@ namespace Paper.Core.Styles
         public string? FontFamily { get; init; }
         public Length? FontSize { get; init; }
         public FontWeight? FontWeight { get; init; }
+        public FontStyle? FontStyle { get; init; }
         public float? LineHeight { get; init; }
         public float? LetterSpacing { get; init; }
         public TextAlign? TextAlign { get; init; }
         public TextOverflow? TextOverflow { get; init; }
+        public TextTransform? TextTransform { get; init; }
         public WhiteSpace? WhiteSpace { get; init; }
+
+        // ── Dimensions (aspect ratio) ─────────────────────────────────────────
+
+        /// <summary>
+        /// Locks the width:height ratio. When only width is set, height = width / AspectRatio.
+        /// When only height is set, width = height * AspectRatio.
+        /// </summary>
+        public float? AspectRatio { get; init; }
 
         // ── Interaction ───────────────────────────────────────────────────────
 
@@ -232,11 +242,14 @@ namespace Paper.Core.Styles
             FontFamily    = other.FontFamily    ?? FontFamily,
             FontSize      = other.FontSize      ?? FontSize,
             FontWeight    = other.FontWeight    ?? FontWeight,
+            FontStyle     = other.FontStyle     ?? FontStyle,
             LineHeight    = other.LineHeight    ?? LineHeight,
             LetterSpacing = other.LetterSpacing ?? LetterSpacing,
             TextAlign     = other.TextAlign     ?? TextAlign,
             TextOverflow  = other.TextOverflow  ?? TextOverflow,
+            TextTransform = other.TextTransform ?? TextTransform,
             WhiteSpace    = other.WhiteSpace    ?? WhiteSpace,
+            AspectRatio   = other.AspectRatio   ?? AspectRatio,
             Cursor        = other.Cursor        ?? Cursor,
             Visibility    = other.Visibility    ?? Visibility,
             PointerEvents = other.PointerEvents ?? PointerEvents,

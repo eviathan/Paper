@@ -220,6 +220,104 @@ namespace Paper.Core.VirtualDom
                     .Build(),
                 key);
 
+        /// <summary>
+        /// Horizontal range slider. Scroll wheel adjusts by one step.
+        /// </summary>
+        public static UINode Slider(
+            float value,
+            float min = 0f,
+            float max = 100f,
+            float step = 1f,
+            Action<float>? onChange = null,
+            StyleSheet? style = null,
+            string? key = null)
+        {
+            var b = new PropsBuilder()
+                .Set("value",    (float?)value)
+                .Set("min",      (float?)min)
+                .Set("max",      (float?)max)
+                .Set("step",     (float?)step);
+            if (onChange != null) b.Set("onChange", onChange);
+            if (style != null) b.Style(style);
+            return new UINode(Components.Primitives.SliderComponent, b.Build(), key);
+        }
+
+        /// <summary>
+        /// Numeric text input with − / + buttons.
+        /// </summary>
+        public static UINode NumberInput(
+            float value,
+            float? min = null,
+            float? max = null,
+            float step = 1f,
+            Action<float>? onChange = null,
+            StyleSheet? style = null,
+            string? key = null)
+        {
+            var b = new PropsBuilder()
+                .Set("value", (float?)value)
+                .Set("step",  (float?)step);
+            if (min.HasValue) b.Set("min", (float?)min.Value);
+            if (max.HasValue) b.Set("max", (float?)max.Value);
+            if (onChange != null) b.Set("onChange", onChange);
+            if (style != null) b.Style(style);
+            return new UINode(Components.Primitives.NumberInputComponent, b.Build(), key);
+        }
+
+        /// <summary>
+        /// Tab strip + panel switching. <paramref name="panels"/> order must match <paramref name="tabs"/> order.
+        /// </summary>
+        public static UINode Tabs(
+            IReadOnlyList<(string Id, string Label)> tabs,
+            string activeTab,
+            Action<string>? onTabChange = null,
+            StyleSheet? style = null,
+            string? key = null,
+            params UINode[] panels)
+        {
+            var b = new PropsBuilder()
+                .Set("tabs", tabs)
+                .Set("activeTab", (object?)activeTab)
+                .Children(panels);
+            if (onTabChange != null) b.Set("onTabChange", onTabChange);
+            if (style != null) b.Style(style);
+            return new UINode(Components.Primitives.TabsComponent, b.Build(), key);
+        }
+
+        /// <summary>
+        /// Interactive floating panel anchored to its trigger child.
+        /// The first child is the trigger; remaining children are the popover content.
+        /// </summary>
+        public static UINode Popover(
+            bool isOpen,
+            Action? onClose = null,
+            string placement = "bottom",
+            StyleSheet? style = null,
+            string? key = null,
+            params UINode[] children)
+        {
+            var b = new PropsBuilder()
+                .Set("isOpen", isOpen)
+                .Set("placement", (object?)placement)
+                .Children(children);
+            if (onClose != null) b.Set("onClose", onClose);
+            if (style != null) b.Style(style);
+            return new UINode(Components.Primitives.PopoverComponent, b.Build(), key);
+        }
+
+        /// <summary>
+        /// Renders all active toasts in the top-right corner.
+        /// </summary>
+        public static UINode ToastContainer(
+            IReadOnlyList<Components.Primitives.ToastEntry> toasts,
+            Action<string>? onDismiss = null,
+            string? key = null)
+        {
+            var b = new PropsBuilder().Set("toasts", toasts);
+            if (onDismiss != null) b.Set("onDismiss", onDismiss);
+            return new UINode(Components.Primitives.ToastContainerComponent, b.Build(), key);
+        }
+
         // ── Function components ───────────────────────────────────────────────
 
         /// <summary>

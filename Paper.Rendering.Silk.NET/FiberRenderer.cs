@@ -976,8 +976,21 @@ namespace Paper.Rendering.Silk.NET
             float fontPx     = SilkTextMeasurer.ResolveFontPx(style);
             string? fam      = style.FontFamily;
             var weight       = style.FontWeight;
-            var (batch, batchScale) = _fonts.Get(fontPx, fam, weight);
-            float atlasLineH = _fonts.LineHeight(fontPx, fam, weight);
+            var fontStyle    = style.FontStyle;
+
+            // Apply TextTransform before measurement / rendering
+            var transform = style.TextTransform;
+            if (transform != null && transform != TextTransform.None)
+                label = transform switch
+                {
+                    TextTransform.Uppercase  => label.ToUpperInvariant(),
+                    TextTransform.Lowercase  => label.ToLowerInvariant(),
+                    TextTransform.Capitalize => System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(label.ToLowerInvariant()),
+                    _ => label,
+                };
+
+            var (batch, batchScale) = _fonts.Get(fontPx, fam, weight, fontStyle);
+            float atlasLineH = _fonts.LineHeight(fontPx, fam, weight, fontStyle);
 
             // Padding from style (respects individual PaddingTop/Right/Bottom/Left overrides)
             var (padTop, padRight, padBottom, padLeft) = BoxModel.PaddingPixels(style, lb.Width, lb.Height);
@@ -997,7 +1010,7 @@ namespace Paper.Rendering.Silk.NET
             }
 
             // Horizontal alignment (TextAlign). When inputScrollX is set (single-line input), left-align and apply scroll.
-            float textW    = _fonts.MeasureWidth(label.AsSpan(), fontPx, fam, weight);
+            float textW    = _fonts.MeasureWidth(label.AsSpan(), fontPx, fam, weight, fontStyle);
             float contentW = lb.Width - padLeft - padRight;
 
             // TextOverflow: Ellipsis — truncate label to fit contentW if needed
@@ -1006,7 +1019,7 @@ namespace Paper.Rendering.Silk.NET
                 (style.TextOverflow ?? TextOverflow.Clip) == TextOverflow.Ellipsis)
             {
                 const string ellipsis = "…";
-                float ellipsisW = _fonts.MeasureWidth(ellipsis.AsSpan(), fontPx, fam, weight);
+                float ellipsisW = _fonts.MeasureWidth(ellipsis.AsSpan(), fontPx, fam, weight, fontStyle);
                 float available = contentW - ellipsisW;
                 if (available > 0)
                 {
@@ -1014,13 +1027,13 @@ namespace Paper.Rendering.Silk.NET
                     while (lo < hi)
                     {
                         int mid = (lo + hi + 1) / 2;
-                        if (_fonts.MeasureWidth(label.AsSpan(0, mid), fontPx, fam, weight) <= available)
+                        if (_fonts.MeasureWidth(label.AsSpan(0, mid), fontPx, fam, weight, fontStyle) <= available)
                             lo = mid;
                         else
                             hi = mid - 1;
                     }
                     label = label[..lo] + ellipsis;
-                    textW = _fonts.MeasureWidth(label.AsSpan(), fontPx, fam, weight);
+                    textW = _fonts.MeasureWidth(label.AsSpan(), fontPx, fam, weight, fontStyle);
                 }
                 else
                 {
@@ -1035,7 +1048,7 @@ namespace Paper.Rendering.Silk.NET
                           contentW > 0 && textW > contentW;
             if (doWrap)
             {
-                float spaceW      = _fonts.MeasureWidth(" ".AsSpan(), fontPx, fam, weight);
+                float spaceW      = _fonts.MeasureWidth(" ".AsSpan(), fontPx, fam, weight, fontStyle);
                 if (spaceW <= 0) spaceW = atlasLineH * 0.3f;
                 float lineSpacing = atlasLineH * Math.Max(0.5f, style.LineHeight ?? 1.4f);
                 float wrapBaseline = lb.AbsoluteY + padTop + (atlasLineH * 0.8f);
@@ -1047,7 +1060,7 @@ namespace Paper.Rendering.Silk.NET
 
                 foreach (var word in words)
                 {
-                    float wordW = _fonts.MeasureWidth(word.AsSpan(), fontPx, fam, weight);
+                    float wordW = _fonts.MeasureWidth(word.AsSpan(), fontPx, fam, weight, fontStyle);
                     if (lineWords.Count > 0 && lineW + spaceW + wordW > contentW)
                     {
                         float lx = (xOrigin - scrollX) * ScaleX;

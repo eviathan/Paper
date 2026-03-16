@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using Paper.Core.Components;
 using Paper.Core.Context;
 using Paper.Core.Hooks;
 using Paper.Core.Styles;

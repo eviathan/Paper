@@ -210,7 +210,8 @@ namespace Paper.CSX
                     string.Equals(propertyName, "TranslateX", StringComparison.OrdinalIgnoreCase) ||
                     string.Equals(propertyName, "TranslateY", StringComparison.OrdinalIgnoreCase) ||
                     string.Equals(propertyName, "ScaleX", StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(propertyName, "ScaleY", StringComparison.OrdinalIgnoreCase))
+                    string.Equals(propertyName, "ScaleY", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(propertyName, "AspectRatio", StringComparison.OrdinalIgnoreCase))
                     return $"{num}f";
                 if (string.Equals(propertyName, "ZIndex", StringComparison.OrdinalIgnoreCase) ||
                     string.Equals(propertyName, "GridColumnStart", StringComparison.OrdinalIgnoreCase) ||
@@ -324,6 +325,32 @@ namespace Paper.CSX
             {
                 var pe = ParsePointerEvents(lower);
                 if (pe != null) return pe;
+            }
+            if (string.Equals(propertyName, "FontStyle", StringComparison.OrdinalIgnoreCase))
+                return lower == "italic" ? "FontStyle.Italic" : "FontStyle.Normal";
+            if (string.Equals(propertyName, "TextTransform", StringComparison.OrdinalIgnoreCase))
+            {
+                return lower switch
+                {
+                    "uppercase" => "TextTransform.Uppercase",
+                    "lowercase" => "TextTransform.Lowercase",
+                    "capitalize" => "TextTransform.Capitalize",
+                    _ => "TextTransform.None",
+                };
+            }
+            if (string.Equals(propertyName, "AspectRatio", StringComparison.OrdinalIgnoreCase))
+            {
+                // Accepts: '16/9', '16 / 9', or a plain number like '1.5'
+                var ratioStr = trimmedValue.Replace(" ", "");
+                var slash = ratioStr.IndexOf('/');
+                if (slash >= 0 &&
+                    double.TryParse(ratioStr[..slash], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double rNum) &&
+                    double.TryParse(ratioStr[(slash+1)..], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double rDen) &&
+                    rDen != 0)
+                    return $"{rNum / rDen}f";
+                if (double.TryParse(trimmedValue, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double ratio))
+                    return $"{ratio}f";
+                return "null";
             }
             if (string.Equals(propertyName, "JustifyItems", StringComparison.OrdinalIgnoreCase))
             {
@@ -674,11 +701,15 @@ namespace Paper.CSX
                 return $"Length.Px({px})";
             }
 
-            // If the value looks like a C# identifier (variable reference) and the property is a colour type,
-            // emit new PaperColour(varName) so that string-typed context values work correctly.
-            bool isColourProp = propertyName is "Background" or "Color" or "BorderColor" or "OutlineColor";
-            if (isColourProp && Regex.IsMatch(trimmedValue, @"^[a-zA-Z_]\w*$"))
-                return $"new PaperColour({trimmedValue})";
+            // If the value looks like a C# identifier or member access (variable reference),
+            // emit it appropriately based on the property type:
+            // - Colour properties: wrap in new PaperColour(var) so string hex vars work
+            // - Everything else: emit as-is so the generated code type-checks correctly
+            if (Regex.IsMatch(trimmedValue, @"^[a-zA-Z_]\w*(\.\w+)*$"))
+            {
+                bool isColourProp = propertyName is "Background" or "Color" or "BorderColor" or "OutlineColor";
+                return isColourProp ? $"new PaperColour({trimmedValue})" : trimmedValue;
+            }
 
             return $"\"{trimmedValue}\"";
         }

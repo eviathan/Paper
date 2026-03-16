@@ -79,6 +79,14 @@ namespace Paper.Core.VirtualDom
         public Action<KeyEvent>? OnKeyChar         => Get<Action<KeyEvent>>("onKeyChar");
         public Action<KeyEvent>? OnKeyCharCapture  => Get<Action<KeyEvent>>("onKeyCharCapture");
 
+        public Action<DragEvent>? OnDragStart  => Get<Action<DragEvent>>("onDragStart");
+        public Action<DragEvent>? OnDrag       => Get<Action<DragEvent>>("onDrag");
+        public Action<DragEvent>? OnDragEnd    => Get<Action<DragEvent>>("onDragEnd");
+        public Action<DragEvent>? OnDragEnter  => Get<Action<DragEvent>>("onDragEnter");
+        public Action<DragEvent>? OnDragOver   => Get<Action<DragEvent>>("onDragOver");
+        public Action<DragEvent>? OnDragLeave  => Get<Action<DragEvent>>("onDragLeave");
+        public Action<DragEvent>? OnDrop       => Get<Action<DragEvent>>("onDrop");
+
         // ── Generic access ────────────────────────────────────────────────────
 
         public T? Get<T>(string key) =>

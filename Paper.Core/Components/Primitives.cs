@@ -352,5 +352,393 @@ namespace Paper.Core.Components
 
             return UI.Box(new StyleSheet { Display = Display.Flex, FlexDirection = FlexDirection.Column, Position = Position.Relative }, children.ToArray());
         }
+
+        // ── Slider ────────────────────────────────────────────────────────────
+
+        /// <summary>Stable delegate for the Slider component.</summary>
+        public static readonly Func<Props, UINode> SliderComponent = Slider;
+
+        /// <summary>
+        /// Horizontal range slider. Props: value (float), min (float), max (float), step (float),
+        /// onChange (Action&lt;float&gt;), style (optional).
+        /// </summary>
+        public static UINode Slider(Props p)
+        {
+            float value  = p.Get<float?>("value")    ?? 0f;
+            float min    = p.Get<float?>("min")      ?? 0f;
+            float max    = p.Get<float?>("max")      ?? 100f;
+            float step   = p.Get<float?>("step")     ?? 1f;
+            var onChange = p.Get<Action<float>>("onChange");
+            var style    = p.Style ?? StyleSheet.Empty;
+
+            // Clamp value
+            float clamped = Math.Clamp(value, min, max);
+            float fraction = (max - min) > 0 ? (clamped - min) / (max - min) : 0f;
+
+            var (dragging, setDragging, _) = Hooks.Hooks.UseState(false);
+
+            float Snap(float raw)
+            {
+                float snapped = MathF.Round((raw - min) / step) * step + min;
+                return Math.Clamp(snapped, min, max);
+            }
+
+            var trackStyle = new StyleSheet
+            {
+                Display        = Display.Flex,
+                AlignItems     = AlignItems.Center,
+                Height         = Length.Px(24),
+                Position       = Position.Relative,
+                Cursor         = Cursor.Pointer,
+                MinWidth       = Length.Px(80),
+            }.Merge(style);
+
+            var railStyle = new StyleSheet
+            {
+                Width         = Length.Percent(100),
+                Height        = Length.Px(4),
+                Background    = new PaperColour(0.3f, 0.3f, 0.4f, 1f),
+                BorderRadius  = 2f,
+                Position      = Position.Relative,
+            };
+
+            var fillStyle = new StyleSheet
+            {
+                Width         = Length.Percent(fraction * 100f),
+                Height        = Length.Px(4),
+                Background    = new PaperColour(0.35f, 0.6f, 0.95f, 1f),
+                BorderRadius  = 2f,
+                Position      = Position.Absolute,
+                Left          = Length.Px(0),
+            };
+
+            float thumbOffset = fraction * 100f;
+            var thumbStyle = new StyleSheet
+            {
+                Width         = Length.Px(16),
+                Height        = Length.Px(16),
+                Background    = new PaperColour(0.35f, 0.6f, 0.95f, 1f),
+                BorderRadius  = 8f,
+                Position      = Position.Absolute,
+                Left          = Length.Percent(thumbOffset),
+                TranslateX    = -8f,  // centre thumb on the point
+                Cursor        = Cursor.Pointer,
+            };
+
+            void OnWheel(Paper.Core.Events.PointerEvent e)
+            {
+                float delta = e.WheelDeltaY > 0 ? -step : step;
+                float next  = Snap(clamped + delta);
+                onChange?.Invoke(next);
+            }
+
+            var trackProps = new PropsBuilder()
+                .Style(trackStyle)
+                .Set("onWheel", (Action<Paper.Core.Events.PointerEvent>)OnWheel)
+                .Children(
+                    UI.Box(new PropsBuilder()
+                        .Style(railStyle)
+                        .Children(
+                            UI.Box(fillStyle),
+                            UI.Box(thumbStyle)
+                        )
+                        .Build())
+                )
+                .Build();
+
+            return UI.Box(trackProps);
+        }
+
+        // ── NumberInput ───────────────────────────────────────────────────────
+
+        /// <summary>Stable delegate for the NumberInput component.</summary>
+        public static readonly Func<Props, UINode> NumberInputComponent = NumberInput;
+
+        /// <summary>
+        /// Numeric text input with increment/decrement buttons.
+        /// Props: value (float), min (float?), max (float?), step (float), onChange (Action&lt;float&gt;), style.
+        /// </summary>
+        public static UINode NumberInput(Props p)
+        {
+            float value  = p.Get<float?>("value")   ?? 0f;
+            float? min   = p.Get<float?>("min");
+            float? max   = p.Get<float?>("max");
+            float step   = p.Get<float?>("step")    ?? 1f;
+            var onChange = p.Get<Action<float>>("onChange");
+            var style    = p.Style ?? StyleSheet.Empty;
+
+            float Clamp(float v)
+            {
+                if (min.HasValue) v = Math.Max(v, min.Value);
+                if (max.HasValue) v = Math.Min(v, max.Value);
+                return v;
+            }
+
+            string FormatValue(float v) => v == MathF.Floor(v) ? ((int)v).ToString() : v.ToString("G6");
+
+            void Decrement() => onChange?.Invoke(Clamp(value - step));
+            void Increment() => onChange?.Invoke(Clamp(value + step));
+
+            void OnChange(string text)
+            {
+                if (float.TryParse(text, System.Globalization.NumberStyles.Float,
+                        System.Globalization.CultureInfo.InvariantCulture, out float parsed))
+                    onChange?.Invoke(Clamp(parsed));
+            }
+
+            var containerStyle = new StyleSheet
+            {
+                Display       = Display.Flex,
+                FlexDirection = FlexDirection.Row,
+                AlignItems    = AlignItems.Center,
+            }.Merge(style);
+
+            var btnStyle = new StyleSheet
+            {
+                Width        = Length.Px(28),
+                Height       = Length.Px(28),
+                Display      = Display.Flex,
+                JustifyContent = JustifyContent.Center,
+                AlignItems   = AlignItems.Center,
+                Background   = new PaperColour(0.2f, 0.2f, 0.28f, 1f),
+                BorderRadius = 4f,
+                Cursor       = Cursor.Pointer,
+            };
+            var btnHover = new StyleSheet { Background = new PaperColour(0.28f, 0.28f, 0.38f, 1f) };
+
+            var inputStyle = new StyleSheet
+            {
+                Width        = Length.Px(72),
+                Padding      = new Thickness(Length.Px(4), Length.Px(6)),
+                TextAlign    = TextAlign.Center,
+            };
+
+            return UI.Box(containerStyle,
+                UI.Box(new PropsBuilder().Style(btnStyle).Set("hoverStyle", btnHover).OnClick(Decrement).Children(UI.Text("−")).Build()),
+                UI.Input(FormatValue(value), OnChange, inputStyle),
+                UI.Box(new PropsBuilder().Style(btnStyle).Set("hoverStyle", btnHover).OnClick(Increment).Children(UI.Text("+")).Build())
+            );
+        }
+
+        // ── Tabs ──────────────────────────────────────────────────────────────
+
+        /// <summary>Stable delegate for the Tabs component.</summary>
+        public static readonly Func<Props, UINode> TabsComponent = Tabs;
+
+        /// <summary>
+        /// Tab strip with panel switching.
+        /// Props: tabs (IReadOnlyList&lt;(string Id, string Label)&gt;), activeTab (string),
+        ///        onTabChange (Action&lt;string&gt;), children (panels, one per tab), style.
+        /// </summary>
+        public static UINode Tabs(Props p)
+        {
+            var tabs      = p.Get<IReadOnlyList<(string Id, string Label)>>("tabs")
+                            ?? Array.Empty<(string, string)>();
+            var activeTab = p.Get<string>("activeTab") ?? (tabs.Count > 0 ? tabs[0].Id : "");
+            var onChange  = p.Get<Action<string>>("onTabChange");
+            var panels    = p.Children;
+            var style     = p.Style ?? StyleSheet.Empty;
+
+            var stripStyle = new StyleSheet
+            {
+                Display       = Display.Flex,
+                FlexDirection = FlexDirection.Row,
+                BorderBottom  = new Border(1f, new PaperColour(0.25f, 0.25f, 0.35f, 1f)),
+            };
+
+            var tabNodes = tabs.Select((tab, i) =>
+            {
+                bool active = tab.Id == activeTab;
+                var tabStyle = new StyleSheet
+                {
+                    Padding      = new Thickness(Length.Px(8), Length.Px(16)),
+                    Cursor       = Cursor.Pointer,
+                    Color        = active ? PaperColour.White : new PaperColour(0.6f, 0.6f, 0.7f, 1f),
+                    Background   = active ? new PaperColour(0.15f, 0.15f, 0.22f, 1f) : null,
+                    BorderBottom = active ? new Border(2f, new PaperColour(0.35f, 0.6f, 0.95f, 1f)) : null,
+                    MarginBottom = active ? Length.Px(-1) : null,
+                };
+                var hoverStyle = new StyleSheet
+                {
+                    Color = PaperColour.White,
+                    Background = new PaperColour(0.18f, 0.18f, 0.26f, 1f),
+                };
+                var localTab = tab;
+                return UI.Box(new PropsBuilder()
+                    .Style(tabStyle)
+                    .Set("hoverStyle", hoverStyle)
+                    .OnClick(() => onChange?.Invoke(localTab.Id))
+                    .Children(UI.Text(localTab.Label))
+                    .Build(), key: tab.Id);
+            }).ToArray();
+
+            // Show the panel whose index matches the active tab
+            int activeIndex = tabs.ToList().FindIndex(t => t.Id == activeTab);
+            UINode? activePanel = (activeIndex >= 0 && activeIndex < panels.Count)
+                ? panels[activeIndex]
+                : UI.Fragment();
+
+            var containerStyle = new StyleSheet
+            {
+                Display       = Display.Flex,
+                FlexDirection = FlexDirection.Column,
+            }.Merge(style);
+
+            return UI.Box(containerStyle,
+                UI.Box(stripStyle, tabNodes),
+                activePanel ?? UI.Fragment()
+            );
+        }
+
+        // ── Popover ───────────────────────────────────────────────────────────
+
+        /// <summary>Stable delegate for the Popover component.</summary>
+        public static readonly Func<Props, UINode> PopoverComponent = Popover;
+
+        /// <summary>
+        /// Interactive floating panel anchored below its trigger element.
+        /// Props: isOpen (bool), onClose (Action), trigger (UINode — the first child is used as trigger),
+        ///        children (panel content), placement ('bottom'|'top'|'right'|'left'), style.
+        /// </summary>
+        public static UINode Popover(Props p)
+        {
+            bool isOpen   = p.Get<bool>("isOpen");
+            var onClose   = p.Get<Action>("onClose");
+            var children  = p.Children;
+            var style     = p.Style ?? StyleSheet.Empty;
+            var placement = p.Get<string>("placement") ?? "bottom";
+
+            // First child = trigger, rest = panel content
+            UINode trigger  = children.Count > 0 ? children[0] : UI.Fragment();
+            UINode[] content = children.Count > 1 ? children.Skip(1).ToArray() : Array.Empty<UINode>();
+
+            var wrapperStyle = new StyleSheet
+            {
+                Position = Position.Relative,
+                Display  = Display.InlineFlex,
+            };
+
+            StyleSheet panelPosition = placement switch
+            {
+                "top"   => new StyleSheet { Bottom = Length.Percent(100), Left = Length.Px(0) },
+                "right" => new StyleSheet { Top = Length.Px(0), Left = Length.Percent(100) },
+                "left"  => new StyleSheet { Top = Length.Px(0), Right = Length.Percent(100) },
+                _       => new StyleSheet { Top = Length.Percent(100), Left = Length.Px(0) },  // bottom
+            };
+
+            var panelStyle = new StyleSheet
+            {
+                Position     = Position.Absolute,
+                ZIndex       = 200,
+                Background   = new PaperColour(0.12f, 0.12f, 0.17f, 1f),
+                Border       = new BorderEdges(new Border(1f, new PaperColour(0.3f, 0.3f, 0.4f, 1f))),
+                BorderRadius = 6f,
+                Padding      = new Thickness(Length.Px(8)),
+                MinWidth     = Length.Px(160),
+            }.Merge(panelPosition).Merge(style);
+
+            var children2 = new List<UINode> { trigger };
+            if (isOpen)
+            {
+                // Invisible backdrop to capture outside clicks
+                var backdrop = UI.Box(new PropsBuilder()
+                    .Style(new StyleSheet
+                    {
+                        Position   = Position.Fixed,
+                        Top        = Length.Px(0),
+                        Left       = Length.Px(0),
+                        Width      = Length.Percent(100),
+                        Height     = Length.Percent(100),
+                        ZIndex     = 199,
+                        Background = new PaperColour(0f, 0f, 0f, 0f),
+                    })
+                    .OnPointerDown(_ => onClose?.Invoke())
+                    .Build());
+
+                var panel = UI.Box(new PropsBuilder()
+                    .Style(panelStyle)
+                    .OnPointerClick(e => e.StopPropagation())
+                    .Children(content)
+                    .Build());
+
+                children2.Add(backdrop);
+                children2.Add(panel);
+            }
+
+            return UI.Box(new PropsBuilder()
+                .Style(wrapperStyle)
+                .Children(children2.ToArray())
+                .Build());
+        }
+
+        // ── Toast ─────────────────────────────────────────────────────────────
+
+        /// <summary>Stable delegate for the ToastContainer component.</summary>
+        public static readonly Func<Props, UINode> ToastContainerComponent = ToastContainer;
+
+        /// <summary>A single toast entry.</summary>
+        public sealed record ToastEntry(string Id, string Message, string Variant = "info");
+
+        /// <summary>
+        /// Renders all active toasts in the top-right corner.
+        /// Props: toasts (IReadOnlyList&lt;ToastEntry&gt;), onDismiss (Action&lt;string&gt;).
+        /// </summary>
+        public static UINode ToastContainer(Props p)
+        {
+            var toasts   = p.Get<IReadOnlyList<ToastEntry>>("toasts") ?? Array.Empty<ToastEntry>();
+            var onDismiss = p.Get<Action<string>>("onDismiss");
+
+            if (toasts.Count == 0) return UI.Fragment();
+
+            var containerStyle = new StyleSheet
+            {
+                Position      = Position.Fixed,
+                Top           = Length.Px(16),
+                Right         = Length.Px(16),
+                Display       = Display.Flex,
+                FlexDirection = FlexDirection.Column,
+                ZIndex        = 2000,
+            };
+
+            var toastNodes = toasts.Select(t =>
+            {
+                PaperColour accent = t.Variant switch
+                {
+                    "success" => new PaperColour(0.1f, 0.55f, 0.2f, 1f),
+                    "error"   => new PaperColour(0.7f, 0.15f, 0.15f, 1f),
+                    "warning" => new PaperColour(0.7f, 0.45f, 0.0f, 1f),
+                    _         => new PaperColour(0.15f, 0.35f, 0.65f, 1f),
+                };
+                var toastStyle = new StyleSheet
+                {
+                    Display       = Display.Flex,
+                    FlexDirection = FlexDirection.Row,
+                    AlignItems    = AlignItems.Center,
+                    Background    = new PaperColour(0.12f, 0.12f, 0.18f, 0.96f),
+                    Border        = new BorderEdges(new Border(1f, accent)),
+                    BorderRadius  = 6f,
+                    Padding       = new Thickness(Length.Px(10), Length.Px(14)),
+                    MarginBottom  = Length.Px(8),
+                    MinWidth      = Length.Px(220),
+                    MaxWidth      = Length.Px(360),
+                };
+                var localId = t.Id;
+                return UI.Box(new PropsBuilder()
+                    .Style(toastStyle)
+                    .Children(
+                        UI.Box(new StyleSheet { FlexGrow = 1 }, UI.Text(t.Message)),
+                        UI.Button("×", () => onDismiss?.Invoke(localId), new StyleSheet
+                        {
+                            Background   = null,
+                            Color        = new PaperColour(0.6f, 0.6f, 0.7f, 1f),
+                            Padding      = new Thickness(Length.Px(0), Length.Px(4)),
+                            MarginLeft   = Length.Px(8),
+                        })
+                    )
+                    .Build(), key: t.Id);
+            }).ToArray();
+
+            return UI.Box(containerStyle, toastNodes);
+        }
     }
 }

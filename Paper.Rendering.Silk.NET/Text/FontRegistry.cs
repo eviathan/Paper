@@ -9,7 +9,7 @@ namespace Paper.Rendering.Silk.NET.Text
     /// </summary>
     internal sealed class FontRegistry : IDisposable
     {
-        private readonly record struct FontVariants(PaperFontSet Regular, PaperFontSet? Bold);
+        private readonly record struct FontVariants(PaperFontSet Regular, PaperFontSet? Bold, PaperFontSet? Italic, PaperFontSet? BoldItalic);
 
         private readonly Dictionary<string, FontVariants> _families = new(StringComparer.OrdinalIgnoreCase);
         private FontVariants _default;
@@ -20,11 +20,12 @@ namespace Paper.Rendering.Silk.NET.Text
 
         /// <summary>
         /// Register a font family. The first family registered becomes the default fallback.
-        /// <paramref name="bold"/> is optional; when null the regular set is used for bold text.
+        /// All variants are optional; when null the regular set is used as fallback.
         /// </summary>
-        public void Register(string name, PaperFontSet regular, PaperFontSet? bold = null)
+        public void Register(string name, PaperFontSet regular, PaperFontSet? bold = null,
+                             PaperFontSet? italic = null, PaperFontSet? boldItalic = null)
         {
-            var variants = new FontVariants(regular, bold);
+            var variants = new FontVariants(regular, bold, italic, boldItalic);
             _families[name] = variants;
             if (!_hasDefault)
             {
@@ -36,28 +37,28 @@ namespace Paper.Rendering.Silk.NET.Text
         // ── Backward-compatible single-family API (uses default family) ────────
 
         public (TextBatch batch, float scale) Get(float targetPx)
-            => ResolveSet(null, null).Get(targetPx);
+            => ResolveSet(null, null, null).Get(targetPx);
 
         public float MeasureWidth(ReadOnlySpan<char> text, float targetPx)
-            => ResolveSet(null, null).MeasureWidth(text, targetPx);
+            => ResolveSet(null, null, null).MeasureWidth(text, targetPx);
 
         public float LineHeight(float targetPx)
-            => ResolveSet(null, null).LineHeight(targetPx);
+            => ResolveSet(null, null, null).LineHeight(targetPx);
 
         // ── Extended API with family + weight ─────────────────────────────────
 
-        public (TextBatch batch, float scale) Get(float targetPx, string? family, FontWeight? weight)
-            => ResolveSet(family, weight).Get(targetPx);
+        public (TextBatch batch, float scale) Get(float targetPx, string? family, FontWeight? weight, Paper.Core.Styles.FontStyle? fontStyle = null)
+            => ResolveSet(family, weight, fontStyle).Get(targetPx);
 
-        public float MeasureWidth(ReadOnlySpan<char> text, float targetPx, string? family, FontWeight? weight)
-            => ResolveSet(family, weight).MeasureWidth(text, targetPx);
+        public float MeasureWidth(ReadOnlySpan<char> text, float targetPx, string? family, FontWeight? weight, Paper.Core.Styles.FontStyle? fontStyle = null)
+            => ResolveSet(family, weight, fontStyle).MeasureWidth(text, targetPx);
 
-        public float LineHeight(float targetPx, string? family, FontWeight? weight)
-            => ResolveSet(family, weight).LineHeight(targetPx);
+        public float LineHeight(float targetPx, string? family, FontWeight? weight, Paper.Core.Styles.FontStyle? fontStyle = null)
+            => ResolveSet(family, weight, fontStyle).LineHeight(targetPx);
 
         // ── Internal resolution ───────────────────────────────────────────────
 
-        private PaperFontSet ResolveSet(string? family, FontWeight? weight)
+        private PaperFontSet ResolveSet(string? family, FontWeight? weight, Paper.Core.Styles.FontStyle? fontStyle)
         {
             if (!_hasDefault)
                 throw new InvalidOperationException("No fonts registered in FontRegistry.");
@@ -66,8 +67,13 @@ namespace Paper.Rendering.Silk.NET.Text
             if (family != null && _families.TryGetValue(family, out var fv))
                 variants = fv;
 
-            bool bold = weight.HasValue && (int)weight.Value >= (int)FontWeight.SemiBold;
-            return (bold && variants.Bold != null) ? variants.Bold : variants.Regular;
+            bool bold   = weight.HasValue && (int)weight.Value >= (int)FontWeight.SemiBold;
+            bool italic = fontStyle == Paper.Core.Styles.FontStyle.Italic;
+
+            if (bold && italic && variants.BoldItalic != null) return variants.BoldItalic;
+            if (bold  && variants.Bold   != null) return variants.Bold;
+            if (italic && variants.Italic != null) return variants.Italic;
+            return variants.Regular;
         }
 
         public void Flush(float screenW, float screenH)
@@ -75,8 +81,10 @@ namespace Paper.Rendering.Silk.NET.Text
             var seen = new HashSet<PaperFontSet>();
             foreach (var (_, v) in _families)
             {
-                if (seen.Add(v.Regular)) v.Regular.Flush(screenW, screenH);
-                if (v.Bold != null && seen.Add(v.Bold)) v.Bold.Flush(screenW, screenH);
+                if (seen.Add(v.Regular))    v.Regular.Flush(screenW, screenH);
+                if (v.Bold       != null && seen.Add(v.Bold))       v.Bold.Flush(screenW, screenH);
+                if (v.Italic     != null && seen.Add(v.Italic))     v.Italic.Flush(screenW, screenH);
+                if (v.BoldItalic != null && seen.Add(v.BoldItalic)) v.BoldItalic.Flush(screenW, screenH);
             }
         }
 
@@ -85,8 +93,10 @@ namespace Paper.Rendering.Silk.NET.Text
             var seen = new HashSet<PaperFontSet>();
             foreach (var (_, v) in _families)
             {
-                if (seen.Add(v.Regular)) v.Regular.Dispose();
-                if (v.Bold != null && seen.Add(v.Bold)) v.Bold.Dispose();
+                if (seen.Add(v.Regular))    v.Regular.Dispose();
+                if (v.Bold       != null && seen.Add(v.Bold))       v.Bold.Dispose();
+                if (v.Italic     != null && seen.Add(v.Italic))     v.Italic.Dispose();
+                if (v.BoldItalic != null && seen.Add(v.BoldItalic)) v.BoldItalic.Dispose();
             }
         }
     }

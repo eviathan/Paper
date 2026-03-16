@@ -78,6 +78,15 @@ namespace Paper.Rendering.Silk.NET
         private string? _scrollbarDragPath;
         private float _scrollbarDragAnchorY;
         private float _scrollbarDragAnchorScroll;
+
+        // Drag-and-drop state
+        private Fiber? _dragSource;        // fiber where drag started
+        private string? _dragSourcePath;   // stable path of drag source
+        private object? _dragData;         // payload set by OnDragStart
+        private bool _dragActive;          // true once drag threshold crossed and DragStart fired
+        private float _dragStartX;         // pointer position when mouse button pressed
+        private float _dragStartY;
+        private Fiber? _dragOver;          // current fiber under pointer during drag
         // Scrollbar fade: maps path → time (seconds) at which scrolling last occurred
         private readonly Dictionary<string, double> _scrollbarLastActive = new();
         // Dirty-flag rendering: only run LayoutAndDraw when something changed.
@@ -410,6 +419,24 @@ namespace Paper.Rendering.Silk.NET
             _pressed = target;
             _pressedPath = target != null ? GetPathString(target) : null;
 
+            // Track potential drag source (left button only)
+            if (button == MouseButton.Left && target?.Props.OnDragStart != null)
+            {
+                _dragSource = target;
+                _dragSourcePath = GetPathString(target);
+                _dragData = null;
+                _dragActive = false;
+                _dragStartX = lx;
+                _dragStartY = ly;
+                _dragOver = null;
+            }
+            else
+            {
+                _dragSource = null;
+                _dragSourcePath = null;
+                _dragActive = false;
+            }
+
             DispatchPointer(target, new PointerEvent
             {
                 Type = PointerEventType.Down,
@@ -437,6 +464,28 @@ namespace Paper.Rendering.Silk.NET
             }
         }
 
+        private void DispatchDrag(Fiber? target, DragEvent e)
+        {
+            if (target == null) return;
+            var path = PathToRoot(target);
+            for (int i = path.Count - 1; i >= 0; i--)
+            {
+                var fiber = path[i];
+                var handler = e.Type switch
+                {
+                    DragEventType.DragStart => fiber.Props.OnDragStart,
+                    DragEventType.Drag      => fiber.Props.OnDrag,
+                    DragEventType.DragEnd   => fiber.Props.OnDragEnd,
+                    DragEventType.DragEnter => fiber.Props.OnDragEnter,
+                    DragEventType.DragOver  => fiber.Props.OnDragOver,
+                    DragEventType.DragLeave => fiber.Props.OnDragLeave,
+                    DragEventType.Drop      => fiber.Props.OnDrop,
+                    _                       => null,
+                };
+                handler?.Invoke(e);
+            }
+        }
+
         private void OnMouseButtonUp(IMouse mouse, MouseButton button)
         {
             if (_reconciler?.Root == null || _window == null) return;
@@ -445,6 +494,32 @@ namespace Paper.Rendering.Silk.NET
 
             var (lx, ly) = ToLayoutCoords(mouse.Position);
             var target = HitTest(_reconciler.Root, lx, ly, "", 0, 0f, 0f, p => _scrollOffsets.TryGetValue(p, out var v) ? v : (0f, 0f));
+
+            // Finish drag-and-drop
+            if (button == MouseButton.Left && _dragActive && _dragSource != null)
+            {
+                var dropEvt = new DragEvent { Type = DragEventType.Drop, X = lx, Y = ly, Data = _dragData };
+                DispatchDrag(target, dropEvt);
+
+                var endEvt = new DragEvent { Type = DragEventType.DragEnd, X = lx, Y = ly, Data = _dragData };
+                DispatchDrag(_dragSource, endEvt);
+
+                if (_dragOver != null)
+                {
+                    DispatchDrag(_dragOver, new DragEvent { Type = DragEventType.DragLeave, X = lx, Y = ly, Data = _dragData });
+                    _dragOver = null;
+                }
+                _dragSource = null;
+                _dragSourcePath = null;
+                _dragActive = false;
+                _dragData = null;
+            }
+            else if (button == MouseButton.Left)
+            {
+                _dragSource = null;
+                _dragSourcePath = null;
+                _dragActive = false;
+            }
 
             DispatchPointer(target, new PointerEvent
             {
@@ -706,6 +781,40 @@ namespace Paper.Rendering.Silk.NET
             if (target != null)
             {
                 DispatchPointer(target, new PointerEvent { Type = PointerEventType.Move, X = lx, Y = ly, Button = -1 });
+            }
+
+            // Drag-and-drop: start drag once threshold crossed, then fire Drag + DragEnter/Leave/Over
+            if (_dragSource != null && mouse.IsButtonPressed(MouseButton.Left))
+            {
+                const float DragThreshold = 4f;
+                float dx = lx - _dragStartX;
+                float dy = ly - _dragStartY;
+
+                if (!_dragActive && (dx * dx + dy * dy) >= DragThreshold * DragThreshold)
+                {
+                    _dragActive = true;
+                    var startEvt = new DragEvent { Type = DragEventType.DragStart, X = lx, Y = ly };
+                    DispatchDrag(_dragSource, startEvt);
+                    _dragData = startEvt.Data; // source handler may set Data via a wrapper — see note
+                }
+
+                if (_dragActive)
+                {
+                    DispatchDrag(_dragSource, new DragEvent { Type = DragEventType.Drag, X = lx, Y = ly, Data = _dragData });
+
+                    if (!ReferenceEquals(target, _dragOver))
+                    {
+                        if (_dragOver != null)
+                            DispatchDrag(_dragOver, new DragEvent { Type = DragEventType.DragLeave, X = lx, Y = ly, Data = _dragData });
+                        if (target != null)
+                            DispatchDrag(target, new DragEvent { Type = DragEventType.DragEnter, X = lx, Y = ly, Data = _dragData });
+                        _dragOver = target;
+                    }
+                    else if (target != null)
+                    {
+                        DispatchDrag(target, new DragEvent { Type = DragEventType.DragOver, X = lx, Y = ly, Data = _dragData });
+                    }
+                }
             }
 
             // Mouse selection: extend selection while dragging (including when mouse leaves the input)

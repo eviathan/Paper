@@ -79,6 +79,32 @@ namespace Paper.Core.Hooks
             }
         }
 
+        // ── UseLayoutEffect ───────────────────────────────────────────────────
+
+        /// <summary>
+        /// Like <see cref="UseEffect"/> but fires synchronously after reconciliation, before the
+        /// next paint. Use for measure-then-reposition patterns that must not flicker.
+        /// The <paramref name="effect"/> may return a cleanup <see cref="Action"/>.
+        /// </summary>
+        public static void UseLayoutEffect(Func<Action?> effect, object[]? deps = null)
+        {
+            var slot = HookContext.Next();
+            var slotIndex = HookContext.CurrentIndex - 1;
+            bool shouldRun;
+
+            if (!slot.HasDeps || deps == null)
+                shouldRun = true;
+            else
+                shouldRun = !DepsEqual(slot.Deps, deps);
+
+            if (shouldRun)
+            {
+                slot.HasDeps = true;
+                slot.Deps = deps ?? Array.Empty<object?>();
+                HookContext.EnqueueLayoutEffect(slotIndex, effect, deps);
+            }
+        }
+
         // ── UseMemo ──────────────────────────────────────────────────────────
 
         /// <summary>

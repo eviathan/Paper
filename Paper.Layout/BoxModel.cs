@@ -91,6 +91,15 @@ namespace Paper.Layout
             float w = ResolveLength(style.Width,  containerWidth,  float.NaN);
             float h = ResolveLength(style.Height, containerHeight, float.NaN);
 
+            // AspectRatio: derive missing dimension from the known one
+            if (style.AspectRatio is { } ar && ar > 0)
+            {
+                if (!float.IsNaN(w) && float.IsNaN(h))
+                    h = w / ar;
+                else if (float.IsNaN(w) && !float.IsNaN(h))
+                    w = h * ar;
+            }
+
             // Clamp to min/max
             if (!float.IsNaN(w))
             {

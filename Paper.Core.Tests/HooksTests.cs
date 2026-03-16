@@ -500,4 +500,78 @@ public sealed class HooksTests
 
         Assert.Equal("inner", read);
     }
+
+    // ── UseLayoutEffect ───────────────────────────────────────────────────────
+
+    [Fact]
+    public void UseLayoutEffect_RunsAfterMount()
+    {
+        bool ran = false;
+
+        UINode Comp(Props _)
+        {
+            UseLayoutEffect(() => { ran = true; return null; });
+            return UI.Box();
+        }
+
+        new PaperReconciler().Mount(UI.Component(Comp));
+        Assert.True(ran);
+    }
+
+    [Fact]
+    public void UseLayoutEffect_RunsBeforeRegularEffect()
+    {
+        var order = new List<string>();
+
+        UINode Comp(Props _)
+        {
+            UseEffect(() => { order.Add("effect"); return null; });
+            UseLayoutEffect(() => { order.Add("layout"); return null; });
+            return UI.Box();
+        }
+
+        new PaperReconciler().Mount(UI.Component(Comp));
+        Assert.Equal(2, order.Count);
+        Assert.Equal("layout", order[0]);
+        Assert.Equal("effect", order[1]);
+    }
+
+    [Fact]
+    public void UseLayoutEffect_CleanupCalledOnRemount()
+    {
+        bool cleanupCalled = false;
+
+        UINode Comp(Props _)
+        {
+            UseLayoutEffect(() => () => { cleanupCalled = true; });
+            return UI.Box();
+        }
+
+        var rec = new PaperReconciler();
+        rec.Mount(UI.Component(Comp));
+        Assert.False(cleanupCalled);
+        rec.Update(UI.Box()); // replace component with Box → triggers deletion → cleanup
+        Assert.True(cleanupCalled);
+    }
+
+    [Fact]
+    public void UseLayoutEffect_WithDeps_SkipsOnSameDeps()
+    {
+        int callCount = 0;
+        int renderCount = 0;
+
+        UINode Comp(Props _)
+        {
+            renderCount++;
+            UseLayoutEffect(() => { callCount++; return null; }, new object[] { "stable" });
+            return UI.Box();
+        }
+
+        var rec = new PaperReconciler();
+        rec.Mount(UI.Component(Comp));
+        Assert.Equal(1, callCount);
+
+        rec.Update(UI.Component(Comp), forceReconcile: true);
+        Assert.Equal(1, callCount); // deps unchanged → skip
+    }
 }

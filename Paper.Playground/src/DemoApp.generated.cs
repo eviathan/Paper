@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using Paper.Core.Components;
 using Paper.Core.Context;
 using Paper.Core.Hooks;
 using Paper.Core.Styles;
@@ -43,7 +44,7 @@ public static partial class DemoAppComponent
                                             ),
                                         }
                                     )
-                                    .Text($"{props.Get<string>("label") ?? ""}")
+                                    .Text(props.Get<string>("label") ?? "")
                                     .Build()
                             )
                         )
@@ -114,7 +115,7 @@ public static partial class DemoAppComponent
                                     ),
                                 }
                             )
-                            .Text($"Welcome, {name}. Clicks: {clicks}")
+                            .Text($"Welcome, {(name)}. Clicks: {(clicks)}")
                             .Build()
                     ),
                     UI.Box(
@@ -152,7 +153,7 @@ public static partial class DemoAppComponent
                                                 ),
                                             }
                                         )
-                                        .Text($"Counter: {count}")
+                                        .Text($"Counter: {(count)}")
                                         .Build()
                                 ),
                                 UI.Box(
@@ -354,7 +355,7 @@ public static partial class DemoAppComponent
                                                     ),
                                                 }
                                             )
-                                            .Text($"UseReducer — Todos ({todos.Count})")
+                                            .Text($"UseReducer — Todos ({(todos.Count)})")
                                             .Build()
                                     ),
                                     todos
@@ -619,7 +620,12 @@ public static partial class DemoAppComponent
                                                 }
                                             )
                                             .Text(
-                                                $"Toggle Accent ({(usePurple ? "Purple" : "Blue")})"
+                                                string.Concat(
+                                                    "Toggle Accent (",
+                                                    ((usePurple ? "Purple" : "Blue"))?.ToString()
+                                                        ?? "",
+                                                    ")"
+                                                )
                                             )
                                             .Children(
                                                 UI.Nodes(

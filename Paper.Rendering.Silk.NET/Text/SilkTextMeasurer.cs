@@ -18,12 +18,13 @@ namespace Paper.Rendering.Silk.NET.Text
             if (string.IsNullOrEmpty(text))
                 return (0f, 0f);
 
-            float fontPx  = ResolveFontPx(style);
-            string? fam   = style.FontFamily;
-            var weight    = style.FontWeight;
+            float fontPx   = ResolveFontPx(style);
+            string? fam    = style.FontFamily;
+            var weight     = style.FontWeight;
+            var fontStyle  = style.FontStyle;
 
-            float w       = _fonts.MeasureWidth(text.AsSpan(), fontPx, fam, weight);
-            float lineHPx = _fonts.LineHeight(fontPx, fam, weight);
+            float w       = _fonts.MeasureWidth(text.AsSpan(), fontPx, fam, weight, fontStyle);
+            float lineHPx = _fonts.LineHeight(fontPx, fam, weight, fontStyle);
             float lineH   = lineHPx * Math.Max(0.5f, style.LineHeight ?? 1.4f);
 
             // Heuristic fallback if atlas not ready
@@ -37,13 +38,13 @@ namespace Paper.Rendering.Silk.NET.Text
             bool doWrap = style.WhiteSpace == WhiteSpace.Normal && maxWidth is > 0 && w > maxWidth.Value;
             if (doWrap)
             {
-                float spaceW = _fonts.MeasureWidth(" ".AsSpan(), fontPx, fam, weight);
+                float spaceW = _fonts.MeasureWidth(" ".AsSpan(), fontPx, fam, weight, fontStyle);
                 if (spaceW <= 0) spaceW = fontPx * 0.3f;
                 int numLines = 1;
                 float lineW  = 0;
                 foreach (var word in text.Split(' '))
                 {
-                    float wordW = _fonts.MeasureWidth(word.AsSpan(), fontPx, fam, weight);
+                    float wordW = _fonts.MeasureWidth(word.AsSpan(), fontPx, fam, weight, fontStyle);
                     if (lineW > 0 && lineW + spaceW + wordW > maxWidth!.Value)
                     {
                         numLines++;

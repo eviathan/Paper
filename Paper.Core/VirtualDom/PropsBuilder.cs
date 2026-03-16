@@ -69,6 +69,14 @@ namespace Paper.Core.VirtualDom
         public PropsBuilder OnKeyChar(Action<KeyEvent> handler) { _data["onKeyChar"] = handler; return this; }
         public PropsBuilder OnKeyCharCapture(Action<KeyEvent> handler) { _data["onKeyCharCapture"] = handler; return this; }
 
+        public PropsBuilder OnDragStart(Action<DragEvent> handler) { _data["onDragStart"] = handler; return this; }
+        public PropsBuilder OnDrag(Action<DragEvent> handler) { _data["onDrag"] = handler; return this; }
+        public PropsBuilder OnDragEnd(Action<DragEvent> handler) { _data["onDragEnd"] = handler; return this; }
+        public PropsBuilder OnDragEnter(Action<DragEvent> handler) { _data["onDragEnter"] = handler; return this; }
+        public PropsBuilder OnDragOver(Action<DragEvent> handler) { _data["onDragOver"] = handler; return this; }
+        public PropsBuilder OnDragLeave(Action<DragEvent> handler) { _data["onDragLeave"] = handler; return this; }
+        public PropsBuilder OnDrop(Action<DragEvent> handler) { _data["onDrop"] = handler; return this; }
+
         // ── Custom ────────────────────────────────────────────────────────────
 
         public PropsBuilder Set(string key, object? value) { _data[key] = value; return this; }

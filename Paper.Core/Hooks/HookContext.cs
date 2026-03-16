@@ -16,11 +16,16 @@ namespace Paper.Core.Hooks
         [ThreadStatic]
         private static List<(int slot, Func<Action?> effect, object[]? deps)>? _pendingEffects;
 
+        /// <summary>Layout effects collected during the current render pass (run before paint).</summary>
+        [ThreadStatic]
+        private static List<(int slot, Func<Action?> effect, object[]? deps)>? _pendingLayoutEffects;
+
         internal static void Begin(List<HookSlot> slots)
         {
             _slots = slots;
             _index = 0;
             _pendingEffects = [];
+            _pendingLayoutEffects = [];
         }
 
         internal static void End() { _slots = null; _index = 0; }
@@ -42,10 +47,19 @@ namespace Paper.Core.Hooks
         internal static List<(int slot, Func<Action?> effect, object[]? deps)> PendingEffects =>
             _pendingEffects ?? [];
 
+        internal static List<(int slot, Func<Action?> effect, object[]? deps)> PendingLayoutEffects =>
+            _pendingLayoutEffects ?? [];
+
         internal static void EnqueueEffect(int slot, Func<Action?> effect, object[]? deps)
         {
             _pendingEffects ??= [];
             _pendingEffects.Add((slot, effect, deps));
+        }
+
+        internal static void EnqueueLayoutEffect(int slot, Func<Action?> effect, object[]? deps)
+        {
+            _pendingLayoutEffects ??= [];
+            _pendingLayoutEffects.Add((slot, effect, deps));
         }
 
         internal static bool IsRendering => _slots != null;

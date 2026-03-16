@@ -40,6 +40,11 @@ namespace Paper.CSX.Syntax
                 "RadioGroup" => GenerateRadioGroup(element, indent),
                 "Select" => GenerateSelect(element, indent),
                 "Portal" => GeneratePortal(element, indent),
+                "Slider" => GenerateSlider(element, indent),
+                "NumberInput" => GenerateNumberInput(element, indent),
+                "Tabs" => GenerateTabs(element, indent),
+                "Popover" => GeneratePopover(element, indent),
+                "ToastContainer" => GenerateToastContainer(element, indent),
                 _ => GenerateCustom(element, indent),
             };
         }
@@ -132,6 +137,36 @@ namespace Paper.CSX.Syntax
                         sb.Append($"\n.OnClick({ToActionLambda(a.Value)})");
                         break;
                     }
+                    case "onDoubleClick":
+                        sb.Append($"\n.OnDoubleClick({ToActionLambda(a.Value)})");
+                        break;
+                    case "onMouseEnter":
+                        sb.Append($"\n.OnMouseEnter({ToActionLambda(a.Value)})");
+                        break;
+                    case "onMouseLeave":
+                        sb.Append($"\n.OnMouseLeave({ToActionLambda(a.Value)})");
+                        break;
+                    case "onDragStart":
+                        sb.Append($"\n.OnDragStart({ToStringLambda(a.Value)})");
+                        break;
+                    case "onDrag":
+                        sb.Append($"\n.OnDrag({ToStringLambda(a.Value)})");
+                        break;
+                    case "onDragEnd":
+                        sb.Append($"\n.OnDragEnd({ToStringLambda(a.Value)})");
+                        break;
+                    case "onDragEnter":
+                        sb.Append($"\n.OnDragEnter({ToStringLambda(a.Value)})");
+                        break;
+                    case "onDragOver":
+                        sb.Append($"\n.OnDragOver({ToStringLambda(a.Value)})");
+                        break;
+                    case "onDragLeave":
+                        sb.Append($"\n.OnDragLeave({ToStringLambda(a.Value)})");
+                        break;
+                    case "onDrop":
+                        sb.Append($"\n.OnDrop({ToStringLambda(a.Value)})");
+                        break;
                     case "hoverStyle":
                     case "activeStyle":
                     case "focusStyle":
@@ -206,6 +241,26 @@ namespace Paper.CSX.Syntax
             if (parts.Count == 0) return Quote("");
             if (parts.Count == 1 && !parts[0].isExpr) return Quote(Normalize(parts[0].text).Trim());
 
+            // Single expression — return it directly (no $"..." wrapper needed).
+            // This handles ternaries, method calls, interpolated strings etc. as-is.
+            if (parts.Count == 1 && parts[0].isExpr) return parts[0].text.Trim();
+
+            // Multiple parts. If any expression part contains a double-quote (e.g. a nested
+            // string literal or ternary with string arms) we cannot embed it in $"..." safely.
+            // Fall back to string.Concat() which accepts arbitrary string expressions.
+            bool anyExprHasQuote = parts.Any(p => p.isExpr && p.text.Contains('"'));
+            if (anyExprHasQuote)
+            {
+                var concatArgs = parts.Select(p =>
+                {
+                    if (!p.isExpr) return Quote(Normalize(p.text).Trim());
+                    // Ensure non-string expressions are converted to string
+                    var expr = p.text.Trim();
+                    return $"({expr})?.ToString() ?? \"\"";
+                });
+                return $"string.Concat({string.Join(", ", concatArgs)})";
+            }
+
             var normalized = parts.Select((p, i) =>
             {
                 if (p.isExpr) return p;
@@ -225,8 +280,11 @@ namespace Paper.CSX.Syntax
                 }
                 else
                 {
+                    // Always wrap in (...) so ternary ? : doesn't confuse the interpolation parser
                     sb.Append('{');
+                    sb.Append('(');
                     sb.Append(text.Trim());
+                    sb.Append(')');
                     sb.Append('}');
                 }
             }
@@ -660,6 +718,113 @@ namespace Paper.CSX.Syntax
                     onSelect = ToStringLambda(a.Value);
             }
             return $"UI.RadioGroup({options}, {selectedValue}, {onSelect}, {style})";
+        }
+
+        private static string GenerateSlider(CSXElement el, int indent = 0)
+        {
+            string value = "0f";
+            string min = "0f";
+            string max = "100f";
+            string step = "1f";
+            string onChange = "null";
+            string style = GetStyle(el) ?? "null";
+
+            foreach (var a in el.Attributes)
+            {
+                if (a.Name is "value")
+                    value = a.Value is CSXExpressionValue ev ? ev.Code : (a.Value is CSXBareValue bv ? bv.Value : value);
+                else if (a.Name is "min")
+                    min = a.Value is CSXExpressionValue ev2 ? ev2.Code : (a.Value is CSXBareValue bv2 ? bv2.Value : min);
+                else if (a.Name is "max")
+                    max = a.Value is CSXExpressionValue ev3 ? ev3.Code : (a.Value is CSXBareValue bv3 ? bv3.Value : max);
+                else if (a.Name is "step")
+                    step = a.Value is CSXExpressionValue ev4 ? ev4.Code : (a.Value is CSXBareValue bv4 ? bv4.Value : step);
+                else if (a.Name is "onChange" or "onchange")
+                    onChange = ToStringLambda(a.Value);
+            }
+            return $"UI.Slider({value}, {min}, {max}, {step}, {onChange}, {style})";
+        }
+
+        private static string GenerateNumberInput(CSXElement el, int indent = 0)
+        {
+            string value = "0f";
+            string min = "null";
+            string max = "null";
+            string step = "1f";
+            string onChange = "null";
+            string style = GetStyle(el) ?? "null";
+
+            foreach (var a in el.Attributes)
+            {
+                if (a.Name is "value")
+                    value = a.Value is CSXExpressionValue ev ? ev.Code : (a.Value is CSXBareValue bv ? bv.Value : value);
+                else if (a.Name is "min")
+                    min = a.Value is CSXExpressionValue ev2 ? ev2.Code : (a.Value is CSXBareValue bv2 ? bv2.Value : min);
+                else if (a.Name is "max")
+                    max = a.Value is CSXExpressionValue ev3 ? ev3.Code : (a.Value is CSXBareValue bv3 ? bv3.Value : max);
+                else if (a.Name is "step")
+                    step = a.Value is CSXExpressionValue ev4 ? ev4.Code : (a.Value is CSXBareValue bv4 ? bv4.Value : step);
+                else if (a.Name is "onChange" or "onchange")
+                    onChange = ToStringLambda(a.Value);
+            }
+            return $"UI.NumberInput({value}, {min}, {max}, {step}, {onChange}, {style})";
+        }
+
+        private static string GenerateTabs(CSXElement el, int indent = 0)
+        {
+            string tabs = "Array.Empty<(string Id, string Label)>()";
+            string activeTab = "\"\"";
+            string onTabChange = "null";
+            string style = GetStyle(el) ?? "null";
+            var children = GenerateChildrenArray(el);
+
+            foreach (var a in el.Attributes)
+            {
+                if (a.Name is "tabs")
+                    tabs = a.Value is CSXExpressionValue ev ? ev.Code : tabs;
+                else if (a.Name is "activeTab" or "activetab")
+                    activeTab = a.Value is CSXExpressionValue ev2 ? ev2.Code : (a.Value is CSXStringValue sv ? Quote(sv.Value) : activeTab);
+                else if (a.Name is "onTabChange" or "ontabchange")
+                    onTabChange = ToStringLambda(a.Value);
+            }
+            string panelArgs = children.Count > 0 ? ", null, " + string.Join(", ", children) : "";
+            return $"UI.Tabs({tabs}, {activeTab}, {onTabChange}, {style}{panelArgs})";
+        }
+
+        private static string GeneratePopover(CSXElement el, int indent = 0)
+        {
+            string isOpen = "false";
+            string onClose = "null";
+            string placement = "\"bottom\"";
+            string style = GetStyle(el) ?? "null";
+            var children = GenerateChildrenArray(el);
+
+            foreach (var a in el.Attributes)
+            {
+                if (a.Name is "isOpen" or "isopen")
+                    isOpen = a.Value is CSXExpressionValue ev ? ev.Code : (a.Value is CSXBareValue bv ? bv.Value : isOpen);
+                else if (a.Name is "onClose" or "onclose")
+                    onClose = ToActionLambda(a.Value);
+                else if (a.Name is "placement")
+                    placement = a.Value is CSXExpressionValue ev2 ? ev2.Code : (a.Value is CSXStringValue sv ? Quote(sv.Value) : placement);
+            }
+            string childArgs = children.Count > 0 ? ", null, " + string.Join(", ", children) : "";
+            return $"UI.Popover({isOpen}, {onClose}, {placement}, {style}{childArgs})";
+        }
+
+        private static string GenerateToastContainer(CSXElement el, int indent = 0)
+        {
+            string toasts = "Array.Empty<Paper.Core.Components.Primitives.ToastEntry>()";
+            string onDismiss = "null";
+
+            foreach (var a in el.Attributes)
+            {
+                if (a.Name is "toasts")
+                    toasts = a.Value is CSXExpressionValue ev ? ev.Code : toasts;
+                else if (a.Name is "onDismiss" or "ondismiss")
+                    onDismiss = ToStringLambda(a.Value);
+            }
+            return $"UI.ToastContainer({toasts}, {onDismiss})";
         }
 
         private static List<string> GenerateChildrenArray(CSXElement el)

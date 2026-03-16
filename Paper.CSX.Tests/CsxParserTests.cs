@@ -362,4 +362,65 @@ public sealed class CsxParserTests
         Assert.Equal(string.Empty, preamble);
         Assert.Equal(string.Empty, jsx);
     }
+
+    // ── New element codegen ───────────────────────────────────────────────────
+
+    [Fact]
+    public void Parse_Slider_EmitsUISlider()
+    {
+        var result = CSXCompiler.Parse("<Slider value={0.5f} min={0f} max={1f} />");
+        Assert.Contains("UI.Slider(", result);
+    }
+
+    [Fact]
+    public void Parse_NumberInput_EmitsUINumberInput()
+    {
+        var result = CSXCompiler.Parse("<NumberInput value={42f} />");
+        Assert.Contains("UI.NumberInput(", result);
+    }
+
+    [Fact]
+    public void Parse_Tabs_EmitsUITabs()
+    {
+        var result = CSXCompiler.Parse("<Tabs tabs={myTabs} activeTab={activeTab} />");
+        Assert.Contains("UI.Tabs(", result);
+    }
+
+    [Fact]
+    public void Parse_Popover_EmitsUIPopover()
+    {
+        var result = CSXCompiler.Parse("<Popover isOpen={open} />");
+        Assert.Contains("UI.Popover(", result);
+    }
+
+    [Fact]
+    public void Parse_ToastContainer_EmitsUIToastContainer()
+    {
+        var result = CSXCompiler.Parse("<ToastContainer toasts={toasts} />");
+        Assert.Contains("UI.ToastContainer(", result);
+    }
+
+    [Fact]
+    public void Parse_Slider_WithOnChange_EmitsHandler()
+    {
+        var result = CSXCompiler.Parse("<Slider value={v} onChange={setV} />");
+        Assert.Contains("UI.Slider(", result);
+        Assert.Contains("setV", result);
+    }
+
+    [Fact]
+    public void Parse_Tabs_WithChildren_EmitsPanels()
+    {
+        var result = CSXCompiler.Parse("<Tabs tabs={t} activeTab={a}><Box /><Box /></Tabs>");
+        Assert.Contains("UI.Tabs(", result);
+        Assert.Contains("UI.Box(", result);
+    }
+
+    [Fact]
+    public void Parse_Popover_WithPlacement_EmitsPlacement()
+    {
+        var result = CSXCompiler.Parse("<Popover isOpen={x} placement=\"top\" />");
+        Assert.Contains("UI.Popover(", result);
+        Assert.Contains("\"top\"", result);
+    }
 }

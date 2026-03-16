@@ -58,6 +58,7 @@ namespace Paper.Core.Reconciler
             try
             {
                 _current = Render(root, null, null);
+                FlushLayoutEffects(_current);
                 FlushEffects(_current);
                 AfterCommit?.Invoke();
             }
@@ -83,6 +84,7 @@ namespace Paper.Core.Reconciler
                 Commit(wip);
                 CommitDeletions();
                 _current = wip;
+                FlushLayoutEffects(_current);
                 FlushEffects(_current);
                 AfterCommit?.Invoke();
                 _renderRequested = false;
@@ -136,6 +138,18 @@ namespace Paper.Core.Reconciler
                 if (slotIndex < fiber.HookSlots.Count)
                 {
                     fiber.HookSlots[slotIndex].PendingEffect = () =>
+                    {
+                        var result = effect();
+                        return result;
+                    };
+                }
+            }
+
+            foreach (var (slotIndex, effect, deps) in HookContext.PendingLayoutEffects)
+            {
+                if (slotIndex < fiber.HookSlots.Count)
+                {
+                    fiber.HookSlots[slotIndex].PendingLayoutEffect = () =>
                     {
                         var result = effect();
                         return result;
@@ -440,6 +454,32 @@ namespace Paper.Core.Reconciler
                 UnmountFiber(child);
                 child = child.Sibling;
             }
+        }
+
+        private void FlushLayoutEffects(Fiber? fiber)
+        {
+            if (fiber == null) return;
+            FlushLayoutEffects(fiber.Child);
+            foreach (var slot in fiber.HookSlots)
+            {
+                if (slot.PendingLayoutEffect != null)
+                {
+                    slot.Cleanup?.Invoke();
+                    try
+                    {
+                        var cleanup = slot.PendingLayoutEffect();
+                        slot.Cleanup = cleanup;
+                    }
+                    catch (Exception ex)
+                    {
+                        OnError?.Invoke(new ReconcilerError { Exception = ex, Phase = ReconcilerErrorPhase.Effect, IsBoundary = false });
+                        Console.Error.WriteLine("[Paper] LayoutEffect error: " + ex.ToString());
+                        slot.Cleanup = null;
+                    }
+                    slot.PendingLayoutEffect = null;
+                }
+            }
+            FlushLayoutEffects(fiber.Sibling);
         }
 
         private void FlushEffects(Fiber? fiber)

@@ -17,6 +17,8 @@ namespace Paper.Core.Hooks
         public Action? Cleanup { get; set; }
         /// <summary>For UseEffect: the effect to run after commit.</summary>
         public Func<Action?>? PendingEffect { get; set; }
+        /// <summary>For UseLayoutEffect: runs synchronously after reconcile, before paint.</summary>
+        public Func<Action?>? PendingLayoutEffect { get; set; }
 
         /// <summary>
         /// Queued state updaters applied in order when state is read during the next render.

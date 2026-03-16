@@ -253,4 +253,43 @@ public sealed class StyleSystemTests
         Assert.Equal(Display.Block, style.Display); // from default
         Assert.Equal(2f, style.FlexGrow);           // inline wins over class
     }
+
+    // ── New style props ───────────────────────────────────────────────────────
+
+    [Fact]
+    public void Merge_FontStyle_Italic_Overrides()
+    {
+        var base_ = new StyleSheet { FontStyle = FontStyle.Normal };
+        var other = new StyleSheet { FontStyle = FontStyle.Italic };
+        var result = base_.Merge(other);
+        Assert.Equal(FontStyle.Italic, result.FontStyle);
+    }
+
+    [Fact]
+    public void Merge_TextTransform_Uppercase_Overrides()
+    {
+        var base_ = new StyleSheet { TextTransform = TextTransform.None };
+        var other = new StyleSheet { TextTransform = TextTransform.Uppercase };
+        var result = base_.Merge(other);
+        Assert.Equal(TextTransform.Uppercase, result.TextTransform);
+    }
+
+    [Fact]
+    public void Merge_AspectRatio_Preserved()
+    {
+        var base_ = new StyleSheet { AspectRatio = 16f / 9f };
+        var other = new StyleSheet(); // AspectRatio null
+        var result = base_.Merge(other);
+        Assert.NotNull(result.AspectRatio);
+        Assert.True(Math.Abs(result.AspectRatio!.Value - 16f / 9f) < 0.001f);
+    }
+
+    [Fact]
+    public void Merge_AspectRatio_OtherOverrides()
+    {
+        var base_ = new StyleSheet { AspectRatio = 1f };
+        var other = new StyleSheet { AspectRatio = 4f / 3f };
+        var result = base_.Merge(other);
+        Assert.True(Math.Abs(result.AspectRatio!.Value - 4f / 3f) < 0.001f);
+    }
 }
