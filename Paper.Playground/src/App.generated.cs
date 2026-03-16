@@ -99,6 +99,7 @@ public static partial class AppComponent
                                                     .Style(
                                                         new StyleSheet
                                                         {
+                                                            Display = Display.Flex,
                                                             FlexDirection = FlexDirection.Row,
                                                             RowGap = Length.Px(12),
                                                             ColumnGap = Length.Px(12),
@@ -161,6 +162,7 @@ public static partial class AppComponent
                                                     .Style(
                                                         new StyleSheet
                                                         {
+                                                            Display = Display.Flex,
                                                             FlexDirection = FlexDirection.Row,
                                                             RowGap = Length.Px(12),
                                                             ColumnGap = Length.Px(12),
@@ -252,6 +254,7 @@ public static partial class AppComponent
                                                     .Style(
                                                         new StyleSheet
                                                         {
+                                                            Display = Display.Flex,
                                                             FlexDirection = FlexDirection.Row,
                                                             RowGap = Length.Px(12),
                                                             ColumnGap = Length.Px(12),
@@ -293,6 +296,7 @@ public static partial class AppComponent
                                                     .Style(
                                                         new StyleSheet
                                                         {
+                                                            Display = Display.Flex,
                                                             FlexDirection = FlexDirection.Row,
                                                             RowGap = Length.Px(12),
                                                             ColumnGap = Length.Px(12),
@@ -490,7 +494,7 @@ public static partial class AppComponent
                                             new StyleSheet
                                             {
                                                 Padding = new Thickness(16f),
-                                                MinHeight = Length.Px(48),
+                                                MinHeight = Length.Px(140),
                                             }
                                         )
                                         .Children(
@@ -924,6 +928,7 @@ public static partial class AppComponent
                                                     .Style(
                                                         new StyleSheet
                                                         {
+                                                            Display = Display.Flex,
                                                             FlexDirection = FlexDirection.Row,
                                                             RowGap = Length.Px(8),
                                                             ColumnGap = Length.Px(8),

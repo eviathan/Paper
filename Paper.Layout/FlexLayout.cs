@@ -46,13 +46,20 @@ namespace Paper.Layout
                 ? (style.OverflowX == Overflow.Scroll || style.OverflowX == Overflow.Auto)
                 : (style.OverflowY == Overflow.Scroll || style.OverflowY == Overflow.Auto);
 
+            // Intrinsic main size: when a column (or row) flex container has auto main-axis size and
+            // mainSize is 0 (i.e. a block parent gave it 0 height), don't shrink items — let the
+            // shrink-to-content code at the end grow the container to its natural content size.
+            bool isIntrinsicMain = mainSize <= 0.001f && (
+                !isRow ? (style.Height == null || style.Height.Value.IsAuto)
+                       : (style.Width  == null || style.Width.Value.IsAuto));
+
             float usedCrossTotal;
             float usedMainTotal;
 
             if (!doWrap)
             {
                 // Single-line layout
-                var line = BuildLine(items, style, mainSize, crossSize, gap, measurer, isRow, allowShrink: !mainAxisScrollable);
+                var line = BuildLine(items, style, mainSize, crossSize, gap, measurer, isRow, allowShrink: !mainAxisScrollable && !isIntrinsicMain);
                 usedCrossTotal = line.LineCrossSize;
                 usedMainTotal = line.Items.Sum(i => i.FinalMain) + Math.Max(0, line.Items.Count - 1) * gap;
                 PositionLine(line, style, contentX, contentY, contentWidth, contentHeight,
@@ -258,7 +265,10 @@ namespace Paper.Layout
 
             foreach (var fi in line.Items)
             {
-                float cross = AlignCross(fi, style, crossSize);
+                // Use at least LineCrossSize so CENTER/FlexEnd items in auto-height containers
+                // (where crossSize arrives as 0) don't receive a negative offset.
+                float effectiveCross = Math.Max(crossSize, line.LineCrossSize);
+                float cross = AlignCross(fi, style, effectiveCross);
 
                 float x, y, w, h;
                 if (isRow)
@@ -479,6 +489,14 @@ namespace Paper.Layout
             if ((style.FlexGrow ?? 0f) > 0)
                 return 0f;
 
+            // Component fiber see-through: function-component fibers (non-string Type) render to a
+            // single child element — delegate so Slider/NumberInput etc. get realistic main sizes.
+            if (item.Type is not string && item.Child != null && item.Child.Sibling == null)
+            {
+                var childStyle = item.Child.ComputedStyle;
+                return GetFlexBasis(item.Child, childStyle, mainSize, crossSize, isRow, measurer);
+            }
+
             // Intrinsic size: when this item is a flex *column* with no explicit main size,
             // use the sum of its flex items' bases + gaps so the parent doesn't shrink it below content.
             // Only for columns so we don't change row children (e.g. flexGrow items that had default 100f width).
@@ -563,11 +581,52 @@ namespace Paper.Layout
                 return th + padH + bt + bb;
             }
 
-            // No content info for non-stretch items: use MinHeight/MinWidth as floor, else fall back to full cross
+            // No content info for non-stretch items: use MinHeight/MinWidth as floor,
+            // then estimate from child tree (catches component fibers like Slider/NumberInput
+            // whose rendered children carry explicit heights), else fall back to full cross.
             float minCross = isRow
                 ? (style.MinHeight is { } mh && !mh.IsAuto ? mh.Resolve(crossSize) : 0f)
                 : (style.MinWidth  is { } mw && !mw.IsAuto ? mw.Resolve(crossSize) : 0f);
-            return minCross > 0 ? minCross : crossSize;
+            if (minCross > 0) return minCross;
+
+            float estimated = EstimateIntrinsicCross(item, isRow, crossSize);
+            return estimated > 0 ? estimated : crossSize;
+        }
+
+        /// <summary>
+        /// Walk the fiber subtree looking for an explicit cross-axis size.
+        /// Used to give non-stretch component fibers (Slider, NumberInput, …) a
+        /// realistic height estimate even when their ComputedStyle has none.
+        /// </summary>
+        private static float EstimateIntrinsicCross(Fiber item, bool isRow, float crossSize)
+        {
+            var s = item.ComputedStyle;
+
+            // Explicit height/width wins immediately
+            float? exp = isRow ? s.Height?.Resolve(crossSize) : s.Width?.Resolve(crossSize);
+            if (exp.HasValue && exp.Value > 0) return exp.Value;
+
+            float minC = isRow
+                ? (s.MinHeight is { } mh && !mh.IsAuto ? mh.Resolve(crossSize) : 0f)
+                : (s.MinWidth  is { } mw && !mw.IsAuto ? mw.Resolve(crossSize) : 0f);
+            if (minC > 0) return minC;
+
+            if (item.Child == null) return 0f;
+
+            // Single child: see through (component wrapper fibers)
+            if (item.Child.Sibling == null)
+                return EstimateIntrinsicCross(item.Child, isRow, crossSize);
+
+            // Multiple children: return the max across siblings
+            float maxH = 0f;
+            var ch = item.Child;
+            while (ch != null)
+            {
+                float h = EstimateIntrinsicCross(ch, isRow, crossSize);
+                if (h > maxH) maxH = h;
+                ch = ch.Sibling;
+            }
+            return maxH;
         }
 
         private static float AlignCross(FlexItem fi, StyleSheet containerStyle, float lineCrossSize)

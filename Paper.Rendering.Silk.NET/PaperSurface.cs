@@ -303,7 +303,7 @@ namespace Paper.Rendering.Silk.NET
 
                     var regular = new PaperFontSet(PaperFontLoader.LoadSet(_gl, regularPath), _gl);
 
-                    // Look for a bold variant next to the regular file.
+                    // Look for bold, italic, bold-italic variants next to the regular file.
                     PaperFontSet? bold = null;
                     foreach (var suffix in new[] { "-bold", "-Bold", "bold", "Bold" })
                     {
@@ -315,8 +315,30 @@ namespace Paper.Rendering.Silk.NET
                         }
                     }
 
+                    PaperFontSet? italic = null;
+                    foreach (var suffix in new[] { "-italic", "-Italic" })
+                    {
+                        var italicPath = Path.Combine(fontDir, fname + suffix + ".ttf");
+                        if (File.Exists(italicPath))
+                        {
+                            italic = new PaperFontSet(PaperFontLoader.LoadSet(_gl, italicPath), _gl);
+                            break;
+                        }
+                    }
+
+                    PaperFontSet? boldItalic = null;
+                    foreach (var suffix in new[] { "-bolditalic", "-BoldItalic", "-bold-italic", "-Bold-Italic" })
+                    {
+                        var biPath = Path.Combine(fontDir, fname + suffix + ".ttf");
+                        if (File.Exists(biPath))
+                        {
+                            boldItalic = new PaperFontSet(PaperFontLoader.LoadSet(_gl, biPath), _gl);
+                            break;
+                        }
+                    }
+
                     // Register under the filename (e.g. "roboto") and as "default" for the first font.
-                    fontRegistry.Register(fname.ToLowerInvariant(), regular, bold);
+                    fontRegistry.Register(fname.ToLowerInvariant(), regular, bold, italic, boldItalic);
                 }
             }
 
@@ -419,11 +441,16 @@ namespace Paper.Rendering.Silk.NET
             _pressed = target;
             _pressedPath = target != null ? GetPathString(target) : null;
 
-            // Track potential drag source (left button only)
-            if (button == MouseButton.Left && target?.Props.OnDragStart != null)
+            // Track potential drag source — walk up from target to find element with OnDragStart
+            // (clicks often land on a child text node, not the draggable container itself).
+            Fiber? dragCandidate = target;
+            while (dragCandidate != null && dragCandidate.Props.OnDragStart == null)
+                dragCandidate = dragCandidate.Parent;
+
+            if (button == MouseButton.Left && dragCandidate != null)
             {
-                _dragSource = target;
-                _dragSourcePath = GetPathString(target);
+                _dragSource = dragCandidate;
+                _dragSourcePath = GetPathString(dragCandidate);
                 _dragData = null;
                 _dragActive = false;
                 _dragStartX = lx;
@@ -1217,13 +1244,21 @@ namespace Paper.Rendering.Silk.NET
             float childScrollX = scrollX + (isScrollable ? ox : 0);
             float childScrollY = scrollY + (isScrollable ? oy : 0);
 
-            // Recurse into children first (deepest wins)
+            // position:fixed elements are in viewport space — zero out accumulated scroll so their
+            // AbsoluteX/Y are compared directly against the viewport-space pointer position.
+            var fiberPos = fiber.ComputedStyle.Position ?? Position.Static;
+            if (fiberPos == Position.Fixed) { scrollX = 0f; scrollY = 0f; childScrollX = 0f; childScrollY = 0f; }
+
+            // Recurse into children — last child wins (later siblings paint on top in painter's order,
+            // so fixed/high-ZIndex elements added later in the tree correctly win over earlier content).
+            Fiber? childHit = null;
             int i = 0;
             for (var c = fiber.Child; c != null; c = c.Sibling, i++)
             {
-                var childHit = HitTest(c, x, y, path, i, childScrollX, childScrollY, getScrollOffset);
-                if (childHit != null) return childHit;
+                var hit = HitTest(c, x, y, path, i, childScrollX, childScrollY, getScrollOffset);
+                if (hit != null) childHit = hit;
             }
+            if (childHit != null) return childHit;
 
             // Check this fiber (in visible coords: layout minus scroll)
             var lb = fiber.Layout;
@@ -1233,7 +1268,8 @@ namespace Paper.Rendering.Silk.NET
 
             if (contains && fiber.ComputedStyle.PointerEvents != PointerEvents.None) return fiber;
 
-            return HitTest(fiber.Sibling, x, y, parentPath, indexInParent + 1, scrollX, scrollY, getScrollOffset);
+            // Siblings are handled by the parent's children loop above — no tail call needed.
+            return null;
         }
 
         /// <summary>Convert input position (window coords) to layout space (framebuffer pixels).</summary>
@@ -1260,6 +1296,9 @@ namespace Paper.Rendering.Silk.NET
         private void DispatchPointer(Fiber? target, PointerEvent e)
         {
             if (target == null || _reconciler?.Root == null) return;
+            // Set element-local coordinates relative to the hit-test target.
+            e.LocalX = e.X - target.Layout.AbsoluteX;
+            e.LocalY = e.Y - target.Layout.AbsoluteY;
             var path = PathToRoot(target);
 
             // Capture: root -> parent(target)

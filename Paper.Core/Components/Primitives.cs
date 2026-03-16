@@ -383,6 +383,37 @@ namespace Paper.Core.Components
                 return Math.Clamp(snapped, min, max);
             }
 
+            // Resolve the track's pixel width from the style so click/drag can compute fractions.
+            // Falls back to 200px if no explicit Px width is set.
+            float trackW = style.Width?.Resolve(0f) is float tw && tw > 1f ? tw : 200f;
+
+            void SeekToLocal(float localX)
+            {
+                float frac = Math.Clamp(localX / trackW, 0f, 1f);
+                onChange?.Invoke(Snap(min + frac * (max - min)));
+            }
+
+            void OnTrackDown(Paper.Core.Events.PointerEvent e)
+            {
+                SeekToLocal(e.LocalX);
+                setDragging(true);
+            }
+
+            void OnTrackMove(Paper.Core.Events.PointerEvent e)
+            {
+                if (!dragging) return;
+                SeekToLocal(e.LocalX);
+            }
+
+            void OnTrackUp(Paper.Core.Events.PointerEvent e) => setDragging(false);
+
+            void OnWheel(Paper.Core.Events.PointerEvent e)
+            {
+                float delta = e.WheelDeltaY > 0 ? -step : step;
+                float next  = Snap(clamped + delta);
+                onChange?.Invoke(next);
+            }
+
             var trackStyle = new StyleSheet
             {
                 Display        = Display.Flex,
@@ -421,19 +452,17 @@ namespace Paper.Core.Components
                 BorderRadius  = 8f,
                 Position      = Position.Absolute,
                 Left          = Length.Percent(thumbOffset),
+                Top           = Length.Px(-6),  // centre 16px thumb in 4px rail: (4-16)/2 = -6
                 TranslateX    = -8f,  // centre thumb on the point
                 Cursor        = Cursor.Pointer,
+                PointerEvents = PointerEvents.None,  // clicks fall through to the rail/track
             };
-
-            void OnWheel(Paper.Core.Events.PointerEvent e)
-            {
-                float delta = e.WheelDeltaY > 0 ? -step : step;
-                float next  = Snap(clamped + delta);
-                onChange?.Invoke(next);
-            }
 
             var trackProps = new PropsBuilder()
                 .Style(trackStyle)
+                .OnPointerDown(OnTrackDown)
+                .OnPointerMove(OnTrackMove)
+                .OnPointerUp(OnTrackUp)
                 .Set("onWheel", (Action<Paper.Core.Events.PointerEvent>)OnWheel)
                 .Children(
                     UI.Box(new PropsBuilder()
@@ -514,7 +543,7 @@ namespace Paper.Core.Components
             };
 
             return UI.Box(containerStyle,
-                UI.Box(new PropsBuilder().Style(btnStyle).Set("hoverStyle", btnHover).OnClick(Decrement).Children(UI.Text("−")).Build()),
+                UI.Box(new PropsBuilder().Style(btnStyle).Set("hoverStyle", btnHover).OnClick(Decrement).Children(UI.Text("-")).Build()),
                 UI.Input(FormatValue(value), OnChange, inputStyle),
                 UI.Box(new PropsBuilder().Style(btnStyle).Set("hoverStyle", btnHover).OnClick(Increment).Children(UI.Text("+")).Build())
             );
@@ -543,6 +572,7 @@ namespace Paper.Core.Components
             {
                 Display       = Display.Flex,
                 FlexDirection = FlexDirection.Row,
+                Height        = Length.Px(36),
                 BorderBottom  = new Border(1f, new PaperColour(0.25f, 0.25f, 0.35f, 1f)),
             };
 
@@ -628,13 +658,15 @@ namespace Paper.Core.Components
 
             var panelStyle = new StyleSheet
             {
-                Position     = Position.Absolute,
-                ZIndex       = 200,
-                Background   = new PaperColour(0.12f, 0.12f, 0.17f, 1f),
-                Border       = new BorderEdges(new Border(1f, new PaperColour(0.3f, 0.3f, 0.4f, 1f))),
-                BorderRadius = 6f,
-                Padding      = new Thickness(Length.Px(8)),
-                MinWidth     = Length.Px(160),
+                Position      = Position.Absolute,
+                ZIndex        = 200,
+                Background    = new PaperColour(0.12f, 0.12f, 0.17f, 1f),
+                Border        = new BorderEdges(new Border(1f, new PaperColour(0.3f, 0.3f, 0.4f, 1f))),
+                BorderRadius  = 6f,
+                Padding       = new Thickness(Length.Px(8)),
+                MinWidth      = Length.Px(160),
+                Display       = Display.Flex,
+                FlexDirection = FlexDirection.Column,
             }.Merge(panelPosition).Merge(style);
 
             var children2 = new List<UINode> { trigger };
@@ -677,7 +709,74 @@ namespace Paper.Core.Components
         public static readonly Func<Props, UINode> ToastContainerComponent = ToastContainer;
 
         /// <summary>A single toast entry.</summary>
-        public sealed record ToastEntry(string Id, string Message, string Variant = "info");
+        /// <param name="Duration">Auto-dismiss after this many seconds. 0 (default) = never auto-dismiss.</param>
+        public sealed record ToastEntry(string Id, string Message, string Variant = "info", float Duration = 0f);
+
+        /// <summary>Stable delegate for rendering a single toast item (manages its own auto-dismiss timer).</summary>
+        public static readonly Func<Props, UINode> ToastItemComponent = ToastItem;
+
+        /// <summary>Renders a single toast item. Uses UseStable to schedule auto-dismiss on first render only.</summary>
+        public static UINode ToastItem(Props p)
+        {
+            var toast     = p.Get<ToastEntry>("toast")!;
+            var onDismiss = p.Get<Action<string>>("onDismiss");
+
+            // Schedule auto-dismiss exactly once (UseStable runs the factory only on the first render).
+            if (toast.Duration > 0)
+            {
+                var capturedId      = toast.Id;
+                var capturedDismiss = onDismiss;
+                float capturedMs    = toast.Duration * 1000f;
+                Hooks.Hooks.UseStable(() =>
+                {
+                    _ = System.Threading.Tasks.Task.Delay((int)capturedMs)
+                        .ContinueWith(_ => capturedDismiss?.Invoke(capturedId));
+                    return 0;
+                });
+            }
+
+            PaperColour accent = toast.Variant switch
+            {
+                "success" => new PaperColour(0.1f, 0.55f, 0.2f, 1f),
+                "error"   => new PaperColour(0.7f, 0.15f, 0.15f, 1f),
+                "warning" => new PaperColour(0.7f, 0.45f, 0.0f, 1f),
+                _         => new PaperColour(0.15f, 0.35f, 0.65f, 1f),
+            };
+
+            var toastStyle = new StyleSheet
+            {
+                Display       = Display.Flex,
+                FlexDirection = FlexDirection.Row,
+                AlignItems    = AlignItems.Center,
+                Background    = new PaperColour(0.12f, 0.12f, 0.18f, 0.96f),
+                Border        = new BorderEdges(new Border(1f, accent)),
+                BorderRadius  = 6f,
+                Padding       = new Thickness(Length.Px(10), Length.Px(14)),
+                MarginBottom  = Length.Px(8),
+                Width         = Length.Px(340),
+            };
+
+            var localId = toast.Id;
+            return UI.Box(new PropsBuilder()
+                .Style(toastStyle)
+                .Children(
+                    UI.Box(new StyleSheet { FlexGrow = 1 }, UI.Text(toast.Message)),
+                    UI.Button("x", () => onDismiss?.Invoke(localId), new StyleSheet
+                    {
+                        Background   = new PaperColour(0f, 0f, 0f, 0.3f),
+                        Color        = new PaperColour(0.7f, 0.7f, 0.8f, 1f),
+                        Width        = Length.Px(24),
+                        Height       = Length.Px(24),
+                        Display      = Display.Flex,
+                        JustifyContent = JustifyContent.Center,
+                        AlignItems   = AlignItems.Center,
+                        BorderRadius = 4f,
+                        MarginLeft   = Length.Px(12),
+                        Padding      = new Thickness(Length.Px(0)),
+                    })
+                )
+                .Build());
+        }
 
         /// <summary>
         /// Renders all active toasts in the top-right corner.
@@ -685,58 +784,31 @@ namespace Paper.Core.Components
         /// </summary>
         public static UINode ToastContainer(Props p)
         {
-            var toasts   = p.Get<IReadOnlyList<ToastEntry>>("toasts") ?? Array.Empty<ToastEntry>();
+            var toasts    = p.Get<IReadOnlyList<ToastEntry>>("toasts") ?? Array.Empty<ToastEntry>();
             var onDismiss = p.Get<Action<string>>("onDismiss");
 
             if (toasts.Count == 0) return UI.Fragment();
 
+            // Fixed width so Right-anchoring positions correctly (right-edge at viewport.right - 16).
             var containerStyle = new StyleSheet
             {
                 Position      = Position.Fixed,
                 Top           = Length.Px(16),
                 Right         = Length.Px(16),
+                Width         = Length.Px(360),
                 Display       = Display.Flex,
                 FlexDirection = FlexDirection.Column,
                 ZIndex        = 2000,
             };
 
             var toastNodes = toasts.Select(t =>
-            {
-                PaperColour accent = t.Variant switch
-                {
-                    "success" => new PaperColour(0.1f, 0.55f, 0.2f, 1f),
-                    "error"   => new PaperColour(0.7f, 0.15f, 0.15f, 1f),
-                    "warning" => new PaperColour(0.7f, 0.45f, 0.0f, 1f),
-                    _         => new PaperColour(0.15f, 0.35f, 0.65f, 1f),
-                };
-                var toastStyle = new StyleSheet
-                {
-                    Display       = Display.Flex,
-                    FlexDirection = FlexDirection.Row,
-                    AlignItems    = AlignItems.Center,
-                    Background    = new PaperColour(0.12f, 0.12f, 0.18f, 0.96f),
-                    Border        = new BorderEdges(new Border(1f, accent)),
-                    BorderRadius  = 6f,
-                    Padding       = new Thickness(Length.Px(10), Length.Px(14)),
-                    MarginBottom  = Length.Px(8),
-                    MinWidth      = Length.Px(220),
-                    MaxWidth      = Length.Px(360),
-                };
-                var localId = t.Id;
-                return UI.Box(new PropsBuilder()
-                    .Style(toastStyle)
-                    .Children(
-                        UI.Box(new StyleSheet { FlexGrow = 1 }, UI.Text(t.Message)),
-                        UI.Button("×", () => onDismiss?.Invoke(localId), new StyleSheet
-                        {
-                            Background   = null,
-                            Color        = new PaperColour(0.6f, 0.6f, 0.7f, 1f),
-                            Padding      = new Thickness(Length.Px(0), Length.Px(4)),
-                            MarginLeft   = Length.Px(8),
-                        })
-                    )
-                    .Build(), key: t.Id);
-            }).ToArray();
+                UI.Component(ToastItemComponent,
+                    new PropsBuilder()
+                        .Set("toast", t)
+                        .Set("onDismiss", onDismiss)
+                        .Build(),
+                    key: t.Id)
+            ).ToArray();
 
             return UI.Box(containerStyle, toastNodes);
         }

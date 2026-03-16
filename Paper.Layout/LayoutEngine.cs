@@ -17,6 +17,10 @@ namespace Paper.Layout
         /// </summary>
         public Func<string?, (float w, float h)?>? GetImageSize { get; set; }
 
+        // Viewport dimensions captured at Layout() time so position:fixed elements can use them.
+        private static float _viewportW;
+        private static float _viewportH;
+
         // ── Public API ────────────────────────────────────────────────────────
 
         /// <summary>
@@ -25,6 +29,8 @@ namespace Paper.Layout
         /// </summary>
         public void Layout(Fiber root, float width, float height, ILayoutMeasurer? measurer = null)
         {
+            _viewportW = width;
+            _viewportH = height;
             LayoutNode(root, 0f, 0f, width, height, measurer, GetImageSize);
             // Propagate absolute positions from root (parent 0,0,0,0) so renderer/hit-testing get surface-space coords.
             SetAbsolutePositions(root, 0f, 0f, 0f, 0f, width, height);
@@ -73,8 +79,9 @@ namespace Paper.Layout
             var (mt, mr, mb, ml) = BoxModel.MarginPixels(style, containerWidth, containerHeight);
             float layoutX = x + ml;
             float layoutY = y + mt;
-            float layoutW = Math.Max(0, outerW - ml - mr);
-            float layoutH = Math.Max(0, outerH - mt - mb);
+            // Auto-size fills container minus margins; explicit size is the border-box (margins don't shrink it)
+            float layoutW = float.IsNaN(rawW) ? Math.Max(0, outerW - ml - mr) : outerW;
+            float layoutH = float.IsNaN(rawH) ? Math.Max(0, outerH - mt - mb) : outerH;
 
             fiber.Layout = new LayoutBox
             {
@@ -199,8 +206,10 @@ namespace Paper.Layout
                 {
                     X      = contentX + ml,
                     Y      = cursor   + mt,
-                    Width  = Math.Max(0, w - ml - mr),
-                    Height = Math.Max(0, h - mt - mb),
+                    // Auto-width fills container minus margins; explicit-width is the border-box size (unchanged by margins)
+                    Width  = float.IsNaN(rawW) ? Math.Max(0, w - ml - mr) : w,
+                    // Height is the border-box size; margins are purely position offsets, not size reductions
+                    Height = h,
                 };
 
                 var (cx, cy) = BoxModel.ContentOrigin(childStyle, child.Layout.Width, child.Layout.Height);
@@ -228,9 +237,15 @@ namespace Paper.Layout
             while (child != null)
             {
                 var s = child.ComputedStyle;
-                if ((s.Position ?? Position.Static) == Position.Absolute || (s.Position ?? Position.Static) == Position.Fixed)
+                var pos = s.Position ?? Position.Static;
+                if (pos == Position.Absolute)
                 {
                     LayoutAbsoluteNode(child, s, containerX, containerY, containerW, containerH, measurer, getImageSize);
+                }
+                else if (pos == Position.Fixed)
+                {
+                    // position:fixed is relative to the viewport, not the containing block.
+                    LayoutAbsoluteNode(child, s, 0f, 0f, _viewportW, _viewportH, measurer, getImageSize);
                 }
                 child = child.Sibling;
             }
@@ -245,7 +260,8 @@ namespace Paper.Layout
             Func<string?, (float w, float h)?>? getImageSize)
         {
             float w = BoxModel.ResolveLength(style.Width,  containingW, containingW);
-            float h = BoxModel.ResolveLength(style.Height, containingH, containingH);
+            bool hAuto = style.Height == null || style.Height.Value.IsAuto;
+            float h = hAuto ? 0f : BoxModel.ResolveLength(style.Height, containingH, 0f);
 
             float x = containingX;
             float y = containingY;
@@ -262,14 +278,53 @@ namespace Paper.Layout
 
             if (hasTop)
                 y = containingY + style.Top!.Value.Resolve(containingH);
-            else if (hasBottom)
+            else if (hasBottom && !hAuto)
                 y = containingY + containingH - h - style.Bottom!.Value.Resolve(containingH);
+            // Bottom + hAuto: y is corrected after content height is known
 
             fiber.Layout = new LayoutBox { X = x, Y = y, Width = w, Height = h };
 
             var (cx, cy) = BoxModel.ContentOrigin(style, w, h);
             var (cw, ch) = BoxModel.ContentSize(w, h, style, containingW, containingH);
             LayoutChildren(fiber, style, x + cx, y + cy, cw, ch, measurer, getImageSize);
+
+            if (hAuto)
+            {
+                // FlexLayout may have already grown the height via its shrink-to-content pass.
+                h = fiber.Layout.Height;
+
+                // If layout didn't grow it (e.g. Block children), compute from child extents.
+                if (h <= 0.001f)
+                {
+                    float contentTopY = y + cy;
+                    float maxBot = contentTopY;
+                    var c = fiber.Child;
+                    while (c != null)
+                    {
+                        var cp = c.ComputedStyle.Position ?? Position.Static;
+                        if (cp != Position.Absolute && cp != Position.Fixed)
+                        {
+                            var (_, _, cmb, _) = BoxModel.MarginPixels(c.ComputedStyle, c.Layout.Width, c.Layout.Height);
+                            float bot = c.Layout.Y + c.Layout.Height + cmb;
+                            if (bot > maxBot) maxBot = bot;
+                        }
+                        c = c.Sibling;
+                    }
+                    float contentUsed = maxBot - contentTopY;
+                    var (_, _, bb, _) = BoxModel.BorderWidths(style);
+                    var (_, _, pb, _) = BoxModel.PaddingPixels(style, w, 0f);
+                    h = contentUsed + pb + bb;
+                }
+
+                // For bottom-anchored auto-height elements, recompute y now that h is known.
+                if (hasBottom && !hasTop)
+                    y = containingY + containingH - h - style.Bottom!.Value.Resolve(containingH);
+
+                var lb = fiber.Layout;
+                lb.Y = y;
+                lb.Height = h;
+                fiber.Layout = lb;
+            }
         }
 
         // ── Absolute coordinates pass ─────────────────────────────────────────
@@ -278,12 +333,23 @@ namespace Paper.Layout
         private static void SetAbsolutePositions(Fiber fiber, float parentAbsX, float parentAbsY, float parentLayoutX, float parentLayoutY, float parentW = 0f, float parentH = 0f)
         {
             var lb = fiber.Layout;
-            lb.AbsoluteX = parentAbsX + lb.X - parentLayoutX;
-            lb.AbsoluteY = parentAbsY + lb.Y - parentLayoutY;
+            var s = fiber.ComputedStyle;
+            var pos = s.Position ?? Position.Static;
+
+            if (pos == Position.Fixed)
+            {
+                // position:fixed is in viewport space — lb.X/Y already computed relative to (0,0).
+                lb.AbsoluteX = lb.X;
+                lb.AbsoluteY = lb.Y;
+            }
+            else
+            {
+                lb.AbsoluteX = parentAbsX + lb.X - parentLayoutX;
+                lb.AbsoluteY = parentAbsY + lb.Y - parentLayoutY;
+            }
 
             // position: relative — apply Top/Left/Right/Bottom as purely visual offsets (no flow change)
-            var s = fiber.ComputedStyle;
-            if ((s.Position ?? Position.Static) == Position.Relative)
+            if (pos == Position.Relative)
             {
                 if (s.Left != null && !s.Left.Value.IsAuto)
                     lb.AbsoluteX += s.Left.Value.Resolve(parentW);

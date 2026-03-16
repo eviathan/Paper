@@ -249,6 +249,9 @@ namespace Paper.Rendering.Silk.NET
 
             float opacity = inheritedOpacity * ownOpacity;
             var lb = fiber.Layout;
+            // position:fixed elements live in viewport space — don't offset by accumulated scroll.
+            var pos = style.Position ?? Position.Static;
+            if (pos == Position.Fixed) { scrollX = 0f; scrollY = 0f; }
             float dx = (lb.AbsoluteX - scrollX) * ScaleX;
             float dy = (lb.AbsoluteY - scrollY) * ScaleY;
             float dw = lb.Width * ScaleX;

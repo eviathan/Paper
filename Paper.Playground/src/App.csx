@@ -20,18 +20,19 @@ function App() {
   void TogglePop() { setPopOpen(!popOpen); }
 
   // ── Toast state ───────────────────────────────────────────────────────────
-  var (toasts, setToasts, _) = Hooks.UseState(new List<Primitives.ToastEntry> {
-    new Primitives.ToastEntry("t0", "App started successfully!", "success"),
-    new Primitives.ToastEntry("t1", "Welcome to Paper UI.", "info"),
+  var (toasts, setToasts, updateToasts) = Hooks.UseState(new List<Primitives.ToastEntry> {
+    new Primitives.ToastEntry("t0", "App started successfully!", "success", 4f),
+    new Primitives.ToastEntry("t1", "Welcome to Paper UI.", "info", 6f),
   });
   void AddToast(string msg, string variant) {
-    var next = new List<Primitives.ToastEntry>(toasts) {
+    updateToasts(prev => new List<Primitives.ToastEntry>(prev) {
       new Primitives.ToastEntry("t" + System.Environment.TickCount64.ToString(), msg, variant)
-    };
-    setToasts(next);
+    });
   }
   void DismissToast(string id) {
-    setToasts(toasts.Where(t => t.Id != id).ToList());
+    // Use functional update so the timer callback always filters against current state,
+    // not the stale closure captured at first render.
+    updateToasts(prev => prev.Where(t => t.Id != id).ToList());
   }
 
   // ── Drag and drop state ───────────────────────────────────────────────────
@@ -55,12 +56,12 @@ function App() {
       <Box className="section">
         <Text className="section-label">Slider</Text>
         <Box className="demo-col-panel" style={{ gap: 12, padding: 12 }}>
-          <Box style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
+          <Box style={{ display: 'flex', flexDirection: 'row', gap: 12, alignItems: 'center' }}>
             <Text style={{ color: '#a0a0b8', width: 64 }}>Volume</Text>
             <Slider value={volume} min={0f} max={100f} step={1f} onChange={setVolume} style={{ width: 200 }} />
             <Text style={{ color: '#6366f1', width: 36 }}>{volText}</Text>
           </Box>
-          <Box style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
+          <Box style={{ display: 'flex', flexDirection: 'row', gap: 12, alignItems: 'center' }}>
             <Text style={{ color: '#a0a0b8', width: 64 }}>Opacity</Text>
             <Slider value={opacity} min={0f} max={100f} step={5f} onChange={setOpacity} style={{ width: 200 }} />
             <Text style={{ color: '#6366f1', width: 36 }}>{opacText}</Text>
@@ -72,11 +73,11 @@ function App() {
       <Box className="section">
         <Text className="section-label">NumberInput</Text>
         <Box className="demo-col-panel" style={{ gap: 12, padding: 12 }}>
-          <Box style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
+          <Box style={{ display: 'flex', flexDirection: 'row', gap: 12, alignItems: 'center' }}>
             <Text style={{ color: '#a0a0b8', width: 80 }}>Quantity</Text>
             <NumberInput value={qty} min={1f} max={99f} step={1f} onChange={setQty} />
           </Box>
-          <Box style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
+          <Box style={{ display: 'flex', flexDirection: 'row', gap: 12, alignItems: 'center' }}>
             <Text style={{ color: '#a0a0b8', width: 80 }}>Price ($)</Text>
             <NumberInput value={price} min={0f} step={0.5f} onChange={setPrice} />
           </Box>
@@ -106,10 +107,10 @@ function App() {
       {/* ── Popover ─────────────────────────────────────────────────────────── */}
       <Box className="section">
         <Text className="section-label">Popover</Text>
-        <Box className="demo-panel" style={{ padding: 16, minHeight: 48 }}>
+        <Box className="demo-panel" style={{ padding: 16, minHeight: 140 }}>
           <Popover isOpen={popOpen} onClose={TogglePop} placement="bottom">
             <Button onClick={TogglePop}>{popBtnLabel}</Button>
-            <Box style={{ padding: 12, flexDirection: 'column', gap: 8, minWidth: 200 }}>
+            <Box style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 8, minWidth: 200 }}>
               <Text style={{ color: '#e0e0f0', fontWeight: '600' }}>Popover Title</Text>
               <Text style={{ color: '#a0a0b8' }}>Floats anchored to the trigger button.</Text>
               <Button onClick={TogglePop}>Dismiss</Button>
@@ -161,7 +162,7 @@ function App() {
         <Text className="section-label">Drag and Drop</Text>
         <Box className="demo-col-panel" style={{ gap: 12, padding: 12 }}>
           <Text style={{ color: '#a0a0b8' }}>{dragStatus}</Text>
-          <Box style={{ flexDirection: 'row', gap: 8 }}>
+          <Box style={{ display: 'flex', flexDirection: 'row', gap: 8 }}>
             {new[] { "Card A", "Card B", "Card C" }.Select(label =>
               <Box
                 key={label}
