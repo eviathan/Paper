@@ -67,6 +67,64 @@ namespace Paper.Rendering.Silk.NET.Text
             return atlas;
         }
 
+        /// <summary>
+        /// Loads an icon font: discovers all codepoints available in the font via FreeType's
+        /// cmap iterator and packs them all into a larger atlas. Use for fonts like Material Icons
+        /// or Font Awesome where glyphs are in Unicode Private Use Area ranges.
+        /// </summary>
+        public static unsafe Dictionary<int, PaperFontAtlas> LoadIconSet(GL gl, string fontPath, int[]? sizes = null)
+        {
+            sizes ??= DefaultSizes;
+
+            FT_LibraryRec_* library;
+            FT_Init_FreeType(&library);
+
+            FT_FaceRec_* face;
+            var pathPtr = Marshal.StringToHGlobalAnsi(fontPath);
+            try   { FT_New_Face(library, (byte*)pathPtr, 0, &face); }
+            finally { Marshal.FreeHGlobal(pathPtr); }
+
+            // Discover all codepoints in the font via cmap iteration.
+            var codepoints = new List<int>();
+            uint glyphIdx = 0;
+            nuint cp = FT_Get_First_Char(face, &glyphIdx);
+            while (glyphIdx != 0)
+            {
+                codepoints.Add((int)(uint)cp);
+                cp = FT_Get_Next_Char(face, (uint)cp, &glyphIdx);
+            }
+
+            var result = new Dictionary<int, PaperFontAtlas>();
+            foreach (int px in sizes)
+            {
+                // Icon atlases need more space; use 2048² for all sizes.
+                var atlas = LoadSingleCodepoints(gl, face, px, 2048, codepoints);
+                result[px] = atlas;
+            }
+
+            FT_Done_Face(face);
+            FT_Done_FreeType(library);
+            return result;
+        }
+
+        private static unsafe PaperFontAtlas LoadSingleCodepoints(GL gl, FT_FaceRec_* face, int pixelSize, int atlasSize, IEnumerable<int> codepoints)
+        {
+            var atlas      = new PaperFontAtlas(atlasSize, pixelSize);
+            var atlasBytes = new byte[atlasSize * atlasSize];
+
+            FT_Set_Pixel_Sizes(face, 0, (uint)pixelSize);
+
+            int cursorX   = Padding;
+            int cursorY   = Padding;
+            int rowHeight = 0;
+
+            PackGlyphs(face, codepoints, atlasSize, atlasBytes, atlas, ref cursorX, ref cursorY, ref rowHeight);
+
+            atlas.LineHeight = (float)((int)face->size->metrics.height >> 6);
+            UploadTexture(gl, atlas, atlasBytes, atlasSize);
+            return atlas;
+        }
+
         private static unsafe PaperFontAtlas LoadSingle(GL gl, FT_FaceRec_* face, int pixelSize, int atlasSize)
         {
             var atlas      = new PaperFontAtlas(atlasSize, pixelSize);
@@ -78,7 +136,24 @@ namespace Paper.Rendering.Silk.NET.Text
             int cursorY   = Padding;
             int rowHeight = 0;
 
-            for (int cp = 32; cp < 128; cp++)
+            // ASCII printable range: 32 (space) through 127
+            PackGlyphs(face, Enumerable.Range(32, 96), atlasSize, atlasBytes, atlas, ref cursorX, ref cursorY, ref rowHeight);
+
+            atlas.LineHeight = (float)((int)face->size->metrics.height >> 6);
+
+            UploadTexture(gl, atlas, atlasBytes, atlasSize);
+            return atlas;
+        }
+
+        private static unsafe void PackGlyphs(
+            FT_FaceRec_* face,
+            IEnumerable<int> codepoints,
+            int atlasSize,
+            byte[] atlasBytes,
+            PaperFontAtlas atlas,
+            ref int cursorX, ref int cursorY, ref int rowHeight)
+        {
+            foreach (int cp in codepoints)
             {
                 uint glyphIndex = FT_Get_Char_Index(face, (uint)cp);
                 if (glyphIndex == 0) continue;
@@ -123,11 +198,6 @@ namespace Paper.Rendering.Silk.NET.Text
                 cursorX  += bw + Padding;
                 rowHeight = Math.Max(rowHeight, bh);
             }
-
-            atlas.LineHeight = (float)((int)face->size->metrics.height >> 6);
-
-            UploadTexture(gl, atlas, atlasBytes, atlasSize);
-            return atlas;
         }
 
         private static unsafe void UploadTexture(GL gl, PaperFontAtlas atlas, byte[] pixels, int atlasSize)

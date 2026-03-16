@@ -26,6 +26,13 @@ namespace Paper.Rendering.Silk.NET.Text
 
         private readonly int _uResolution;
         private readonly int _uFontAtlas;
+        private readonly int _uItalicSkew;
+
+        /// <summary>
+        /// Horizontal shear per pixel of glyph height applied in the vertex shader.
+        /// 0 = upright; ~0.21 = ~12° synthetic italic. Reset after each Flush.
+        /// </summary>
+        public float ItalicSkew { get; set; }
 
         public PaperFontAtlas Atlas => _atlas;
 
@@ -36,6 +43,7 @@ namespace Paper.Rendering.Silk.NET.Text
             _program = GlHelpers.LinkProgram(gl, Shaders.TextVert, Shaders.TextFrag);
             _uResolution = GlHelpers.Uniform(gl, _program, "uResolution");
             _uFontAtlas  = GlHelpers.Uniform(gl, _program, "uFontAtlas");
+            _uItalicSkew = GlHelpers.Uniform(gl, _program, "uItalicSkew");
 
             // Base quad: pos[0..1] + uv[0..1]
             float[] quad =
@@ -154,6 +162,8 @@ namespace Paper.Rendering.Silk.NET.Text
 
             _gl.UseProgram(_program);
             _gl.Uniform2(_uResolution, screenW, screenH);
+            _gl.Uniform1(_uItalicSkew, ItalicSkew);
+            ItalicSkew = 0f;  // reset after flush so next frame starts upright
 
             // Bind the font atlas to texture unit 0
             _gl.ActiveTexture(TextureUnit.Texture0);

@@ -446,5 +446,33 @@ namespace Paper.Core.VirtualDom
             }
             return list.ToArray();
         }
+
+        /// <summary>
+        /// Renders a single icon glyph from an icon font family (e.g. "material-icons").
+        /// <paramref name="codepoint"/> is the Unicode codepoint as a string (e.g. "\uE88A" for
+        /// Material Icons "home"). Use the generated <c>MaterialIcons</c> or <c>FontAwesomeIcons</c>
+        /// constants for named access. Drop the .ttf into Assets/fonts with "icon" in its filename
+        /// and it will be auto-loaded with full glyph discovery.
+        /// </summary>
+        public static UINode Icon(
+            string codepoint,
+            string fontFamily,
+            float size = 24f,
+            StyleSheet? style = null,
+            string? key = null)
+        {
+            var iconStyle = new StyleSheet
+            {
+                FontFamily = fontFamily,
+                FontSize   = Paper.Core.Styles.Length.Px(size),
+                Width      = Paper.Core.Styles.Length.Px(size),
+                Height     = Paper.Core.Styles.Length.Px(size),
+                Display    = Paper.Core.Styles.Display.InlineFlex,
+            }.Merge(style ?? StyleSheet.Empty);
+
+            return new UINode(ElementTypes.Text,
+                new PropsBuilder().Text(codepoint).Style(iconStyle).Build(),
+                key);
+        }
     }
 }

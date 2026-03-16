@@ -259,17 +259,30 @@ namespace Paper.Layout
             ILayoutMeasurer? measurer,
             Func<string?, (float w, float h)?>? getImageSize)
         {
-            float w = BoxModel.ResolveLength(style.Width,  containingW, containingW);
+            bool hasLeft   = style.Left   != null && !style.Left.Value.IsAuto;
+            bool hasRight  = style.Right  != null && !style.Right.Value.IsAuto;
+            bool hasTop    = style.Top    != null && !style.Top.Value.IsAuto;
+            bool hasBottom = style.Bottom != null && !style.Bottom.Value.IsAuto;
+
+            // Auto-width: when no explicit Width is set, use containingW for child layout
+            // then shrink to content afterwards (like CSS shrink-to-fit for absolute elements).
+            // Exception: both left+right anchors → stretch to fill the gap.
+            bool wAuto = style.Width == null || style.Width.Value.IsAuto;
+            float w;
+            if (!wAuto)
+                w = BoxModel.ResolveLength(style.Width, containingW, containingW);
+            else if (hasLeft && hasRight)
+                w = Math.Max(0, containingW
+                    - style.Left!.Value.Resolve(containingW)
+                    - style.Right!.Value.Resolve(containingW));
+            else
+                w = containingW;   // use full containing width for child layout; shrink below
+
             bool hAuto = style.Height == null || style.Height.Value.IsAuto;
             float h = hAuto ? 0f : BoxModel.ResolveLength(style.Height, containingH, 0f);
 
             float x = containingX;
             float y = containingY;
-
-            bool hasLeft   = style.Left   != null && !style.Left.Value.IsAuto;
-            bool hasRight  = style.Right  != null && !style.Right.Value.IsAuto;
-            bool hasTop    = style.Top    != null && !style.Top.Value.IsAuto;
-            bool hasBottom = style.Bottom != null && !style.Bottom.Value.IsAuto;
 
             if (hasLeft)
                 x = containingX + style.Left!.Value.Resolve(containingW);
@@ -287,6 +300,41 @@ namespace Paper.Layout
             var (cx, cy) = BoxModel.ContentOrigin(style, w, h);
             var (cw, ch) = BoxModel.ContentSize(w, h, style, containingW, containingH);
             LayoutChildren(fiber, style, x + cx, y + cy, cw, ch, measurer, getImageSize);
+
+            // Auto-width shrink-to-fit: compute actual width from child extents.
+            if (wAuto && !(hasLeft && hasRight))
+            {
+                float contentLeftX = x + cx;
+                float maxRight = contentLeftX;
+                var c = fiber.Child;
+                while (c != null)
+                {
+                    var cp = c.ComputedStyle.Position ?? Position.Static;
+                    if (cp != Position.Absolute && cp != Position.Fixed)
+                    {
+                        var (_, cmr, _, _) = BoxModel.MarginPixels(c.ComputedStyle, c.Layout.Width, c.Layout.Height);
+                        float right = c.Layout.X + c.Layout.Width + cmr;
+                        if (right > maxRight) maxRight = right;
+                    }
+                    c = c.Sibling;
+                }
+                float contentUsed = Math.Max(0, maxRight - contentLeftX);
+                var (_, brr, _, bll) = BoxModel.BorderWidths(style);
+                var (_, prr, _, pll) = BoxModel.PaddingPixels(style, w, 0f);
+                float computedW = contentUsed + pll + prr + bll + brr;
+                float minW = BoxModel.ResolveLength(style.MinWidth, containingW, 0f);
+                float maxW = BoxModel.ResolveLength(style.MaxWidth, containingW, float.MaxValue);
+                computedW = Math.Clamp(computedW, minW, maxW < float.MaxValue ? maxW : float.MaxValue);
+
+                // Re-anchor right-anchored elements now that true width is known
+                if (!hasLeft && hasRight)
+                    x = containingX + containingW - computedW - style.Right!.Value.Resolve(containingW);
+
+                var lbw = fiber.Layout;
+                lbw.X = x;
+                lbw.Width = computedW;
+                fiber.Layout = lbw;
+            }
 
             if (hAuto)
             {

@@ -110,7 +110,8 @@ layout (location = 3) in vec2  iSize;
 layout (location = 4) in vec4  iUVRect;    // (u0, v0, u1, v1)
 layout (location = 5) in vec4  iColor;
 
-uniform vec2 uResolution;
+uniform vec2  uResolution;
+uniform float uItalicSkew;   // synthetic italic: horizontal shear per pixel of height (0 = off)
 
 out vec2 vUV;
 out vec4 vColor;
@@ -120,6 +121,9 @@ void main() {
     vUV    = iUVRect.xy + aUV * (iUVRect.zw - iUVRect.xy);
 
     vec2 pixelPos = iPos + aPos * iSize;
+    // Italic shear: shift top of glyph right, keep bottom fixed.
+    // aPos.y=0 → top of glyph (full shift), aPos.y=1 → bottom (no shift).
+    pixelPos.x += (1.0 - aPos.y) * iSize.y * uItalicSkew;
     vec2 clipPos  = (pixelPos / uResolution) * 2.0 - 1.0;
     clipPos.y     = -clipPos.y;
     gl_Position   = vec4(clipPos, 0.0, 1.0);

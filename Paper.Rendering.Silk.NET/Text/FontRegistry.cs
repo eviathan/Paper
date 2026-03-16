@@ -76,6 +76,22 @@ namespace Paper.Rendering.Silk.NET.Text
             return variants.Regular;
         }
 
+        /// <summary>
+        /// Returns true when the requested weight+italic combination would resolve to a non-italic
+        /// font set (i.e. no dedicated italic/bold-italic file covers this request).
+        /// Callers should apply synthetic italic shear in that case.
+        /// </summary>
+        public bool WillUseSyntheticItalic(string? family, FontWeight? weight, Paper.Core.Styles.FontStyle? fontStyle)
+        {
+            if (fontStyle != Paper.Core.Styles.FontStyle.Italic) return false;
+            var variants = family != null && _families.TryGetValue(family, out var fv) ? fv : _default;
+            bool bold = weight.HasValue && (int)weight.Value >= (int)FontWeight.SemiBold;
+            // Exact same resolution logic as ResolveSet — check whether we'd land on an italic set:
+            if (bold && variants.BoldItalic != null) return false;   // has bold-italic
+            if (variants.Italic != null)             return false;   // has italic
+            return true;  // no dedicated italic font for this combination
+        }
+
         public void Flush(float screenW, float screenH)
         {
             var seen = new HashSet<PaperFontSet>();

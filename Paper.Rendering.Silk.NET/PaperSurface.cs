@@ -86,6 +86,8 @@ namespace Paper.Rendering.Silk.NET
         private bool _dragActive;          // true once drag threshold crossed and DragStart fired
         private float _dragStartX;         // pointer position when mouse button pressed
         private float _dragStartY;
+        private float _dragCursorX;        // current cursor position during drag (layout coords)
+        private float _dragCursorY;
         private Fiber? _dragOver;          // current fiber under pointer during drag
         // Scrollbar fade: maps path → time (seconds) at which scrolling last occurred
         private readonly Dictionary<string, double> _scrollbarLastActive = new();
@@ -301,7 +303,14 @@ namespace Paper.Rendering.Silk.NET
                     if (fname.EndsWith("-bolditalic", StringComparison.OrdinalIgnoreCase)) continue;
                     if (fname.EndsWith("bold",     StringComparison.OrdinalIgnoreCase) && fname.Length > 4) continue;
 
-                    var regular = new PaperFontSet(PaperFontLoader.LoadSet(_gl, regularPath), _gl);
+                    // Icon fonts (file name contains "icon") use all available codepoints
+                    // (typically Unicode PUA ranges) instead of just ASCII.
+                    bool isIconFont = fname.IndexOf("icon", StringComparison.OrdinalIgnoreCase) >= 0;
+                    var atlasLoader = isIconFont
+                        ? (Func<GL, string, Dictionary<int, PaperFontAtlas>>)((g, p) => PaperFontLoader.LoadIconSet(g, p))
+                        : (g, p) => PaperFontLoader.LoadSet(g, p);
+
+                    var regular = new PaperFontSet(atlasLoader(_gl, regularPath), _gl);
 
                     // Look for bold, italic, bold-italic variants next to the regular file.
                     PaperFontSet? bold = null;
@@ -827,6 +836,8 @@ namespace Paper.Rendering.Silk.NET
 
                 if (_dragActive)
                 {
+                    _dragCursorX = lx;
+                    _dragCursorY = ly;
                     DispatchDrag(_dragSource, new DragEvent { Type = DragEventType.Drag, X = lx, Y = ly, Data = _dragData });
 
                     if (!ReferenceEquals(target, _dragOver))
@@ -1612,6 +1623,13 @@ namespace Paper.Rendering.Silk.NET
             renderer.HoveredPath = _hovered != null ? GetPathString(_hovered) : null;
             renderer.PortalRoots = _reconciler?.PortalRoots;
             renderer.Render(root);
+
+            // Drag ghost: render the dragged fiber at the cursor with 50% opacity.
+            if (_dragActive && _dragSource != null)
+            {
+                renderer.RenderGhost(_dragSource, _dragCursorX, _dragCursorY, 0.5f);
+            }
+
             _rects!.Flush(fbSize.X, fbSize.Y);
             _text?.Flush(fbSize.X, fbSize.Y);
         }

@@ -25,6 +25,10 @@ namespace Paper.Rendering.Silk.NET
         private float _screenH;
         private int _stencilDepth; // current stencil nesting depth for rounded overflow:hidden clips
 
+        // Ghost rendering offset: layout-space offset applied to all positions during a ghost pass.
+        private float _ghostOffsetX;
+        private float _ghostOffsetY;
+
         public record struct ScrollbarHit(float TrackX, float TrackY, float TrackH, float ThumbY, float ThumbH, float MaxScroll, float MaxScrollX);
         public readonly Dictionary<string, ScrollbarHit> RenderedScrollbars = new();
 
@@ -160,6 +164,33 @@ namespace Paper.Rendering.Silk.NET
         /// </summary>
         public List<Paper.Core.Reconciler.Fiber>? PortalRoots { get; set; }
 
+        /// <summary>
+        /// Renders <paramref name="fiber"/> and its subtree at the cursor position as a translucent
+        /// drag ghost. Call this after the main <see cref="Render"/> pass; flush batches afterwards.
+        /// <paramref name="cursorX"/>/<paramref name="cursorY"/> are in layout (window) pixel space.
+        /// </summary>
+        public void RenderGhost(Fiber? fiber, float cursorX, float cursorY, float opacity = 0.5f)
+        {
+            if (fiber == null) return;
+            var lb = fiber.Layout;
+            _ghostOffsetX = cursorX - lb.AbsoluteX - lb.Width  / 2f;
+            _ghostOffsetY = cursorY - lb.AbsoluteY - lb.Height / 2f;
+
+            // Temporarily sever the sibling link so Render() doesn't continue
+            // past this fiber into its siblings (which would ghost the whole list).
+            var savedSibling = fiber.Sibling;
+            fiber.Sibling = null;
+
+            var saved = _zIndexed;
+            _zIndexed = null;  // render ghost subtree immediately, no further deferral
+            Render(fiber, opacity, "", 0, 0f, 0f);
+            _zIndexed = saved;
+
+            fiber.Sibling = savedSibling;  // restore
+            _ghostOffsetX = 0f;
+            _ghostOffsetY = 0f;
+        }
+
         public void Render(Fiber? fiber, float inheritedOpacity = 1f)
         {
             double now = DateTime.UtcNow.Ticks / (double)TimeSpan.TicksPerSecond;
@@ -252,8 +283,8 @@ namespace Paper.Rendering.Silk.NET
             // position:fixed elements live in viewport space — don't offset by accumulated scroll.
             var pos = style.Position ?? Position.Static;
             if (pos == Position.Fixed) { scrollX = 0f; scrollY = 0f; }
-            float dx = (lb.AbsoluteX - scrollX) * ScaleX;
-            float dy = (lb.AbsoluteY - scrollY) * ScaleY;
+            float dx = (lb.AbsoluteX + _ghostOffsetX - scrollX) * ScaleX;
+            float dy = (lb.AbsoluteY + _ghostOffsetY - scrollY) * ScaleY;
             float dw = lb.Width * ScaleX;
             float dh = lb.Height * ScaleY;
 
@@ -994,6 +1025,11 @@ namespace Paper.Rendering.Silk.NET
 
             var (batch, batchScale) = _fonts.Get(fontPx, fam, weight, fontStyle);
             float atlasLineH = _fonts.LineHeight(fontPx, fam, weight, fontStyle);
+
+            // Synthetic italic: apply shear when the style requests italic but the resolved batch
+            // is not a dedicated italic font (covers regular→italic and bold→bold-italic gaps).
+            if (_fonts.WillUseSyntheticItalic(fam, weight, fontStyle))
+                batch.ItalicSkew = 0.21f;  // ~12° slant (tan of typical italic angle)
 
             // Padding from style (respects individual PaddingTop/Right/Bottom/Left overrides)
             var (padTop, padRight, padBottom, padLeft) = BoxModel.PaddingPixels(style, lb.Width, lb.Height);

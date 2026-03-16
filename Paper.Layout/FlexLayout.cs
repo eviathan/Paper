@@ -602,6 +602,12 @@ namespace Paper.Layout
         {
             var s = item.ComputedStyle;
 
+            // Out-of-flow elements (absolute/fixed) don't contribute to intrinsic cross size.
+            // Critically: position:fixed backdrops (e.g. from Popover) have Height=100% which
+            // would otherwise inflate the parent's size estimate to the full viewport height.
+            var pos = s.Position ?? Position.Static;
+            if (pos == Position.Absolute || pos == Position.Fixed) return 0f;
+
             // Explicit height/width wins immediately
             float? exp = isRow ? s.Height?.Resolve(crossSize) : s.Width?.Resolve(crossSize);
             if (exp.HasValue && exp.Value > 0) return exp.Value;
@@ -617,7 +623,7 @@ namespace Paper.Layout
             if (item.Child.Sibling == null)
                 return EstimateIntrinsicCross(item.Child, isRow, crossSize);
 
-            // Multiple children: return the max across siblings
+            // Multiple children: return the max across in-flow siblings
             float maxH = 0f;
             var ch = item.Child;
             while (ch != null)
