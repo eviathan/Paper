@@ -297,7 +297,9 @@ namespace Paper.Layout
                     (mt, mr, mb, ml) = BoxModel.MarginPixels(itemStyle, w, h);
                 x += ml;
                 y += mt;
-                if (h <= 0) h = 40f;
+                // For stretch items in auto-height containers (crossSize=0), effectiveCross gives the
+                // actual line cross size (driven by the tallest sibling). Use that instead of a fixed fallback.
+                if (h <= 0) h = effectiveCross > 0 ? effectiveCross : 40f;
 
                 fi.Fiber.Layout = new LayoutBox { X = x, Y = y, Width = w, Height = h };
 
@@ -528,6 +530,20 @@ namespace Paper.Layout
                 {
                     sum += Math.Max(0, n - 1) * itemGap;
                     return sum;
+                }
+            }
+
+            // Flex-row item in a column parent: estimate the row's HEIGHT (its cross-axis) from its
+            // tallest child, then add the item's own vertical padding+border.
+            if (!isRow && itemIsRow && (itemDisplay == Display.Flex || itemDisplay == Display.InlineFlex) && item.Child != null)
+            {
+                float est = EstimateIntrinsicCross(item, isRow: true, crossSize: crossSize);
+                if (est > 0)
+                {
+                    var (bt, _, bb, _) = BoxModel.BorderWidths(style);
+                    var pad = style.Padding ?? Thickness.Zero;
+                    float padH = pad.Top.Resolve(crossSize) + pad.Bottom.Resolve(crossSize);
+                    return est + padH + bt + bb;
                 }
             }
 

@@ -645,9 +645,11 @@ namespace Paper.Rendering.Silk.NET
             // Scissor clip for scroll/auto containers (rect clip is sufficient and cheap).
             bool scrollClip = _gl != null && (ovfY == Overflow.Scroll || ovfY == Overflow.Auto ||
                                               ovfX == Overflow.Scroll || ovfX == Overflow.Auto);
+            bool hiddenClip = _gl != null && !scrollClip && fiber.Child != null && radius == 0f &&
+                               (ovfX == Overflow.Hidden || ovfY == Overflow.Hidden);
             // Stencil clip for overflow:hidden with border-radius (rounded corner clip).
             // Skip when there are no children — nothing to clip, so the stencil ops would be wasted.
-            bool roundedClip = _gl != null && !scrollClip && fiber.Child != null &&
+            bool roundedClip = _gl != null && !scrollClip && !hiddenClip && fiber.Child != null &&
                                 (ovfX == Overflow.Hidden || ovfY == Overflow.Hidden) && radius > 0f;
 
             float childScrollX = scrollX;
@@ -693,6 +695,21 @@ namespace Paper.Rendering.Silk.NET
                         RecordScrollbarGeometry(path, dx, dy, dw, dh, rawScrollY * ScaleY, contentH, rawScrollX * ScaleX, contentW);
                     }
                 }
+            }
+            else if (hiddenClip)
+            {
+                _rects.Flush(_screenW, _screenH);
+                _fonts?.Flush(_screenW, _screenH);
+                int hx = (int)dx;
+                int hy = (int)(_screenH - (dy + dh));
+                int hw = Math.Max(0, (int)dw);
+                int hh = Math.Max(0, (int)dh);
+                _gl!.Enable(EnableCap.ScissorTest);
+                _gl.Scissor(hx, hy, (uint)hw, (uint)hh);
+                RenderChildren(fiber.Child, opacity, path, childScrollX, childScrollY);
+                _rects.Flush(_screenW, _screenH);
+                _fonts?.Flush(_screenW, _screenH);
+                _gl.Disable(EnableCap.ScissorTest);
             }
             else if (roundedClip)
             {

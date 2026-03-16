@@ -747,12 +747,11 @@ namespace Paper.Core.Components
             {
                 Display       = Display.Flex,
                 FlexDirection = FlexDirection.Row,
-                AlignItems    = AlignItems.Center,
+                AlignItems    = AlignItems.Stretch,
                 Background    = new PaperColour(0.12f, 0.12f, 0.18f, 0.96f),
                 Border        = new BorderEdges(new Border(1f, accent)),
                 BorderRadius  = 6f,
                 Padding       = new Thickness(Length.Px(10), Length.Px(14)),
-                MarginBottom  = Length.Px(8),
                 Width         = Length.Px(340),
             };
 
@@ -760,20 +759,27 @@ namespace Paper.Core.Components
             return UI.Box(new PropsBuilder()
                 .Style(toastStyle)
                 .Children(
-                    UI.Box(new StyleSheet { FlexGrow = 1 }, UI.Text(toast.Message)),
-                    UI.Button("x", () => onDismiss?.Invoke(localId), new StyleSheet
-                    {
-                        Background   = new PaperColour(0f, 0f, 0f, 0.3f),
-                        Color        = new PaperColour(0.7f, 0.7f, 0.8f, 1f),
-                        Width        = Length.Px(24),
-                        Height       = Length.Px(24),
-                        Display      = Display.Flex,
-                        JustifyContent = JustifyContent.Center,
-                        AlignItems   = AlignItems.Center,
-                        BorderRadius = 4f,
-                        MarginLeft   = Length.Px(12),
-                        Padding      = new Thickness(Length.Px(0)),
-                    })
+                    UI.Box(
+                        new StyleSheet { Display = Display.Flex, FlexDirection = FlexDirection.Row, AlignItems = AlignItems.Center, FlexGrow = 1 },
+                        UI.Text(toast.Message)
+                    ),
+                    UI.Button(
+                        "x",
+                        () => onDismiss?.Invoke(localId), new StyleSheet
+                        {
+                            Background     = new PaperColour(0f, 0f, 0f, 0.3f),
+                            Color          = new PaperColour(0.7f, 0.7f, 0.8f, 1f),
+                            Width          = Length.Px(24),
+                            Height         = Length.Px(24),
+                            Display        = Display.Flex,
+                            JustifyContent = JustifyContent.Center,
+                            AlignItems     = AlignItems.Center,
+                            AlignSelf      = AlignSelf.Center,
+                            BorderRadius   = 4f,
+                            MarginLeft     = Length.Px(12),
+                            Padding        = new Thickness(Length.Px(0)),
+                        }
+                    )
                 )
                 .Build());
         }
@@ -798,6 +804,7 @@ namespace Paper.Core.Components
                 Width         = Length.Px(360),
                 Display       = Display.Flex,
                 FlexDirection = FlexDirection.Column,
+                Gap           = Length.Px(6),
                 ZIndex        = 2000,
             };
 
