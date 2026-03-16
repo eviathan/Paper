@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Text.Json;
+using Paper.Core.Markdown;
 using Paper.Core.Reconciler;
 using Paper.Core.Styles;
 using Paper.Core.VirtualDom;
@@ -560,7 +561,7 @@ namespace Paper.Rendering.Silk.NET
                 string label = (path == FocusedInputPath && FocusedInputText != null) ? FocusedInputText : labelNotNull;
                 var col = style.Color ?? new PaperColour(1f, 1f, 1f, 1f);
                 bool isFocusedInput = path == FocusedInputPath && !string.IsNullOrEmpty(FocusedInputPath) &&
-                    (fiber.Type is string tIn && (tIn == ElementTypes.Input || tIn == ElementTypes.Textarea));
+                    (fiber.Type is string tIn && (tIn == ElementTypes.Input || tIn == ElementTypes.Textarea || tIn == ElementTypes.MarkdownEditor));
 
                 if (fiber.Type is string tta && tta == ElementTypes.Textarea)
                 {
@@ -600,6 +601,57 @@ namespace Paper.Rendering.Silk.NET
                             row++;
                         }
                         idx += logLine.Length + 1; // +1 for the newline
+                    }
+                    if (_gl != null)
+                    {
+                        _rects.Flush(_screenW, _screenH);
+                        _fonts?.Flush(_screenW, _screenH);
+                        _gl.Disable(EnableCap.ScissorTest);
+                    }
+                }
+                else if (fiber.Type is string mde && mde == ElementTypes.MarkdownEditor)
+                {
+                    if (_gl != null)
+                    {
+                        _rects.Flush(_screenW, _screenH);
+                        _fonts?.Flush(_screenW, _screenH);
+                        _gl.Enable(EnableCap.ScissorTest);
+                        _gl.Scissor((int)dx, (int)(_screenH - (dy + dh)), (uint)Math.Max(0, (int)dw), (uint)Math.Max(0, (int)dh));
+                    }
+                    var mdTokens     = MarkdownTokenizer.Tokenize(label);
+                    var mdTheme      = MarkdownTheme.Dark;
+                    float fontPx     = SilkTextMeasurer.ResolveFontPx(style);
+                    float atlasLineH = _fonts!.LineHeight(fontPx);
+                    float textH      = atlasLineH * Math.Max(0.5f, style.LineHeight ?? 1.4f);
+                    var logicalLines = label.Split('\n');
+                    var (padTop, padRight, _, padLeft) = BoxModel.PaddingPixels(style, lb.Width, lb.Height);
+                    float contentWidth = lb.Width - padLeft - padRight;
+                    string? fam   = style.FontFamily;
+                    var wt        = style.FontWeight;
+                    var fs        = style.FontStyle;
+                    int idx = 0;
+                    int row = 0;
+                    for (int li = 0; li < logicalLines.Length; li++)
+                    {
+                        var logLine = logicalLines[li];
+                        var wrappedSegments = WrapTextLine(logLine, idx, contentWidth, fontPx);
+                        foreach (var seg in wrappedSegments)
+                        {
+                            int lineStart = seg.Start;
+                            int lineEnd   = seg.End;
+                            var lineBox   = lb;
+                            lineBox.AbsoluteY = lb.AbsoluteY + padTop + row * textH;
+                            lineBox.Y         = lb.Y + padTop + row * textH;
+                            lineBox.Height    = textH;
+                            if (isFocusedInput)
+                                DrawSelectionForLine(seg.Text, lineStart, lineEnd, lb, lineBox, style, scrollX, scrollY);
+                            DrawMarkdownSegment(seg.Text, lineStart, lineEnd, lineBox, style, mdTokens, mdTheme,
+                                fontPx, fam, wt, fs, atlasLineH, col, opacity, scrollX, scrollY, padLeft);
+                            if (isFocusedInput)
+                                DrawCaretForLine(seg.Text, lineStart, lineEnd, lb, lineBox, style, col, opacity, scrollX, scrollY);
+                            row++;
+                        }
+                        idx += logLine.Length + 1;
                     }
                     if (_gl != null)
                     {
@@ -1018,6 +1070,76 @@ namespace Paper.Rendering.Silk.NET
             // Use text colour so caret is visible on both light and dark backgrounds
             DrawRect(x, y, caretW, h, col.R, col.G, col.B, col.A * opacity, 0, 0, 0, 0, 0, 0);
         }
+
+        private void DrawMarkdownSegment(
+            string lineText, int lineStart, int lineEnd,
+            LayoutBox lineBox, StyleSheet style,
+            IReadOnlyList<MarkdownToken> tokens, MarkdownTheme theme,
+            float fontPx, string? fam, FontWeight? weight, FontStyle? fontStyle,
+            float atlasLineH, PaperColour defaultCol, float opacity,
+            float scrollX, float scrollY, float padLeft)
+        {
+            if (_fonts == null) return;
+            var (batch, batchScale) = _fonts.Get(fontPx, fam, weight, fontStyle);
+            var (padTop, _, padBottom, _) = BoxModel.PaddingPixels(style, lineBox.Width, lineBox.Height);
+            float contentH = lineBox.Height - padTop - padBottom;
+            float baseline = contentH >= atlasLineH * 1.4f
+                ? lineBox.AbsoluteY + padTop + (contentH - atlasLineH) / 2f + atlasLineH * 0.8f
+                : lineBox.AbsoluteY + padTop + atlasLineH * 0.8f;
+            float xOrigin = lineBox.AbsoluteX + padLeft;
+
+            int cursor = 0; // position within lineText
+            foreach (var tok in tokens)
+            {
+                if (tok.End <= lineStart || tok.Start >= lineEnd) continue;
+                int tokLocalStart = Math.Max(tok.Start, lineStart) - lineStart;
+                int tokLocalEnd   = Math.Min(tok.End,   lineEnd)   - lineStart;
+                // Plain text before this token
+                if (cursor < tokLocalStart)
+                {
+                    float preW = _fonts.MeasureWidth(lineText.AsSpan(0, cursor), fontPx, fam, weight, fontStyle);
+                    float x = (xOrigin + preW - scrollX) * ScaleX;
+                    float y = (baseline - scrollY) * ScaleY;
+                    batch.Add(lineText.AsSpan(cursor, tokLocalStart - cursor), x, y,
+                        defaultCol.R, defaultCol.G, defaultCol.B, defaultCol.A * opacity, batchScale);
+                }
+                // Token text with its colour
+                var tokCol = GetMarkdownTokenColor(tok.Type, theme, defaultCol);
+                float tokPreW = _fonts.MeasureWidth(lineText.AsSpan(0, tokLocalStart), fontPx, fam, weight, fontStyle);
+                float tx = (xOrigin + tokPreW - scrollX) * ScaleX;
+                float ty = (baseline - scrollY) * ScaleY;
+                batch.Add(lineText.AsSpan(tokLocalStart, tokLocalEnd - tokLocalStart), tx, ty,
+                    tokCol.R, tokCol.G, tokCol.B, tokCol.A * opacity, batchScale);
+                cursor = tokLocalEnd;
+            }
+            // Trailing plain text
+            if (cursor < lineText.Length)
+            {
+                float trailPreW = _fonts.MeasureWidth(lineText.AsSpan(0, cursor), fontPx, fam, weight, fontStyle);
+                float x = (xOrigin + trailPreW - scrollX) * ScaleX;
+                float y = (baseline - scrollY) * ScaleY;
+                batch.Add(lineText.AsSpan(cursor), x, y,
+                    defaultCol.R, defaultCol.G, defaultCol.B, defaultCol.A * opacity, batchScale);
+            }
+        }
+
+        private static PaperColour GetMarkdownTokenColor(MarkdownTokenType type, MarkdownTheme theme, PaperColour fallback) => type switch
+        {
+            MarkdownTokenType.HeadingMarker    => theme.HeadingMarkerColor,
+            MarkdownTokenType.HeadingText      => theme.HeadingColor,
+            MarkdownTokenType.Delimiter        => theme.DelimiterColor,
+            MarkdownTokenType.Bold             => theme.ProseColor,
+            MarkdownTokenType.Italic           => theme.ProseColor,
+            MarkdownTokenType.BoldItalic       => theme.ProseColor,
+            MarkdownTokenType.InlineCode       => theme.InlineCodeColor,
+            MarkdownTokenType.BlockquoteMarker => theme.DelimiterColor,
+            MarkdownTokenType.ListMarker       => theme.ListMarkerColor,
+            MarkdownTokenType.HrMarker         => theme.HrColor,
+            MarkdownTokenType.CodeFenceMarker  => theme.DelimiterColor,
+            MarkdownTokenType.CodeFenceContent => theme.CodeFenceColor,
+            MarkdownTokenType.Text             => theme.ProseColor,
+            _                                  => fallback,
+        };
 
         private void DrawText(string label, LayoutBox lb, StyleSheet style,
                               PaperColour col, float opacity, float scrollX = 0f, float scrollY = 0f, float inputScrollX = 0f)

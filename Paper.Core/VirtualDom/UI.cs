@@ -63,6 +63,30 @@ namespace Paper.Core.VirtualDom
         }
 
         /// <summary>
+        /// Multiline markdown editor — source-mode with syntax highlighting.
+        /// Value is always plain markdown text; rows sets the minimum height.
+        /// </summary>
+        public static UINode MarkdownEditor(
+            string value,
+            Action<string>? onChange = null,
+            int? rows = null,
+            StyleSheet? style = null,
+            string? key = null)
+        {
+            var b = new PropsBuilder().Text(value);
+            if (onChange != null) b.OnChange(onChange);
+            if (rows.HasValue) b.Set("rows", rows.Value);
+            if (style != null) b.Style(style);
+            return new UINode(ElementTypes.MarkdownEditor, b.Build(), key);
+        }
+
+        /// <summary>
+        /// Renders a markdown string as a styled Paper UINode tree (preview mode).
+        /// </summary>
+        public static UINode MarkdownPreview(string markdown, StyleSheet? style = null) =>
+            Markdown.MarkdownPreviewRenderer.Render(markdown, style);
+
+        /// <summary>
         /// Single-line text input.
         /// </summary>
         public static UINode Input(

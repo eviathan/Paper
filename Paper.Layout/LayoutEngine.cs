@@ -192,13 +192,23 @@ namespace Paper.Layout
                     w = float.IsNaN(rawW) ? Math.Min(contentWidth, tw + padW) : w;
                     h = th + padH;
                 }
-                // Textarea with rows: height = rows * lineHeight + padding
-                if (h <= 0.0001f && measurer != null && child.Type is string typeStr && typeStr == ElementTypes.Textarea && child.Props.Rows is int rows && rows > 0)
+                // Textarea / MarkdownEditor: measure the actual text content height so the box
+                // auto-grows as lines are added. rows prop sets the minimum floor.
+                if (measurer != null && child.Type is string typeStr &&
+                    (typeStr == ElementTypes.Textarea || typeStr == ElementTypes.MarkdownEditor))
                 {
                     var (_, lineH) = measurer.MeasureText("A", childStyle, 10);
                     var pad = childStyle.Padding ?? Thickness.Zero;
                     float padH = pad.Top.Resolve(contentHeight) + pad.Bottom.Resolve(contentHeight);
-                    h = lineH * rows + padH;
+                    int minRows = child.Props.Rows is int r && r > 0 ? r : 2;
+                    float minH = lineH * minRows + padH;
+                    // Measure the actual content (respects \n line breaks + word wrap).
+                    if (child.Props.Text is { Length: > 0 } ta)
+                    {
+                        var (_, th) = measurer.MeasureText(ta, childStyle, w);
+                        minH = Math.Max(minH, th + padH);
+                    }
+                    h = Math.Max(h, minH);
                 }
 
                 var (mt, mr, mb, ml) = BoxModel.MarginPixels(childStyle, w, h);

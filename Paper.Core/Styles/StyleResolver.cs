@@ -142,6 +142,18 @@ namespace Paper.Core.Styles
                     BorderRadius = 4f,
                     Cursor = Cursor.Text,
                 },
+                ElementTypes.MarkdownEditor => new StyleSheet
+                {
+                    Display = Display.Block,
+                    Width = Length.Percent(100),
+                    MinHeight = Length.Em(2.2f),
+                    Padding = new Thickness(Length.Px(6), Length.Px(10)),
+                    Background = new PaperColour(0.08f, 0.08f, 0.12f, 1f),
+                    Color = PaperColour.White,
+                    BorderRadius = 4f,
+                    Cursor = Cursor.Text,
+                    FontFamily = "monospace",
+                },
                 ElementTypes.Checkbox => new StyleSheet
                 {
                     Display = Display.InlineFlex,

@@ -34,6 +34,7 @@ namespace Paper.CSX.Syntax
                 "Viewport" => GenerateViewport(element, indent),
                 "Checkbox" => GenerateCheckbox(element, indent),
                 "Textarea" => GenenerateTextArea(element, indent),
+                "MarkdownEditor" => GenerateMarkdownEditor(element, indent),
                 "Table" => GenerateTable(element, indent),
                 "TableRow" => GenerateTableRow(element, indent),
                 "TableCell" => GenerateTableCell(element, indent),
@@ -542,6 +543,25 @@ namespace Paper.CSX.Syntax
             return $"UI.Textarea({value}, {onChange}, {rows}, {style})";
         }
 
+        private static string GenerateMarkdownEditor(CSXElement el, int indent = 0)
+        {
+            string value = "\"\"";
+            string onChange = "null";
+            string rows = "null";
+            string style = GetStyle(el) ?? "StyleSheet.Empty";
+
+            foreach (var a in el.Attributes)
+            {
+                if (a.Name is "value")
+                    value = a.Value is CSXExpressionValue ev ? ev.Code : Quote(a.Value is CSXStringValue sv ? sv.Value : a.Value is CSXBareValue bv ? bv.Value : "");
+                else if (a.Name is "onChange" or "onchange")
+                    onChange = ToStringLambda(a.Value);
+                else if (a.Name is "rows")
+                    rows = a.Value is CSXExpressionValue evr ? evr.Code : (a.Value is CSXBareValue bvr ? bvr.Value : "null");
+            }
+            return $"UI.MarkdownEditor({value}, {onChange}, {rows}, {style})";
+        }
+
         private static string GenerateTable(CSXElement el, int indent = 0)
         {
             string style = GetStyle(el) ?? "StyleSheet.Empty";
@@ -672,6 +692,25 @@ namespace Paper.CSX.Syntax
                     rows = a.Value is CSXExpressionValue evr ? evr.Code : (a.Value is CSXBareValue bvr ? bvr.Value : "null");
             }
             return $"UI.Textarea({value}, {onChange}, {rows}, {style})";
+        }
+
+        private static string GenerateMarkdownEditor(CSXElement el)
+        {
+            string value = "\"\"";
+            string onChange = "null";
+            string rows = "null";
+            string style = GetStyle(el) ?? "StyleSheet.Empty";
+
+            foreach (var a in el.Attributes)
+            {
+                if (a.Name is "value")
+                    value = a.Value is CSXExpressionValue ev ? ev.Code : Quote(a.Value is CSXStringValue sv ? sv.Value : a.Value is CSXBareValue bv ? bv.Value : "");
+                else if (a.Name is "onChange" or "onchange")
+                    onChange = ToStringLambda(a.Value);
+                else if (a.Name is "rows")
+                    rows = a.Value is CSXExpressionValue evr ? evr.Code : (a.Value is CSXBareValue bvr ? bvr.Value : "null");
+            }
+            return $"UI.MarkdownEditor({value}, {onChange}, {rows}, {style})";
         }
 
         private static string GenerateTable(CSXElement el)

@@ -21,7 +21,8 @@ namespace Paper.Core.VirtualDom
         /// <summary>A viewport that renders an external OpenGL texture (e.g. engine game view).</summary>
         public const string Viewport = "viewport";
         public const string Checkbox = "checkbox";
-        public const string Textarea = "textarea";
+        public const string Textarea       = "textarea";
+        public const string MarkdownEditor = "markdowneditor";
         public const string Table = "table";
         public const string TableRow = "table-row";
         public const string TableCell = "table-cell";

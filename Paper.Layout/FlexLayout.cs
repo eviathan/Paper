@@ -9,6 +9,15 @@ namespace Paper.Layout
     /// </summary>
     internal static class FlexLayout
     {
+        // Cache for textarea/markdown-editor content-height measurements.
+        // Key: (fiber identity, text hashcode, text length, maxWidth rounded to int).
+        // Evicted when the fiber reference changes (new tree) via weak reference.
+        private sealed record TextHeightKey(int FiberId, int TextHash, int TextLen, int Width);
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<TextHeightKey, float>
+            _textHeightCache = new();
+        // Keep cache from growing unboundedly — clear when it gets large.
+        private const int CacheMaxEntries = 512;
+
         /// <summary>
         /// Lay out the flex items of <paramref name="container"/> within the given content area.
         /// </summary>
@@ -439,6 +448,37 @@ namespace Paper.Layout
             if (explicit_.HasValue)
                 return explicit_.Value;
             float? minMain = isRow ? style.MinWidth?.Resolve(mainSize) : style.MinHeight?.Resolve(mainSize);
+
+            // Textarea / MarkdownEditor in a column parent: measure actual content so the box
+            // auto-grows with typed content. Rows prop is the floor; actual text height may exceed it.
+            if (!isRow && item.Type is string taType &&
+                (taType == ElementTypes.Textarea || taType == ElementTypes.MarkdownEditor) &&
+                measurer != null)
+            {
+                var (_, lineH) = measurer.MeasureText("A", style, crossSize);
+                var pad = style.Padding ?? Thickness.Zero;
+                float padH = pad.Top.Resolve(crossSize) + pad.Bottom.Resolve(crossSize);
+                int minRows = item.Props.Rows is int rr && rr > 0 ? rr : 2;
+                float h = lineH * minRows + padH;
+                if (item.Props.Text is { Length: > 0 } ta)
+                {
+                    // Cache measurement so we don't re-measure on every frame when nothing changed.
+                    var cacheKey = new TextHeightKey(
+                        System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(item),
+                        ta.GetHashCode(), ta.Length, (int)crossSize);
+                    if (!_textHeightCache.TryGetValue(cacheKey, out float cachedTh))
+                    {
+                        if (_textHeightCache.Count >= CacheMaxEntries) _textHeightCache.Clear();
+                        var (_, th) = measurer.MeasureText(ta, style, crossSize);
+                        cachedTh = th;
+                        _textHeightCache[cacheKey] = cachedTh;
+                    }
+                    h = Math.Max(h, cachedTh + padH);
+                }
+                if (minMain.HasValue) h = Math.Max(h, minMain.Value);
+                return h;
+            }
+
             if (minMain.HasValue && minMain.Value > 0)
                 return minMain.Value;
 

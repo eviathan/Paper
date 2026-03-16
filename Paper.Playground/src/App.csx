@@ -44,6 +44,12 @@ function App() {
 
   // ── MarkdownEditor state ──────────────────────────────────────────────────
   var (mdText, setMdText, _) = Hooks.UseState("# Hello Markdown\n\nThis is **bold**, *italic*, and `inline code`.\n\n> Blockquote here\n\n- Item one\n- Item two\n\n```\ncode block\n```\n\n---\n\nPlain prose paragraph.");
+  var (mdPreview, setMdPreview, _) = Hooks.UseState(false);
+  string editBtnBg = mdPreview ? "#1a1a28" : "#4f46e5";
+  string prevBtnBg = mdPreview ? "#4f46e5" : "#1a1a28";
+  var mdContent = mdPreview
+    ? UI.MarkdownPreview(mdText, new Paper.Core.Styles.StyleSheet { Width = Paper.Core.Styles.Length.Px(480), MinHeight = Paper.Core.Styles.Length.Px(260) })
+    : UI.MarkdownEditor(mdText, setMdText, 12, new Paper.Core.Styles.StyleSheet { Width = Paper.Core.Styles.Length.Px(480) });
 
   // ── Checkbox state ────────────────────────────────────────────────────────
   var (checkA, setCheckA, _) = Hooks.UseState(true);
@@ -236,8 +242,21 @@ function App() {
       {/* ── MarkdownEditor ───────────────────────────────────────────────────── */}
       <Box className="section">
         <Text className="section-label">Markdown Editor</Text>
-        <Box className="demo-col-panel" style={{ gap: 12, padding: 12 }}>
-          <MarkdownEditor value={mdText} onChange={setMdText} rows={12} style={{ width: 480 }} />
+        <Box className="demo-col-panel" style={{ gap: 10, padding: 12 }}>
+          {/* Toggle toolbar */}
+          <Box style={{ display: 'flex', flexDirection: 'row', gap: 6 }}>
+            <Button
+              onClick={() => setMdPreview(false)}
+              style={{ padding: '4px 14px', background: editBtnBg, color: 'white', borderRadius: 4, border: '1px solid #4f46e5' }}>
+              Edit
+            </Button>
+            <Button
+              onClick={() => setMdPreview(true)}
+              style={{ padding: '4px 14px', background: prevBtnBg, color: 'white', borderRadius: 4, border: '1px solid #4f46e5' }}>
+              Preview
+            </Button>
+          </Box>
+          {mdContent}
           <Text style={{ color: '#a0a0b8', fontSize: 12 }}>{$"{mdText.Length} chars · {mdText.Split('\n').Length} lines"}</Text>
         </Box>
       </Box>

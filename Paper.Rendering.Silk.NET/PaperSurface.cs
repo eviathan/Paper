@@ -486,7 +486,7 @@ namespace Paper.Rendering.Silk.NET
             if (IsFocusable(focusTarget))
             {
                 SetFocus(focusTarget);
-                if (focusTarget != null && focusTarget.Type is string ft && (ft == ElementTypes.Input || ft == ElementTypes.Textarea))
+                if (focusTarget != null && focusTarget.Type is string ft && IsTextInput(ft))
                 {
                     _lastInputActivityTicks = Environment.TickCount64;
                     StartCaretBlinkTimer();
@@ -588,7 +588,7 @@ namespace Paper.Rendering.Silk.NET
                 {
                     Fiber? inputFiber = GetInputAncestorOrSelf(target);
                     if (inputFiber != null && GetPathString(inputFiber) == _focusedPath &&
-                        inputFiber.Type is string fit && (fit == ElementTypes.Input || fit == ElementTypes.Textarea))
+                        inputFiber.Type is string fit && IsTextInput(fit))
                     {
                         var cur = _inputText ?? inputFiber.Props?.Text ?? "";
                         int len = cur.Length;
@@ -749,11 +749,17 @@ namespace Paper.Rendering.Silk.NET
             return false;
         }
 
-        /// <summary>Returns the Input or Textarea that contains this fiber (self or ancestor), or null.</summary>
+        private static bool IsTextInput(string? type) =>
+            type == ElementTypes.Input || type == ElementTypes.Textarea || type == ElementTypes.MarkdownEditor;
+
+        private static bool IsMultiLineInput(string? type) =>
+            type == ElementTypes.Textarea || type == ElementTypes.MarkdownEditor;
+
+        /// <summary>Returns the Input, Textarea, or MarkdownEditor that contains this fiber (self or ancestor), or null.</summary>
         private static Fiber? GetInputAncestorOrSelf(Fiber? target)
         {
             for (var f = target; f != null; f = f.Parent)
-                if (f.Type is string t && (t == ElementTypes.Input || t == ElementTypes.Textarea))
+                if (IsTextInput(f.Type as string))
                     return f;
             return null;
         }
@@ -857,7 +863,7 @@ namespace Paper.Rendering.Silk.NET
 
             // Mouse selection: extend selection while dragging (including when mouse leaves the input)
             if (_inputSelecting && _focusedPath != null && mouse.IsButtonPressed(MouseButton.Left) &&
-                _focused != null && _focused.Type is string fm && (fm == ElementTypes.Input || fm == ElementTypes.Textarea))
+                _focused != null && _focused.Type is string fm && IsTextInput(fm))
             {
                 var (scrollX, _) = GetTotalScrollForPath(_focusedPath);
                 Fiber? inputFiber = (target != null && GetPathString(target) == _focusedPath) ? target : _focused;
@@ -971,7 +977,7 @@ namespace Paper.Rendering.Silk.NET
             }
 
             // Input/Textarea: navigation, Delete, and clipboard shortcuts (use _inputText so rapid keys don't read stale Props)
-            if (target.Type is string t && (t == ElementTypes.Input || t == ElementTypes.Textarea))
+            if (target.Type is string t && IsTextInput(t))
             {
                 _lastInputActivityTicks = Environment.TickCount64;
                 var cur = _inputText ?? target.Props.Text ?? "";
@@ -1005,17 +1011,30 @@ namespace Paper.Rendering.Silk.NET
                     _inputCaret = dest;
                     if (shift) _inputSelEnd = dest; else _inputSelStart = _inputSelEnd = dest;
                 }
-                else if (key == Key.Up && t == ElementTypes.Textarea && !cmd)
+                else if (key == Key.Up && IsMultiLineInput(t) && !cmd)
                 {
                     int dest = CaretUpLine(cur, _inputCaret);
                     _inputCaret = dest;
                     if (shift) _inputSelEnd = dest; else _inputSelStart = _inputSelEnd = dest;
                 }
-                else if (key == Key.Down && t == ElementTypes.Textarea && !cmd)
+                else if (key == Key.Down && IsMultiLineInput(t) && !cmd)
                 {
                     int dest = CaretDownLine(cur, _inputCaret);
                     _inputCaret = dest;
                     if (shift) _inputSelEnd = dest; else _inputSelStart = _inputSelEnd = dest;
+                }
+                else if (key == Key.Enter && IsMultiLineInput(t))
+                {
+                    if (target.Props.OnChange != null)
+                    {
+                        int selMin = Math.Min(_inputSelStart, _inputSelEnd);
+                        int selMax = Math.Max(_inputSelStart, _inputSelEnd);
+                        string nextText = cur[..selMin] + "\n" + cur[selMax..];
+                        int nextCaret = selMin + 1;
+                        _inputText = nextText;
+                        target.Props.OnChange(nextText);
+                        _inputCaret = _inputSelStart = _inputSelEnd = nextCaret;
+                    }
                 }
                 else if (key == Key.Home || (cmd && key == Key.Up))
                 {
@@ -1144,7 +1163,7 @@ namespace Paper.Rendering.Silk.NET
 
             DispatchKey(target, new KeyEvent { Type = KeyEventType.Char, Key = c.ToString(), Char = c });
 
-            if (target.Type is not string t || (t != ElementTypes.Input && t != ElementTypes.Textarea) || target.Props.OnChange == null)
+            if (target.Type is not string t || !IsTextInput(t) || target.Props.OnChange == null)
                 return;
 
             _lastInputActivityTicks = Environment.TickCount64;
@@ -1157,7 +1176,7 @@ namespace Paper.Rendering.Silk.NET
             // Backspace is handled in OnKeyDown to avoid double-delete when both KeyDown and KeyChar fire
             if (c == '\b') return;
 
-            if (t == ElementTypes.Textarea && (c == '\n' || c == '\r'))
+            if (IsMultiLineInput(t) && (c == '\n' || c == '\r'))
             {
                 string insert = "\n";
                 string nextText = cur[..selMin] + insert + cur[selMax..];
@@ -1406,7 +1425,7 @@ namespace Paper.Rendering.Silk.NET
         private static bool IsFocusable(Fiber? f)
         {
             if (f == null) return false;
-            if (f.Type is string t && (t == ElementTypes.Input || t == ElementTypes.Textarea)) return true;
+            if (IsTextInput(f.Type as string)) return true;
             var p = f.Props;
             return p.OnKeyDownEvent != null || p.OnKeyUpEvent != null || p.OnKeyChar != null || p.OnChange != null;
         }
@@ -1428,7 +1447,7 @@ namespace Paper.Rendering.Silk.NET
             _focused = next;
             _focusedPath = next != null ? GetPathString(next) : null;
 
-            if (next != null && next.Type is string nt && (nt == ElementTypes.Input || nt == ElementTypes.Textarea))
+            if (next != null && next.Type is string nt && IsTextInput(nt))
             {
                 _inputText = next.Props.Text ?? "";
                 var len = _inputText.Length;
@@ -1462,7 +1481,7 @@ namespace Paper.Rendering.Silk.NET
         /// <summary>True when the caret should be drawn: solid while recently active, else blinking (on phase).</summary>
         private bool ComputeCaretVisible()
         {
-            if (_focused == null || _focused.Type is not string ft || (ft != ElementTypes.Input && ft != ElementTypes.Textarea))
+            if (_focused == null || !IsTextInput(_focused.Type as string))
                 return true;
             long elapsed = Environment.TickCount64 - _lastInputActivityTicks;
             if (elapsed < CaretIdleMs) return true; // solid while typing
@@ -1524,7 +1543,7 @@ namespace Paper.Rendering.Silk.NET
                 if (live != null && IsFocusable(live))
                 {
                     _focused = live;
-                    if (live.Type is string lt && (lt == ElementTypes.Input || lt == ElementTypes.Textarea))
+                    if (live.Type is string lt && IsTextInput(lt))
                     {
                         _inputText = live.Props.Text ?? "";
                         ClampInputIndices(_inputText.Length, ref _inputCaret, ref _inputSelStart, ref _inputSelEnd);
@@ -1613,7 +1632,7 @@ namespace Paper.Rendering.Silk.NET
             var renderer = _renderer!;
             renderer.SetScreenSize(fbSize.X, fbSize.Y);
             renderer.DpiScale = _width > 0 ? fbSize.X / (float)_width : 1f;
-            renderer.FocusedInputPath = _focused != null && _focused.Type is string ftype && (ftype == ElementTypes.Input || ftype == ElementTypes.Textarea) ? GetPathString(_focused) : _focusedPath;
+            renderer.FocusedInputPath = _focused != null && IsTextInput(_focused.Type as string) ? GetPathString(_focused) : _focusedPath;
             renderer.FocusedInputText = _inputText;
             renderer.FocusedInputCaret = _inputCaret;
             renderer.FocusedInputSelStart = _inputSelStart;
