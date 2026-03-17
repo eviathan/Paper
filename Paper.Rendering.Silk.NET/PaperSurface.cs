@@ -496,9 +496,9 @@ namespace Paper.Rendering.Silk.NET
                 {
                     _lastInputActivityTicks = Environment.TickCount64;
                     StartCaretBlinkTimer();
-                    var (scrollX, _) = GetTotalScrollForPath(_focusedPath ?? "");
-                    float inputScroll = (focusTarget == _focused && focusTarget.Type is string it && it == ElementTypes.Input) ? _inputScrollX : 0f;
-                    int idx = GetCaretIndexFromX(focusTarget, lx, scrollX, inputScroll);
+                    var (scrollX, scrollY) = GetTotalScrollForPath(_focusedPath ?? "");
+                    float inputScroll = (focusTarget == _focused && focusTarget.Type is string it && IsTextInput(it)) ? _inputScrollX : 0f;
+                    int idx = GetCaretIndexFromX(focusTarget, lx, ly, scrollX, scrollY, inputScroll);
                     _inputCaret = _inputSelStart = _inputSelEnd = _inputSelAnchor = idx;
                     _inputSelecting = true;
                     RequestRender();
@@ -694,34 +694,119 @@ namespace Paper.Rendering.Silk.NET
             return (sx, sy);
         }
 
-        /// <summary>Character index in the input's text for the given layout x (e.g. from mouse). Uses content area and scroll.</summary>
-        private int GetCaretIndexFromX(Fiber fiber, float lx, float scrollX = 0f, float inputScrollX = 0f)
+        /// <summary>Character index in the input's text for the given layout x/y (e.g. from mouse). Uses content area and scroll.</summary>
+private int GetCaretIndexFromX(Fiber fiber, float lx, float ly, float scrollX = 0f, float scrollY = 0f, float inputScrollX = 0f)
+{
+    if (_text == null) return 0;
+    var style = fiber.ComputedStyle;
+    var lb = fiber.Layout;
+    float padLeft = (style.Padding ?? Thickness.Zero).Left.Resolve(lb.Width);
+    float padTop = (style.Padding ?? Thickness.Zero).Top.Resolve(lb.Height);
+    float contentLeft = lb.AbsoluteX - scrollX + padLeft - inputScrollX;
+    float contentTop = lb.AbsoluteY - scrollY + padTop;
+    float contentX = lx - contentLeft;
+    string text = fiber.Props?.Text ?? "";
+    if (text.Length == 0) return 0;
+    var atlas = _text.Atlas;
+    float baseSize = atlas.BaseSize > 0 ? atlas.BaseSize : 16f;
+    float fontPx = style.FontSize is { } fs && !fs.IsAuto ? fs.Resolve(baseSize) : baseSize;
+    float scale = baseSize > 0 ? fontPx / baseSize : 1f;
+    float lineHeight = (_fontSet?.LineHeight(fontPx) ?? baseSize) * Math.Max(0.5f, style.LineHeight ?? 1.4f);
+    float contentWidth = lb.Width - padLeft - (style.Padding ?? Thickness.Zero).Right.Resolve(lb.Width);
+    if (contentWidth <= 0) contentWidth = lb.Width;
+
+    string? fiberType = fiber.Type as string;
+    bool isMultiline = fiberType == ElementTypes.Textarea || fiberType == ElementTypes.MarkdownEditor;
+
+    if (isMultiline)
+    {
+        float contentY = ly - contentTop;
+        if (contentY < 0) return 0;
+        var logicalLines = text.Split('\n');
+        int charOffset = 0;
+        float y = 0f;
+        for (int li = 0; li < logicalLines.Length; li++)
         {
-            if (_text == null) return 0;
-            var style = fiber.ComputedStyle;
-            var lb = fiber.Layout;
-            float padLeft = (style.Padding ?? Thickness.Zero).Left.Resolve(lb.Width);
-            float contentLeft = lb.AbsoluteX - scrollX + padLeft - inputScrollX;
-            float contentX = lx - contentLeft;
-            if (contentX <= 0) return 0;
-            string text = fiber.Props?.Text ?? "";
-            if (text.Length == 0) return 0;
-            var atlas = _text.Atlas;
-            float baseSize = atlas.BaseSize > 0 ? atlas.BaseSize : 16f;
-            float fontPx = style.FontSize is { } fs && !fs.IsAuto ? fs.Resolve(baseSize) : baseSize;
-            float scale = baseSize > 0 ? fontPx / baseSize : 1f;
-            float totalW = _text.MeasureWidth(text.AsSpan()) * scale;
-            if (contentX >= totalW) return text.Length;
-            for (int i = 0; i < text.Length; i++)
+            var logLine = logicalLines[li];
+            var wrapped = WrapTextLineForCaret(logLine, charOffset, contentWidth, fontPx);
+            float lineTop = y;
+            float lineBottom = y + lineHeight;
+            foreach (var seg in wrapped)
             {
-                float wCur = _text.MeasureWidth(text.AsSpan(0, i + 1)) * scale;
-                if (contentX < wCur)
+                if (contentY >= lineTop && contentY < lineBottom)
                 {
-                    float wPrev = i > 0 ? _text.MeasureWidth(text.AsSpan(0, i)) * scale : 0;
-                    return contentX < (wPrev + wCur) / 2f ? i : i + 1;
+                    float segX = contentX;
+                    if (segX <= 0) return seg.Start;
+                    float segW = _text.MeasureWidth(seg.Text.AsSpan()) * scale;
+                    if (segX >= segW) return seg.End;
+                    for (int i = 0; i < seg.Text.Length; i++)
+                    {
+                        float wCur = _text.MeasureWidth(seg.Text.AsSpan(0, i + 1)) * scale;
+                        if (segX < wCur)
+                        {
+                            float wPrev = i > 0 ? _text.MeasureWidth(seg.Text.AsSpan(0, i)) * scale : 0;
+                            return seg.Start + (segX < (wPrev + wCur) / 2f ? i : i + 1);
+                        }
+                    }
+                    return seg.End;
                 }
             }
-            return text.Length;
+            y += lineHeight;
+            charOffset += logLine.Length + 1;
+        }
+        return text.Length;
+    }
+
+    if (contentX <= 0) return 0;
+    float totalW = _text.MeasureWidth(text.AsSpan()) * scale;
+    if (contentX >= totalW) return text.Length;
+    for (int i = 0; i < text.Length; i++)
+    {
+        float wCur = _text.MeasureWidth(text.AsSpan(0, i + 1)) * scale;
+        if (contentX < wCur)
+        {
+            float wPrev = i > 0 ? _text.MeasureWidth(text.AsSpan(0, i)) * scale : 0;
+            return contentX < (wPrev + wCur) / 2f ? i : i + 1;
+        }
+    }
+    return text.Length;
+}
+
+        /// <summary>Word-wrap a single line of text for caret calculation. Returns sub-lines with char offsets.</summary>
+        private List<(string Text, int Start, int End)> WrapTextLineForCaret(string line, int offset, float maxWidth, float fontPx = 16f)
+        {
+            var result = new List<(string, int, int)>();
+            if (_fontSet == null || maxWidth <= 0 || line.Length == 0)
+            {
+                result.Add((line, offset, offset + line.Length));
+                return result;
+            }
+            int start = 0;
+            while (start < line.Length)
+            {
+                float w = 0f;
+                int end = start;
+                int lastSpace = -1;
+                while (end < line.Length)
+                {
+                    char c = line[end];
+                    float cw = _fontSet.MeasureWidth(line.AsSpan(end, 1), fontPx);
+                    if (w + cw > maxWidth && end > start) break;
+                    if (c == ' ') lastSpace = end;
+                    w += cw;
+                    end++;
+                }
+                if (end == line.Length)
+                {
+                    result.Add((line[start..], offset + start, offset + line.Length));
+                    break;
+                }
+                int wrapAt = lastSpace > start ? lastSpace + 1 : end;
+                result.Add((line[start..wrapAt].TrimEnd(), offset + start, offset + wrapAt));
+                start = wrapAt;
+            }
+            if (result.Count == 0) result.Add(("", offset, offset));
+            return result;
         }
 
         /// <summary>Word boundaries for macOS-style double-click: (start, end) of the word containing index, or (idx, idx) if none.</summary>
@@ -895,16 +980,21 @@ namespace Paper.Rendering.Silk.NET
             if (_inputSelecting && _focusedPath != null && mouse.IsButtonPressed(MouseButton.Left) &&
                 _focused != null && _focused.Type is string fm && IsTextInput(fm))
             {
-                var (scrollX, _) = GetTotalScrollForPath(_focusedPath);
+                var (scrollX, scrollY) = GetTotalScrollForPath(_focusedPath);
                 Fiber? inputFiber = (target != null && GetPathString(target) == _focusedPath) ? target : _focused;
                 float lxClamp = lx;
+                float lyClamp = ly;
                 var lb = _focused.Layout;
                 float left = (lb.AbsoluteX - scrollX);
                 float right = left + lb.Width;
+                float top = lb.AbsoluteY - scrollY;
+                float bottom = top + lb.Height;
                 if (lxClamp < left) lxClamp = left;
                 if (lxClamp > right) lxClamp = right;
-                float inputScroll = (fm == ElementTypes.Input) ? _inputScrollX : 0f;
-                int idx = GetCaretIndexFromX(_focused, lxClamp, scrollX, inputScroll);
+                if (lyClamp < top) lyClamp = top;
+                if (lyClamp > bottom) lyClamp = bottom;
+                float inputScroll = IsTextInput(fm) ? _inputScrollX : 0f;
+                int idx = GetCaretIndexFromX(_focused, lxClamp, lyClamp, scrollX, scrollY, inputScroll);
                 _inputCaret = idx;
                 _inputSelStart = Math.Min(_inputSelAnchor, idx);
                 _inputSelEnd = Math.Max(_inputSelAnchor, idx);
