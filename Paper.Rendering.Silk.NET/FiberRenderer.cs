@@ -88,6 +88,8 @@ namespace Paper.Rendering.Silk.NET
         public bool FocusedInputCaretVisible { get; set; } = true;
         /// <summary>Horizontal scroll offset for single-line input when text overflows.</summary>
         public float FocusedInputScrollX { get; set; }
+        /// <summary>Input type for the focused input (e.g., "password" for masking).</summary>
+        public string? FocusedInputType { get; set; }
 
         public FiberRenderer(RectBatch rects, TexturedQuadRenderer viewports,
                              FontRegistry? fonts, float screenW, float screenH,
@@ -610,10 +612,13 @@ namespace Paper.Rendering.Silk.NET
             // ── Text label (text + button elements have Props.Text) ───────────
             if (_text != null && fiber.Props?.Text is { } labelNotNull)
             {
-                string label = (path == FocusedInputPath && FocusedInputText != null) ? FocusedInputText : labelNotNull;
-                var col = style.Color ?? new PaperColour(1f, 1f, 1f, 1f);
                 bool isFocusedInput = path == FocusedInputPath && !string.IsNullOrEmpty(FocusedInputPath) &&
                     (fiber.Type is string tIn && (tIn == ElementTypes.Input || tIn == ElementTypes.Textarea || tIn == ElementTypes.MarkdownEditor));
+                string label = (path == FocusedInputPath && FocusedInputText != null) ? FocusedInputText : labelNotNull;
+                // Mask password input
+                if (isFocusedInput && FocusedInputType == "password")
+                    label = new string('●', label.Length);
+                var col = style.Color ?? new PaperColour(1f, 1f, 1f, 1f);
 
                 if (fiber.Type is string tta && tta == ElementTypes.Textarea)
                 {

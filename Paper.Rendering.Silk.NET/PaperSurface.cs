@@ -1320,6 +1320,10 @@ private int GetCaretIndexFromX(Fiber fiber, float lx, float ly, float scrollX = 
             // Backspace is handled in OnKeyDown to avoid double-delete when both KeyDown and KeyChar fire
             if (c == '\b') return;
 
+            // Validate input type
+            string? inputType = target.Props.InputType;
+            bool isNumberInput = inputType == "number";
+
             if (IsMultiLineInput(t) && (c == '\n' || c == '\r'))
             {
                 string insert = "\n";
@@ -1333,6 +1337,15 @@ private int GetCaretIndexFromX(Fiber fiber, float lx, float ly, float scrollX = 
             }
             else if (!char.IsControl(c))
             {
+                // For number inputs, only allow digits, minus sign, and decimal point
+                if (isNumberInput && !char.IsDigit(c) && c != '-' && c != '.' && c != ',')
+                    return;
+                // For number inputs, only allow one minus sign at the start
+                if (isNumberInput && c == '-' && selMin > 0)
+                    return;
+                // For number inputs, only allow one decimal point
+                if ((c == '.' || c == ',') && cur.Contains('.') && cur.Contains(','))
+                    return;
                 string insert = c.ToString();
                 int insertLen = cur.Length - (selMax - selMin) + insert.Length;
                 if (insertLen > maxLen) return;
@@ -1787,6 +1800,7 @@ private int GetCaretIndexFromX(Fiber fiber, float lx, float ly, float scrollX = 
             renderer.DpiScale = _width > 0 ? fbSize.X / (float)_width : 1f;
             renderer.FocusedInputPath = _focused != null && IsTextInput(_focused.Type as string) ? GetPathString(_focused) : _focusedPath;
             renderer.FocusedInputText = _inputText;
+            renderer.FocusedInputType = _focused?.Props.InputType;
             renderer.FocusedInputCaret = _inputCaret;
             renderer.FocusedInputSelStart = _inputSelStart;
             renderer.FocusedInputSelEnd = _inputSelEnd;

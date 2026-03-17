@@ -124,6 +124,7 @@ namespace Paper.Core.Styles
         public TextOverflow? TextOverflow { get; init; }
         public TextTransform? TextTransform { get; init; }
         public WhiteSpace? WhiteSpace { get; init; }
+        public Direction? Direction { get; init; }
 
         // ── Dimensions (aspect ratio) ─────────────────────────────────────────
 
@@ -249,6 +250,7 @@ namespace Paper.Core.Styles
             TextOverflow  = other.TextOverflow  ?? TextOverflow,
             TextTransform = other.TextTransform ?? TextTransform,
             WhiteSpace    = other.WhiteSpace    ?? WhiteSpace,
+            Direction     = other.Direction     ?? Direction,
             AspectRatio   = other.AspectRatio   ?? AspectRatio,
             Cursor        = other.Cursor        ?? Cursor,
             Visibility    = other.Visibility    ?? Visibility,

@@ -120,6 +120,13 @@ namespace Paper.Core.Styles
         Justify,
     }
 
+    /// <summary>Text direction for bidirectional text support.</summary>
+    public enum Direction
+    {
+        Ltr,
+        Rtl,
+    }
+
     public enum FontWeight
     {
         Thin       = 100,
