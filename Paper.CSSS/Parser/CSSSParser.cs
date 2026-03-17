@@ -3,6 +3,22 @@ using Paper.CSSS.Lexer;
 namespace Paper.CSSS.Parser
 {
     /// <summary>
+    /// Exception thrown during CSSS parsing.
+    /// </summary>
+    public class CSSSParseException : Exception
+    {
+        public int Line { get; }
+        public int Column { get; }
+
+        public CSSSParseException(string message, int line = 1, int column = 1)
+            : base(message)
+        {
+            Line = line;
+            Column = column;
+        }
+    }
+
+    /// <summary>
     /// Parses a flat list of <see cref="Token"/>s into a <see cref="CSSSStylesheet"/> AST.
     /// Handles: selectors, declarations, nested rules, variables, @mixin, @include, @media.
     /// </summary>
@@ -128,8 +144,33 @@ namespace Paper.CSSS.Parser
             {
                 case "mixin":   return ParseMixin();
                 case "include": return ParseInclude();
+                case "import":  return ParseImport();
+                case "extend":  return ParseExtend();
                 default:        return ParseGenericAtRule(name);
             }
+        }
+
+        private CSSSImport ParseImport()
+        {
+            string path = CollectUntil(TokenKind.Semicolon).Trim();
+            TryConsume(TokenKind.Semicolon);
+            return new CSSSImport { Path = path };
+        }
+
+        private CSSSExtend ParseExtend()
+        {
+            var selectors = new List<string>();
+            while (true)
+            {
+                SkipWs();
+                string selector = CollectUntil(TokenKind.Semicolon, TokenKind.Comma).Trim();
+                if (!string.IsNullOrEmpty(selector))
+                    selectors.Add(selector);
+                if (!TryConsume(TokenKind.Comma))
+                    break;
+            }
+            TryConsume(TokenKind.Semicolon);
+            return new CSSSExtend { Selectors = selectors };
         }
 
         private CSSSMixin ParseMixin()
@@ -144,9 +185,20 @@ namespace Paper.CSSS.Parser
                     SkipWs();
                     if (AtEnd() || PeekRaw().Kind == TokenKind.RightParen) break;
                     if (PeekRaw().Kind == TokenKind.Variable)
-                        mixin.Parameters.Add(Advance().Value);
+                    {
+                        var param = new CSSSMixinParameter { Name = Advance().Value.TrimStart('$') };
+                        // Check for default value (colon after variable name)
+                        SkipWs();
+                        if (TryConsume(TokenKind.Colon))
+                        {
+                            param.DefaultValue = CollectUntil(TokenKind.Comma, TokenKind.RightParen).Trim();
+                        }
+                        mixin.Parameters.Add(param);
+                    }
                     else
+                    {
                         Advance();
+                    }
                     TryConsume(TokenKind.Comma);
                 }
                 TryConsume(TokenKind.RightParen);
@@ -279,10 +331,5 @@ namespace Paper.CSSS.Parser
             }
             return sb.ToString();
         }
-    }
-
-    public sealed class CSSSParseException : Exception
-    {
-        public CSSSParseException(string message) : base(message) { }
     }
 }

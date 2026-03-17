@@ -55,10 +55,17 @@ namespace Paper.CSSS.Parser
 
     // ── Mixin ─────────────────────────────────────────────────────────────────
 
+    /// <summary>A mixin parameter with optional default value.</summary>
+    internal sealed class CSSSMixinParameter
+    {
+        public string Name { get; set; } = "";
+        public string? DefaultValue { get; set; }
+    }
+
     internal sealed class CSSSMixin : CSSSStatement
     {
         public string Name { get; set; } = "";
-        public List<string> Parameters { get; } = new();
+        public List<CSSSMixinParameter> Parameters { get; } = new();
         public List<CSSSStatement> Body { get; } = new();
     }
 
@@ -66,5 +73,17 @@ namespace Paper.CSSS.Parser
     {
         public string Name { get; set; } = "";
         public List<string> Arguments { get; } = new();
+    }
+
+    /// <summary>An @import statement: <c>@import "path";</c></summary>
+    internal sealed class CSSSImport : CSSSStatement
+    {
+        public string Path { get; set; } = "";
+    }
+
+    /// <summary>An @extend statement: <c>@extend .selector;</c></summary>
+    internal sealed class CSSSExtend : CSSSStatement
+    {
+        public List<string> Selectors { get; set; } = new();
     }
 }

@@ -1,4 +1,5 @@
 using Paper.CSSS.Parser;
+using Paper.CSSS.Lexer;
 
 namespace Paper.CSSS.Preprocessor
 {
@@ -8,6 +9,8 @@ namespace Paper.CSSS.Preprocessor
     ///   <item>Variable substitution (<c>$name</c>)</item>
     ///   <item>Nested rule flattening (including parent selector <c>&amp;</c>)</item>
     ///   <item>Mixin definition and <c>@include</c> expansion</item>
+    ///   <item><c>@import</c> - inline imported styles</item>
+    ///   <item><c>@extend</c> - selector inheritance</item>
     /// </list>
     /// Output is a list of <see cref="CSSSRule"/> — plain selector + declaration pairs.
     /// </summary>
@@ -15,6 +18,11 @@ namespace Paper.CSSS.Preprocessor
     {
         private readonly Dictionary<string, string>            _variables = new();
         private readonly Dictionary<string, CSSSMixin>         _mixins    = new();
+        private readonly Dictionary<string, List<string>>      _extendMap = new();
+        private Func<string, string?>? _importResolver;
+
+        /// <summary>Set a function to resolve @import paths to CSSS source code.</summary>
+        public void SetImportResolver(Func<string, string?> resolver) => _importResolver = resolver;
 
         public List<CSSSRule> Process(CSSSStylesheet sheet)
         {
@@ -102,6 +110,39 @@ namespace Paper.CSSS.Preprocessor
                                 output.Add(sub with { AtRule = $"@{at.Name} {at.Prelude}" });
                         }
                         break;
+
+                    case CSSSImport importStmt:
+                        // Resolve and inline imported styles
+                        if (_importResolver != null)
+                        {
+                            var importPath = SubstituteVars(importStmt.Path.Trim('"', '\''), vars);
+                            var importedSource = _importResolver(importPath);
+                            if (!string.IsNullOrEmpty(importedSource))
+                            {
+                                var importTokens = new CSSSLexer(importedSource).Tokenise();
+                                var importAst = new CSSSParser(importTokens).Parse();
+                                var importPreprocessor = new CSSSPreprocessor
+                                {
+                                    _importResolver = _importResolver
+                                };
+                                var importedRules = importPreprocessor.Process(importAst);
+                                output.AddRange(importedRules);
+                            }
+                        }
+                        break;
+
+                    case CSSSExtend extendStmt:
+                        // Record @extend for later processing
+                        foreach (var targetSelector in extendStmt.Selectors)
+                        {
+                            foreach (var parent in parentSelectors)
+                            {
+                                if (!_extendMap.ContainsKey(targetSelector))
+                                    _extendMap[targetSelector] = new List<string>();
+                                _extendMap[targetSelector].Add(parent);
+                            }
+                        }
+                        break;
                 }
             }
 
@@ -153,7 +194,8 @@ namespace Paper.CSSS.Preprocessor
                     if (end >= 0)
                     {
                         string varName = value[(i + 2)..end].Trim().TrimStart('$');
-                        sb.Append(vars.TryGetValue(varName, out var iv) ? iv : "");
+                        string resolved = EvaluateExpression(varName, vars);
+                        sb.Append(resolved);
                         i = end + 1;
                         continue;
                     }
@@ -166,6 +208,22 @@ namespace Paper.CSSS.Preprocessor
                     while (end < value.Length && (char.IsLetterOrDigit(value[end]) || value[end] == '-' || value[end] == '_'))
                         end++;
                     string varName = value[start..end];
+                    
+                    // Check if this is part of an expression (e.g., $a + $b)
+                    int exprEnd = end;
+                    while (exprEnd < value.Length && " \t+-*/".Contains(value[exprEnd])) exprEnd++;
+                    bool isExpression = exprEnd < value.Length && "+-*/".Contains(value[exprEnd]);
+                    
+                    if (isExpression)
+                    {
+                        // Extract the full expression
+                        string expr = value[start..];
+                        string result = EvaluateExpression(expr, vars);
+                        sb.Append(result);
+                        i = value.Length;
+                        continue;
+                    }
+                    
                     sb.Append(vars.TryGetValue(varName, out var v) ? v : $"${varName}");
                     i = end;
                     continue;
@@ -173,6 +231,64 @@ namespace Paper.CSSS.Preprocessor
                 sb.Append(value[i++]);
             }
             return sb.ToString();
+        }
+
+        /// <summary>Evaluates simple arithmetic expressions with variables.</summary>
+        private static string EvaluateExpression(string expr, Dictionary<string, string> vars)
+        {
+            // First substitute all variables in the expression
+            string substituted = expr;
+            foreach (var kv in vars)
+            {
+                substituted = substituted.Replace($"${kv.Key}", kv.Value);
+            }
+            
+            // Try to evaluate as arithmetic
+            try
+            {
+                // Simple evaluation: handle + - * / with numbers
+                var tokens = substituted.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                if (tokens.Length >= 3)
+                {
+                    double result = 0;
+                    double? left = ParseNumber(tokens[0]);
+                    if (left == null) return expr.Trim();
+                    
+                    for (int i = 1; i + 1 < tokens.Length; i += 2)
+                    {
+                        string op = tokens[i];
+                        double? right = ParseNumber(tokens[i + 1]);
+                        if (right == null) return expr.Trim();
+                        
+                        result = op switch
+                        {
+                            "+" => left.Value + right.Value,
+                            "-" => left.Value - right.Value,
+                            "*" => left.Value * right.Value,
+                            "/" => right.Value != 0 ? left.Value / right.Value : left.Value,
+                            _ => left.Value
+                        };
+                        left = result;
+                    }
+                    
+                    // Return integer if result is whole, otherwise decimal
+                    return result == Math.Floor(result) ? ((int)result).ToString() : result.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                }
+            }
+            catch { }
+            
+            return substituted.Trim();
+        }
+
+        private static double? ParseNumber(string s)
+        {
+            s = s.Trim();
+            if (s.EndsWith("px")) s = s[..^2];
+            if (s.EndsWith("em")) s = s[..^2];
+            if (s.EndsWith("rem")) s = s[..^3];
+            if (double.TryParse(s, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double v))
+                return v;
+            return null;
         }
 
         // ── Mixin argument binding ────────────────────────────────────────────
@@ -183,9 +299,22 @@ namespace Paper.CSSS.Preprocessor
             var local = new Dictionary<string, string>();
             for (int i = 0; i < mixin.Parameters.Count; i++)
             {
-                string paramName = mixin.Parameters[i];
-                string argValue  = i < args.Count ? args[i] : "";
-                local[paramName] = SubstituteVars(argValue, scope);
+                var param = mixin.Parameters[i];
+                string argValue;
+                if (i < args.Count && !string.IsNullOrWhiteSpace(args[i]))
+                {
+                    argValue = args[i];
+                }
+                else if (!string.IsNullOrEmpty(param.DefaultValue))
+                {
+                    // Use default value
+                    argValue = param.DefaultValue;
+                }
+                else
+                {
+                    argValue = "";
+                }
+                local[param.Name] = SubstituteVars(argValue, scope);
             }
             return local;
         }
