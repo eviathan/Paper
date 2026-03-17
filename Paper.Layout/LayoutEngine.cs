@@ -192,6 +192,11 @@ namespace Paper.Layout
                     w = float.IsNaN(rawW) ? Math.Min(contentWidth, tw + padW) : w;
                     h = th + padH;
                 }
+                // Checkbox / RadioOption: intrinsic height so the 16px visual box isn't clipped.
+                if (h <= 0.0001f && child.Type is string cbTypeStr &&
+                    (cbTypeStr == ElementTypes.Checkbox || cbTypeStr == ElementTypes.RadioOption))
+                    h = 20f;
+
                 // Textarea / MarkdownEditor: measure the actual text content height so the box
                 // auto-grows as lines are added. rows prop sets the minimum floor.
                 if (measurer != null && child.Type is string typeStr &&

@@ -479,6 +479,15 @@ namespace Paper.Layout
                 return h;
             }
 
+            // Checkbox / RadioOption: intrinsic height of 20px so the 16px visual box isn't clipped.
+            if (!isRow && item.Type is string cbType &&
+                (cbType == ElementTypes.Checkbox || cbType == ElementTypes.RadioOption))
+            {
+                float h = 20f;
+                if (minMain.HasValue) h = Math.Max(h, minMain.Value);
+                return h;
+            }
+
             if (minMain.HasValue && minMain.Value > 0)
                 return minMain.Value;
 
@@ -569,6 +578,8 @@ namespace Paper.Layout
                 if (n > 0)
                 {
                     sum += Math.Max(0, n - 1) * itemGap;
+                    // Include the item's own vertical padding+border so the parent allocates enough room.
+                    sum += BoxModel.VerticalInsets(style, crossSize);
                     return sum;
                 }
             }
