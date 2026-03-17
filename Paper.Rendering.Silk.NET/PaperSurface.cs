@@ -1800,7 +1800,7 @@ private int GetCaretIndexFromX(Fiber fiber, float lx, float ly, float scrollX = 
             renderer.DpiScale = _width > 0 ? fbSize.X / (float)_width : 1f;
             renderer.FocusedInputPath = _focused != null && IsTextInput(_focused.Type as string) ? GetPathString(_focused) : _focusedPath;
             renderer.FocusedInputText = _inputText;
-            renderer.FocusedInputType = _focused?.Props.InputType;
+            renderer.FocusedInputType = _focused?.Props?.InputType;
             renderer.FocusedInputCaret = _inputCaret;
             renderer.FocusedInputSelStart = _inputSelStart;
             renderer.FocusedInputSelEnd = _inputSelEnd;

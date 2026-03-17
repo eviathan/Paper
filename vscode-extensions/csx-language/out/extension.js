@@ -83,13 +83,60 @@ const CSS_PROPS = [
     { name: 'box-sizing', detail: 'Box sizing model', values: ['border-box', 'content-box'] },
     { name: 'object-fit', detail: 'Image fit mode', values: ['contain', 'cover', 'fill'] },
     { name: 'box-shadow', detail: 'Box shadow', values: [] },
+    { name: 'direction', detail: 'Text direction (ltr/rtl)', values: ['ltr', 'rtl'] },
+    { name: 'text-transform', detail: 'Text transform', values: ['none', 'uppercase', 'lowercase', 'capitalize'] },
+    { name: 'font-style', detail: 'Font style', values: ['normal', 'italic', 'oblique'] },
+    { name: 'aspect-ratio', detail: 'Width/height ratio', values: [] },
+    { name: 'translate-x', detail: 'Translate X offset', values: [] },
+    { name: 'translate-y', detail: 'Translate Y offset', values: [] },
+    { name: 'rotate', detail: 'Rotation degrees', values: [] },
+    { name: 'scale-x', detail: 'Scale X factor', values: [] },
+    { name: 'scale-y', detail: 'Scale Y factor', values: [] },
+    { name: 'grid-area', detail: 'Grid area name', values: [] },
+    { name: 'grid-template-areas', detail: 'Grid template areas', values: [] },
+    { name: 'background-image', detail: 'Background image URL', values: [] },
+    { name: 'object-position', detail: 'Image position', values: [] },
+    { name: 'user-select', detail: 'Text selection', values: ['none', 'text', 'all'] },
+    { name: 'transition-property', detail: 'Which properties to transition', values: [] },
+    { name: 'transition-duration', detail: 'Transition duration (s/ms)', values: [] },
+    { name: 'transition-timing-function', detail: 'Easing function', values: ['ease', 'linear', 'ease-in', 'ease-out', 'ease-in-out'] },
+    { name: 'transition-delay', detail: 'Transition delay (s/ms)', values: [] },
+    { name: 'animation', detail: 'Animation shorthand', values: [] },
+    { name: 'animation-name', detail: 'Animation name', values: [] },
+    { name: 'animation-duration', detail: 'Animation duration', values: [] },
 ];
 // Paper element names (for selector completions in CSSS)
 const PAPER_ELEMENTS = [
     'Box', 'Text', 'Button', 'Input', 'Scroll', 'Image',
     'Textarea', 'Checkbox', 'Table', 'TableRow', 'TableCell',
-    'RadioGroup', 'RadioOption', 'Fragment', 'Viewport',
+    'RadioGroup', 'RadioOption', 'Fragment', 'Viewport', 'Modal',
+    'Select', 'Slider', 'Tabs', 'Tooltip', 'Popover', 'Toast',
 ];
+// Detailed element info for completions/hovers
+const PAPER_ELEMENT_INFO = {
+    'Box': 'Generic container element with full props control',
+    'Text': 'Renders text content',
+    'Button': 'Clickable button element',
+    'Input': 'Single-line text input',
+    'Scroll': 'Scrollable container',
+    'Image': 'Image element with src',
+    'Textarea': 'Multiline text input',
+    'Checkbox': 'Checkbox with label',
+    'Table': 'Table container',
+    'TableRow': 'Table row container',
+    'TableCell': 'Table cell container',
+    'RadioGroup': 'Radio button group',
+    'RadioOption': 'Radio button option',
+    'Fragment': 'Renders children without wrapper',
+    'Viewport': 'External OpenGL texture viewport',
+    'Modal': 'Full-screen modal overlay',
+    'Select': 'Dropdown select component',
+    'Slider': 'Horizontal range slider',
+    'Tabs': 'Tab strip with panels',
+    'Tooltip': 'Tooltip on hover',
+    'Popover': 'Floating panel anchored to trigger',
+    'Toast': 'Notification toast',
+};
 // ── Activation ────────────────────────────────────────────────────────────────
 /**
  * Forces *.csx → 'csx' language association in workspace settings (once).
@@ -125,6 +172,10 @@ function activate(context) {
     }
     // ── CSSS completions (in-process, no separate server needed) ─────────────
     context.subscriptions.push(vscode.languages.registerCompletionItemProvider({ scheme: 'file', language: 'csss' }, new CSSSCompletionProvider(), '$', '.', '#', ':', ' ', '\n'));
+    // ── CSX element completions ────────────────────────────────────────────────
+    context.subscriptions.push(vscode.languages.registerCompletionItemProvider({ scheme: 'file', language: 'csx' }, new CSXCompletionProvider(), '<'));
+    // ── CSX hover for element names ─────────────────────────────────────────
+    context.subscriptions.push(vscode.languages.registerHoverProvider({ scheme: 'file', language: 'csx' }, new CSXHoverProvider()));
     // ── CSSS hover ────────────────────────────────────────────────────────────
     context.subscriptions.push(vscode.languages.registerHoverProvider({ scheme: 'file', language: 'csss' }, new CSSSHoverProvider()));
     // ── CSSS go-to-definition (for $variables) ────────────────────────────────
@@ -327,6 +378,46 @@ class CSSSDefinitionProvider {
                 const col = lines[i].indexOf(varName);
                 return new vscode.Location(document.uri, new vscode.Range(i, col, i, col + varName.length));
             }
+        }
+        return null;
+    }
+}
+// ── CSX completion provider ─────────────────────────────────────────────────
+class CSXCompletionProvider {
+    provideCompletionItems(document, position) {
+        const lineText = document.lineAt(position).text;
+        const before = lineText.slice(0, position.character);
+        // Only provide completions after '<' or when typing element name
+        if (!before.endsWith('<') && !/<[\w]*$/.test(before)) {
+            return [];
+        }
+        return PAPER_ELEMENTS.map(el => {
+            const item = new vscode.CompletionItem(el, vscode.CompletionItemKind.Class);
+            item.detail = PAPER_ELEMENT_INFO[el] || 'Paper element';
+            item.insertText = new vscode.SnippetString(`${el} \${1:/>}`);
+            item.insertText.appendText('>');
+            if (el !== 'Fragment' && el !== 'Viewport') {
+                item.insertText.appendTabstop(2);
+                item.insertText.appendText('</');
+                item.insertText.appendText(el);
+                item.insertText.appendTabstop(0);
+            }
+            return item;
+        });
+    }
+}
+// ── CSX hover provider ─────────────────────────────────────────────────────
+class CSXHoverProvider {
+    provideHover(document, position) {
+        const wordRange = document.getWordRangeAtPosition(position, /[\w]+/);
+        if (!wordRange)
+            return null;
+        const word = document.getText(wordRange);
+        if (PAPER_ELEMENTS.includes(word)) {
+            const md = new vscode.MarkdownString();
+            md.appendCodeblock(word, 'tsx');
+            md.appendText(PAPER_ELEMENT_INFO[word] || 'Paper element');
+            return new vscode.Hover(md, wordRange);
         }
         return null;
     }
