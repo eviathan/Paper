@@ -7,6 +7,7 @@ using Paper.Core.VirtualDom;
 using Paper.Layout;
 using Paper.Rendering.Silk.NET.Text;
 using Silk.NET.OpenGL;
+using Direction = Paper.Core.Styles.Direction;
 
 namespace Paper.Rendering.Silk.NET
 {
@@ -1370,15 +1371,29 @@ namespace Paper.Rendering.Silk.NET
             }
 
             float xLayout;
+            bool isRtl = style.Direction == Direction.Rtl;
             if (inputScrollX != 0f)
                 xLayout = lb.AbsoluteX + padLeft - inputScrollX;
             else
-                xLayout = (style.TextAlign ?? TextAlign.Left) switch
+            {
+                // In RTL mode, swap left and right alignment
+                var textAlign = style.TextAlign ?? TextAlign.Left;
+                if (isRtl)
+                {
+                    textAlign = textAlign switch
+                    {
+                        TextAlign.Left => TextAlign.Right,
+                        TextAlign.Right => TextAlign.Left,
+                        _ => textAlign
+                    };
+                }
+                xLayout = textAlign switch
                 {
                     TextAlign.Center => lb.AbsoluteX + padLeft + Math.Max(0, (contentW - textW) / 2f),
                     TextAlign.Right => lb.AbsoluteX + lb.Width - padRight - textW,
                     _ => lb.AbsoluteX + padLeft, // Left, Justify
                 };
+            }
 
             float x = (xLayout - scrollX) * ScaleX;
             float y = (baseline - scrollY) * ScaleY;

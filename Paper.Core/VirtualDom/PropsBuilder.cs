@@ -77,6 +77,12 @@ namespace Paper.Core.VirtualDom
         public PropsBuilder OnDragLeave(Action<DragEvent> handler) { _data["onDragLeave"] = handler; return this; }
         public PropsBuilder OnDrop(Action<DragEvent> handler) { _data["onDrop"] = handler; return this; }
 
+        // ── Clipboard events ─────────────────────────────────────────────────
+
+        public PropsBuilder OnCopy(Action<string> handler) { _data["onCopy"] = handler; return this; }
+        public PropsBuilder OnCut(Action<string> handler) { _data["onCut"] = handler; return this; }
+        public PropsBuilder OnPaste(Action<string> handler) { _data["onPaste"] = handler; return this; }
+
         // ── Input attributes ─────────────────────────────────────────────────
 
         public PropsBuilder Placeholder(string placeholder) { _data["placeholder"] = placeholder; return this; }
@@ -99,6 +105,11 @@ namespace Paper.Core.VirtualDom
         public PropsBuilder AriaValueText(string text) { _data["aria-valuetext"] = text; return this; }
         public PropsBuilder AriaLive(string politeness) { _data["aria-live"] = politeness; return this; }
         public PropsBuilder AriaHasPopup(bool hasPopup = true) { _data["aria-haspopup"] = hasPopup.ToString().ToLower(); return this; }
+        public PropsBuilder AriaHidden(bool hidden = true) { _data["aria-hidden"] = hidden; return this; }
+        public PropsBuilder AriaInvalid(bool invalid = true) { _data["aria-invalid"] = invalid; return this; }
+        public PropsBuilder AriaLevel(int level) { _data["aria-level"] = level; return this; }
+        public PropsBuilder AriaControls(string ids) { _data["aria-controls"] = ids; return this; }
+        public PropsBuilder AriaOrientation(string orientation) { _data["aria-orientation"] = orientation; return this; }
 
         // ── Custom ────────────────────────────────────────────────────────────
 

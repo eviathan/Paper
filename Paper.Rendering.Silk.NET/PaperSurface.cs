@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.Json;
 using Paper.Core.Reconciler;
 using Paper.Core.VirtualDom;
@@ -1077,18 +1078,29 @@ private int GetCaretIndexFromX(Fiber fiber, float lx, float ly, float scrollX = 
             var target = _focused;
             if (target == null) return;
 
-            // Tab / Shift+Tab: cycle focus between all focusable elements in tree order.
+            // Tab / Shift+Tab: cycle focus between all focusable elements in proper tab order.
             if (key == Key.Tab && _reconciler?.Root != null)
             {
                 var all = new List<Fiber>();
                 CollectFocusable(_reconciler.Root, all);
-                if (all.Count > 0)
+                
+                // Separate into groups: positive tabIndex (sorted), tabIndex=0, tabIndex=-1 (not in tab order)
+                var positiveTabIndex = all.Where(f => (f.Props.TabIndex ?? 0) > 0).OrderBy(f => f.Props.TabIndex).ToList();
+                var zeroTabIndex = all.Where(f => f.Props.TabIndex == 0 || f.Props.TabIndex == null).ToList();
+                var negativeTabIndex = all.Where(f => f.Props.TabIndex == -1).ToList();
+                
+                // Combine in proper tab order: positive first, then zero, then skip -1
+                var ordered = new List<Fiber>();
+                ordered.AddRange(positiveTabIndex);
+                ordered.AddRange(zeroTabIndex);
+                
+                if (ordered.Count > 0)
                 {
                     int cur = all.FindIndex(f => ReferenceEquals(f, _focused));
                     int next = shift
-                        ? (cur <= 0 ? all.Count - 1 : cur - 1)
-                        : (cur < 0 || cur >= all.Count - 1 ? 0 : cur + 1);
-                    var nextFiber = all[next];
+                        ? (cur <= 0 ? ordered.Count - 1 : cur - 1)
+                        : (cur < 0 || cur >= ordered.Count - 1 ? 0 : cur + 1);
+                    var nextFiber = ordered[next];
                     SetFocus(nextFiber);
                     // Select all text in the newly focused input
                     if (_inputText != null)
@@ -1230,14 +1242,20 @@ private int GetCaretIndexFromX(Fiber fiber, float lx, float ly, float scrollX = 
                 }
                 else if (shortcutMod && key == Key.C)
                 {
-                    if (len > 0) { int a = Math.Min(_inputSelStart, _inputSelEnd), b = Math.Max(_inputSelStart, _inputSelEnd); if (a < b) keyboard.ClipboardText = cur[a..b]; }
+                    int a = Math.Min(_inputSelStart, _inputSelEnd), b = Math.Max(_inputSelStart, _inputSelEnd);
+                    if (len > 0 && a < b) { keyboard.ClipboardText = cur[a..b]; target.Props.OnCopy?.Invoke(cur[a..b]); }
                 }
                 else if (shortcutMod && key == Key.X)
                 {
                     if (canModify && target.Props.OnChange != null)
                     {
                         int a = Math.Min(_inputSelStart, _inputSelEnd), b = Math.Max(_inputSelStart, _inputSelEnd);
-                        if (a < b) { keyboard.ClipboardText = cur[a..b]; var after = cur[..a] + cur[b..]; _inputText = after; target.Props.OnChange(after); _inputCaret = _inputSelStart = _inputSelEnd = a; }
+                        if (a < b) { 
+                            string cutText = cur[a..b];
+                            keyboard.ClipboardText = cutText; 
+                            target.Props.OnCut?.Invoke(cutText);
+                            var after = cur[..a] + cur[b..]; _inputText = after; target.Props.OnChange(after); _inputCaret = _inputSelStart = _inputSelEnd = a; 
+                        }
                     }
                 }
                 else if (shortcutMod && key == Key.V)
@@ -1253,7 +1271,6 @@ private int GetCaretIndexFromX(Fiber fiber, float lx, float ly, float scrollX = 
                             int insertLen = cur.Length - (selMax - selMin) + paste.Length;
                             if (insertLen > maxLen)
                             {
-                                // Truncate paste to fit maxLength
                                 int available = maxLen - (cur.Length - (selMax - selMin));
                                 if (available > 0) paste = paste[..available];
                                 else paste = "";
@@ -1264,6 +1281,7 @@ private int GetCaretIndexFromX(Fiber fiber, float lx, float ly, float scrollX = 
                                 int nextCaret = selMin + paste.Length;
                                 _inputText = nextText;
                                 target.Props.OnChange(nextText);
+                                target.Props.OnPaste?.Invoke(paste);
                                 _inputCaret = _inputSelStart = _inputSelEnd = nextCaret;
                             }
                         }
@@ -1586,6 +1604,16 @@ private int GetCaretIndexFromX(Fiber fiber, float lx, float ly, float scrollX = 
         private static bool IsFocusable(Fiber? f)
         {
             if (f == null) return false;
+            
+            var tabIndex = f.Props.TabIndex;
+            
+            // tabIndex = -1 means focusable but not in tab order
+            if (tabIndex == -1) return true;
+            
+            // tabIndex = 0 is in tab order (default)
+            // positive tabIndex means explicit tab order
+            // null or not set means use default behavior
+            
             if (IsTextInput(f.Type as string))
             {
                 // Disabled inputs are not focusable
@@ -1593,10 +1621,11 @@ private int GetCaretIndexFromX(Fiber fiber, float lx, float ly, float scrollX = 
                 return true;
             }
             var p = f.Props;
-            return p.OnKeyDownEvent != null || p.OnKeyUpEvent != null || p.OnKeyChar != null || p.OnChange != null;
+            return p.OnKeyDownEvent != null || p.OnKeyUpEvent != null || p.OnKeyChar != null || p.OnChange != null || tabIndex != null;
         }
 
-        /// <summary>Collects all focusable fibers from the tree in depth-first order.</summary>
+        /// <summary>Collects all focusable fibers from the tree in depth-first order.
+        /// The caller is responsible for sorting by tabIndex if needed.</summary>
         private static void CollectFocusable(Fiber? fiber, List<Fiber> results)
         {
             if (fiber == null) return;

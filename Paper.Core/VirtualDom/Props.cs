@@ -95,6 +95,12 @@ namespace Paper.Core.VirtualDom
         public Action<DragEvent>? OnDragLeave  => Get<Action<DragEvent>>("onDragLeave");
         public Action<DragEvent>? OnDrop       => Get<Action<DragEvent>>("onDrop");
 
+        // ── Clipboard events ───────────────────────────────────────────────────
+
+        public Action<string>? OnCopy  => Get<Action<string>>("onCopy");
+        public Action<string>? OnCut   => Get<Action<string>>("onCut");
+        public Action<string>? OnPaste => Get<Action<string>>("onPaste");
+
         // ── Accessibility (ARIA) ────────────────────────────────────────────────
 
         /// <summary>The ARIA role attribute (e.g., "button", "menu", "dialog").</summary>
@@ -132,6 +138,21 @@ namespace Paper.Core.VirtualDom
 
         /// <summary>Whether the element has a popup menu.</summary>
         public string? AriaHasPopup => Get<string>("aria-haspopup");
+
+        /// <summary>Whether the element is hidden from screen readers.</summary>
+        public bool? AriaHidden => Get<bool?>("aria-hidden");
+
+        /// <summary>Whether the element's value is invalid.</summary>
+        public bool? AriaInvalid => Get<bool?>("aria-invalid");
+
+        /// <summary>Heading level for screen reader navigation (1-6).</summary>
+        public int? AriaLevel => Get<int?>("aria-level");
+
+        /// <summary>IDs of elements controlled by this element.</summary>
+        public string? AriaControls => Get<string>("aria-controls");
+
+        /// <summary>Orientation of the element (horizontal/vertical).</summary>
+        public string? AriaOrientation => Get<string>("aria-orientation");
 
         // ── Generic access ────────────────────────────────────────────────────
 

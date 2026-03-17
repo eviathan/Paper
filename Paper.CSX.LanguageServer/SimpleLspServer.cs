@@ -79,6 +79,7 @@ namespace Paper.CSX.LanguageServer
                                 foldingRangeProvider   = true,
                                 inlayHintProvider      = true,
                                 renameProvider         = true,
+                                documentFormattingProvider = true,
                             }
                         });
                         break;
@@ -238,6 +239,24 @@ namespace Paper.CSX.LanguageServer
                             _docs.TryGetValue(uri, out var src);
                             var edit = RoslynRename.GetRename(src ?? "", uri, line, character, newName);
                             await ReplyAsync(id, edit);
+                            break;
+                        }
+
+                    case "textDocument/formatting":
+                        {
+                            var parameters = message.RootElement.GetProperty("params");
+                            var uri = parameters.GetProperty("textDocument").GetProperty("uri").GetString() ?? "";
+                            var options = parameters.GetProperty("options");
+
+                            _docs.TryGetValue(uri, out var src);
+                            if (string.IsNullOrEmpty(src))
+                            {
+                                await ReplyAsync(id, Array.Empty<object>());
+                                break;
+                            }
+
+                            var edits = RoslynFormatting.Format(src ?? "", uri, options);
+                            await ReplyAsync(id, edits);
                             break;
                         }
 
