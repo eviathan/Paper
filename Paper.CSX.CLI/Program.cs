@@ -31,7 +31,7 @@ namespace Paper.CSX.CLI
             // Build with config command
             var buildConfigCommand = new Command("build:config", "Build using paper.json configuration");
             buildConfigCommand.SetHandler(BuildWithConfig);
-            rootCommand.AddCommand(build_config: buildConfigCommand);
+            rootCommand.AddCommand(buildConfigCommand);
 
             // Watch command
             var watchCommand = new Command("watch", "Watch a directory for CSX file changes");

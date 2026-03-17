@@ -1,6 +1,8 @@
 @import "App.csss"
 
 function App() {
+  List<string> test = [];
+
   // ── Slider state ─────────────────────────────────────────────────────────
   var (volume, setVolume, _) = Hooks.UseState(40f);
   var (opacity, setOpacity, _) = Hooks.UseState(80f);

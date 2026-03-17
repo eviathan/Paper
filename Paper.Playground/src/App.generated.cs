@@ -12,6 +12,7 @@ public static partial class AppComponent
 {
     public static UINode App(Props props)
     {
+        List<string> test = [];
         // ── Slider state ─────────────────────────────────────────────────────────
         var (volume, setVolume, _) = Hooks.UseState(40f);
         var (opacity, setOpacity, _) = Hooks.UseState(80f);
@@ -30,29 +31,65 @@ public static partial class AppComponent
             setPopOpen(!popOpen);
         }
         // ── Toast state ───────────────────────────────────────────────────────────
-        var (toasts, setToasts, _) = Hooks.UseState(
+        var (toasts, setToasts, updateToasts) = Hooks.UseState(
             new List<Primitives.ToastEntry>
             {
-                new Primitives.ToastEntry("t0", "App started successfully!", "success"),
-                new Primitives.ToastEntry("t1", "Welcome to Paper UI.", "info"),
+                new Primitives.ToastEntry("t0", "App started successfully!", "success", 4f),
+                new Primitives.ToastEntry("t1", "Welcome to Paper UI.", "info", 6f),
             }
         );
         void AddToast(string msg, string variant)
         {
-            var next = new List<Primitives.ToastEntry>(toasts)
+            updateToasts(prev => new List<Primitives.ToastEntry>(prev)
             {
                 new Primitives.ToastEntry(
                     "t" + System.Environment.TickCount64.ToString(),
                     msg,
                     variant
                 ),
-            };
-            setToasts(next);
+            });
         }
         void DismissToast(string id)
         {
-            setToasts(toasts.Where(t => t.Id != id).ToList());
+            // Use functional update so the timer callback always filters against current state,
+            // not the stale closure captured at first render.
+            updateToasts(prev => prev.Where(t => t.Id != id).ToList());
         }
+        // ── TextInput state ───────────────────────────────────────────────────────
+        var (inputText, setInputText, _) = Hooks.UseState("Hello Paper!");
+        var (passwordText, setPasswordText, _) = Hooks.UseState("");
+        // ── Textarea state ────────────────────────────────────────────────────────
+        var (textareaText, setTextareaText, _) = Hooks.UseState(
+            "Multi-line\ntext goes here.\nEdit me!"
+        );
+        // ── MarkdownEditor state ──────────────────────────────────────────────────
+        var (mdText, setMdText, _) = Hooks.UseState(
+            "# Hello Markdown\n\nThis is **bold**, *italic*, and `inline code`.\n\n> Blockquote here\n\n- Item one\n- Item two\n\n```\ncode block\n```\n\n---\n\nPlain prose paragraph."
+        );
+        var (mdPreview, setMdPreview, _) = Hooks.UseState(false);
+        string editBtnBg = mdPreview ? "#1a1a28" : "#4f46e5";
+        string prevBtnBg = mdPreview ? "#4f46e5" : "#1a1a28";
+        var mdContent = mdPreview
+            ? UI.MarkdownPreview(
+                mdText,
+                new Paper.Core.Styles.StyleSheet
+                {
+                    Width = Paper.Core.Styles.Length.Px(480),
+                    MinHeight = Paper.Core.Styles.Length.Px(260),
+                }
+            )
+            : UI.MarkdownEditor(
+                mdText,
+                setMdText,
+                12,
+                new Paper.Core.Styles.StyleSheet { Width = Paper.Core.Styles.Length.Px(480) }
+            );
+        // ── Checkbox state ────────────────────────────────────────────────────────
+        var (checkA, setCheckA, _) = Hooks.UseState(true);
+        var (checkB, setCheckB, _) = Hooks.UseState(false);
+        var (checkC, setCheckC, _) = Hooks.UseState(false);
+        // ── Radio state ───────────────────────────────────────────────────────────
+        var (radioVal, setRadioVal, _) = Hooks.UseState("option1");
         // ── Drag and drop state ───────────────────────────────────────────────────
         var (draggedItem, setDraggedItem, _) = Hooks.UseState<string?>(null);
         var (droppedOn, setDroppedOn, _) = Hooks.UseState<string?>(null);
@@ -511,6 +548,7 @@ public static partial class AppComponent
                                                             new StyleSheet
                                                             {
                                                                 Padding = new Thickness(12f),
+                                                                Display = Display.Flex,
                                                                 FlexDirection =
                                                                     FlexDirection.Column,
                                                                 RowGap = Length.Px(8),
@@ -1061,6 +1099,521 @@ public static partial class AppComponent
                                                                 .Build()
                                                         )
                                                     )
+                                                    .Build()
+                                            )
+                                        )
+                                        .Build()
+                                )
+                            )
+                            .Build()
+                    ),
+                    UI.Box(
+                        new PropsBuilder()
+                            .ClassName("section")
+                            .Children(
+                                new UINode(
+                                    "text",
+                                    new PropsBuilder()
+                                        .ClassName("section-label")
+                                        .Text("TextInput")
+                                        .Build()
+                                ),
+                                UI.Box(
+                                    new PropsBuilder()
+                                        .ClassName("demo-col-panel")
+                                        .Style(
+                                            new StyleSheet
+                                            {
+                                                RowGap = Length.Px(12),
+                                                ColumnGap = Length.Px(12),
+                                                Padding = new Thickness(12f),
+                                            }
+                                        )
+                                        .Children(
+                                            UI.Box(
+                                                new PropsBuilder()
+                                                    .Style(
+                                                        new StyleSheet
+                                                        {
+                                                            Display = Display.Flex,
+                                                            FlexDirection = FlexDirection.Row,
+                                                            RowGap = Length.Px(12),
+                                                            ColumnGap = Length.Px(12),
+                                                            AlignItems = AlignItems.Center,
+                                                        }
+                                                    )
+                                                    .Children(
+                                                        new UINode(
+                                                            "text",
+                                                            new PropsBuilder()
+                                                                .Style(
+                                                                    new StyleSheet
+                                                                    {
+                                                                        Color = new PaperColour(
+                                                                            0.627451f,
+                                                                            0.627451f,
+                                                                            0.72156864f,
+                                                                            1f
+                                                                        ),
+                                                                        Width = Length.Px(80),
+                                                                    }
+                                                                )
+                                                                .Text("Text")
+                                                                .Build()
+                                                        ),
+                                                        UI.Input(
+                                                            inputText,
+                                                            setInputText,
+                                                            new StyleSheet
+                                                            {
+                                                                Width = Length.Px(220),
+                                                            }
+                                                        )
+                                                    )
+                                                    .Build()
+                                            ),
+                                            UI.Box(
+                                                new PropsBuilder()
+                                                    .Style(
+                                                        new StyleSheet
+                                                        {
+                                                            Display = Display.Flex,
+                                                            FlexDirection = FlexDirection.Row,
+                                                            RowGap = Length.Px(12),
+                                                            ColumnGap = Length.Px(12),
+                                                            AlignItems = AlignItems.Center,
+                                                        }
+                                                    )
+                                                    .Children(
+                                                        new UINode(
+                                                            "text",
+                                                            new PropsBuilder()
+                                                                .Style(
+                                                                    new StyleSheet
+                                                                    {
+                                                                        Color = new PaperColour(
+                                                                            0.627451f,
+                                                                            0.627451f,
+                                                                            0.72156864f,
+                                                                            1f
+                                                                        ),
+                                                                        Width = Length.Px(80),
+                                                                    }
+                                                                )
+                                                                .Text("Second")
+                                                                .Build()
+                                                        ),
+                                                        UI.Input(
+                                                            passwordText,
+                                                            setPasswordText,
+                                                            new StyleSheet
+                                                            {
+                                                                Width = Length.Px(220),
+                                                            }
+                                                        )
+                                                    )
+                                                    .Build()
+                                            ),
+                                            UI.Box(
+                                                new PropsBuilder()
+                                                    .Style(
+                                                        new StyleSheet
+                                                        {
+                                                            Display = Display.Flex,
+                                                            FlexDirection = FlexDirection.Row,
+                                                            RowGap = Length.Px(12),
+                                                            ColumnGap = Length.Px(12),
+                                                            AlignItems = AlignItems.Center,
+                                                        }
+                                                    )
+                                                    .Children(
+                                                        new UINode(
+                                                            "text",
+                                                            new PropsBuilder()
+                                                                .Style(
+                                                                    new StyleSheet
+                                                                    {
+                                                                        Color = new PaperColour(
+                                                                            0.627451f,
+                                                                            0.627451f,
+                                                                            0.72156864f,
+                                                                            1f
+                                                                        ),
+                                                                        Width = Length.Px(80),
+                                                                    }
+                                                                )
+                                                                .Text("Value:")
+                                                                .Build()
+                                                        ),
+                                                        new UINode(
+                                                            "text",
+                                                            new PropsBuilder()
+                                                                .Style(
+                                                                    new StyleSheet
+                                                                    {
+                                                                        Color = new PaperColour(
+                                                                            0.3882353f,
+                                                                            0.4f,
+                                                                            0.94509804f,
+                                                                            1f
+                                                                        ),
+                                                                    }
+                                                                )
+                                                                .Text(inputText)
+                                                                .Build()
+                                                        )
+                                                    )
+                                                    .Build()
+                                            )
+                                        )
+                                        .Build()
+                                )
+                            )
+                            .Build()
+                    ),
+                    UI.Box(
+                        new PropsBuilder()
+                            .ClassName("section")
+                            .Children(
+                                new UINode(
+                                    "text",
+                                    new PropsBuilder()
+                                        .ClassName("section-label")
+                                        .Text("Textarea")
+                                        .Build()
+                                ),
+                                UI.Box(
+                                    new PropsBuilder()
+                                        .ClassName("demo-col-panel")
+                                        .Style(
+                                            new StyleSheet
+                                            {
+                                                RowGap = Length.Px(12),
+                                                ColumnGap = Length.Px(12),
+                                                Padding = new Thickness(12f),
+                                            }
+                                        )
+                                        .Children(
+                                            UI.Textarea(
+                                                textareaText,
+                                                setTextareaText,
+                                                3,
+                                                new StyleSheet { Width = Length.Px(320) }
+                                            ),
+                                            UI.Box(
+                                                new PropsBuilder()
+                                                    .Style(
+                                                        new StyleSheet
+                                                        {
+                                                            Display = Display.Flex,
+                                                            FlexDirection = FlexDirection.Row,
+                                                            RowGap = Length.Px(8),
+                                                            ColumnGap = Length.Px(8),
+                                                            AlignItems = AlignItems.Center,
+                                                        }
+                                                    )
+                                                    .Children(
+                                                        new UINode(
+                                                            "text",
+                                                            new PropsBuilder()
+                                                                .Style(
+                                                                    new StyleSheet
+                                                                    {
+                                                                        Color = new PaperColour(
+                                                                            0.627451f,
+                                                                            0.627451f,
+                                                                            0.72156864f,
+                                                                            1f
+                                                                        ),
+                                                                    }
+                                                                )
+                                                                .Text("Lines:")
+                                                                .Build()
+                                                        ),
+                                                        new UINode(
+                                                            "text",
+                                                            new PropsBuilder()
+                                                                .Style(
+                                                                    new StyleSheet
+                                                                    {
+                                                                        Color = new PaperColour(
+                                                                            0.3882353f,
+                                                                            0.4f,
+                                                                            0.94509804f,
+                                                                            1f
+                                                                        ),
+                                                                    }
+                                                                )
+                                                                .Text(
+                                                                    textareaText
+                                                                        .Split('\n')
+                                                                        .Length.ToString()
+                                                                )
+                                                                .Build()
+                                                        )
+                                                    )
+                                                    .Build()
+                                            )
+                                        )
+                                        .Build()
+                                )
+                            )
+                            .Build()
+                    ),
+                    UI.Box(
+                        new PropsBuilder()
+                            .ClassName("section")
+                            .Children(
+                                new UINode(
+                                    "text",
+                                    new PropsBuilder()
+                                        .ClassName("section-label")
+                                        .Text("Markdown Editor")
+                                        .Build()
+                                ),
+                                UI.Box(
+                                    new PropsBuilder()
+                                        .ClassName("demo-col-panel")
+                                        .Style(
+                                            new StyleSheet
+                                            {
+                                                RowGap = Length.Px(10),
+                                                ColumnGap = Length.Px(10),
+                                                Padding = new Thickness(12f),
+                                            }
+                                        )
+                                        .Children(
+                                            UI.Nodes(
+                                                UI.Box(
+                                                    new PropsBuilder()
+                                                        .Style(
+                                                            new StyleSheet
+                                                            {
+                                                                Display = Display.Flex,
+                                                                FlexDirection = FlexDirection.Row,
+                                                                RowGap = Length.Px(6),
+                                                                ColumnGap = Length.Px(6),
+                                                            }
+                                                        )
+                                                        .Children(
+                                                            UI.Button(
+                                                                "Edit",
+                                                                () =>
+                                                                {
+                                                                    setMdPreview(false);
+                                                                },
+                                                                new StyleSheet
+                                                                {
+                                                                    Padding = new Thickness(
+                                                                        Length.Px(4),
+                                                                        Length.Px(14)
+                                                                    ),
+                                                                    Background = new PaperColour(
+                                                                        editBtnBg
+                                                                    ),
+                                                                    Color = new PaperColour(
+                                                                        1f,
+                                                                        1f,
+                                                                        1f,
+                                                                        1f
+                                                                    ),
+                                                                    BorderRadius = 4f,
+                                                                    Border = new BorderEdges(
+                                                                        new Border(
+                                                                            1f,
+                                                                            new PaperColour(
+                                                                                0.30980393f,
+                                                                                0.27450982f,
+                                                                                0.8980392f,
+                                                                                1f
+                                                                            )
+                                                                        )
+                                                                    ),
+                                                                }
+                                                            ),
+                                                            UI.Button(
+                                                                "Preview",
+                                                                () =>
+                                                                {
+                                                                    setMdPreview(true);
+                                                                },
+                                                                new StyleSheet
+                                                                {
+                                                                    Padding = new Thickness(
+                                                                        Length.Px(4),
+                                                                        Length.Px(14)
+                                                                    ),
+                                                                    Background = new PaperColour(
+                                                                        prevBtnBg
+                                                                    ),
+                                                                    Color = new PaperColour(
+                                                                        1f,
+                                                                        1f,
+                                                                        1f,
+                                                                        1f
+                                                                    ),
+                                                                    BorderRadius = 4f,
+                                                                    Border = new BorderEdges(
+                                                                        new Border(
+                                                                            1f,
+                                                                            new PaperColour(
+                                                                                0.30980393f,
+                                                                                0.27450982f,
+                                                                                0.8980392f,
+                                                                                1f
+                                                                            )
+                                                                        )
+                                                                    ),
+                                                                }
+                                                            )
+                                                        )
+                                                        .Build()
+                                                ),
+                                                mdContent,
+                                                new UINode(
+                                                    "text",
+                                                    new PropsBuilder()
+                                                        .Style(
+                                                            new StyleSheet
+                                                            {
+                                                                Color = new PaperColour(
+                                                                    0.627451f,
+                                                                    0.627451f,
+                                                                    0.72156864f,
+                                                                    1f
+                                                                ),
+                                                                FontSize = Length.Px(12),
+                                                            }
+                                                        )
+                                                        .Text(
+                                                            $"{mdText.Length} chars · {mdText.Split('\n').Length} lines"
+                                                        )
+                                                        .Build()
+                                                )
+                                            )
+                                        )
+                                        .Build()
+                                )
+                            )
+                            .Build()
+                    ),
+                    UI.Box(
+                        new PropsBuilder()
+                            .ClassName("section")
+                            .Children(
+                                new UINode(
+                                    "text",
+                                    new PropsBuilder()
+                                        .ClassName("section-label")
+                                        .Text("Checkboxes")
+                                        .Build()
+                                ),
+                                UI.Box(
+                                    new PropsBuilder()
+                                        .ClassName("demo-col-panel")
+                                        .Style(
+                                            new StyleSheet
+                                            {
+                                                RowGap = Length.Px(10),
+                                                ColumnGap = Length.Px(10),
+                                                Padding = new Thickness(12f),
+                                            }
+                                        )
+                                        .Children(
+                                            UI.Checkbox(
+                                                checkA,
+                                                (bool b) => setCheckA(b),
+                                                "Enable notifications",
+                                                StyleSheet.Empty
+                                            ),
+                                            UI.Checkbox(
+                                                checkB,
+                                                (bool b) => setCheckB(b),
+                                                "Dark mode",
+                                                StyleSheet.Empty
+                                            ),
+                                            UI.Checkbox(
+                                                checkC,
+                                                (bool b) => setCheckC(b),
+                                                "Auto-save",
+                                                StyleSheet.Empty
+                                            ),
+                                            new UINode(
+                                                "text",
+                                                new PropsBuilder()
+                                                    .Style(
+                                                        new StyleSheet
+                                                        {
+                                                            Color = new PaperColour(
+                                                                0.627451f,
+                                                                0.627451f,
+                                                                0.72156864f,
+                                                                1f
+                                                            ),
+                                                            FontSize = Length.Px(12),
+                                                        }
+                                                    )
+                                                    .Text(
+                                                        $"Notifications: {(checkA ? "on" : "off")}  Dark mode: {(checkB ? "on" : "off")}"
+                                                    )
+                                                    .Build()
+                                            )
+                                        )
+                                        .Build()
+                                )
+                            )
+                            .Build()
+                    ),
+                    UI.Box(
+                        new PropsBuilder()
+                            .ClassName("section")
+                            .Children(
+                                new UINode(
+                                    "text",
+                                    new PropsBuilder()
+                                        .ClassName("section-label")
+                                        .Text("Radio Buttons")
+                                        .Build()
+                                ),
+                                UI.Box(
+                                    new PropsBuilder()
+                                        .ClassName("demo-col-panel")
+                                        .Style(
+                                            new StyleSheet
+                                            {
+                                                RowGap = Length.Px(12),
+                                                ColumnGap = Length.Px(12),
+                                                Padding = new Thickness(12f),
+                                            }
+                                        )
+                                        .Children(
+                                            UI.RadioGroup(
+                                                new[]
+                                                {
+                                                    ("option1", "Option One"),
+                                                    ("option2", "Option Two"),
+                                                    ("option3", "Option Three"),
+                                                },
+                                                radioVal,
+                                                setRadioVal,
+                                                StyleSheet.Empty
+                                            ),
+                                            new UINode(
+                                                "text",
+                                                new PropsBuilder()
+                                                    .Style(
+                                                        new StyleSheet
+                                                        {
+                                                            Color = new PaperColour(
+                                                                0.3882353f,
+                                                                0.4f,
+                                                                0.94509804f,
+                                                                1f
+                                                            ),
+                                                            FontSize = Length.Px(13),
+                                                        }
+                                                    )
+                                                    .Text($"Selected: {radioVal}")
                                                     .Build()
                                             )
                                         )
