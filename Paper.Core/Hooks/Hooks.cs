@@ -1,4 +1,5 @@
 using Paper.Core.Context;
+using Paper.Core.I18n;
 
 namespace Paper.Core.Hooks
 {
@@ -329,6 +330,54 @@ namespace Paper.Core.Hooks
             }
 
             return new VirtualScrollState<T>(visible, paddingTop, paddingBottom, totalHeight, OnWheel);
+        }
+
+        // ── UseKeyboardShortcut ─────────────────────────────────────────────────
+
+        /// <summary>
+        /// Registers a keyboard shortcut that fires the given handler when the shortcut is pressed.
+        /// The shortcut works globally (not just when this component is focused).
+        /// Returns an id that can be used to unregister the shortcut.
+        /// </summary>
+        /// <example><code>
+        /// Hooks.UseKeyboardShortcut(KeyboardShortcut.Ctrl('s'), OnSave);
+        /// </code></example>
+        public static int UseKeyboardShortcut(KeyboardShortcut shortcut, Action handler)
+        {
+            var slot = HookContext.Next();
+            if (slot.State == null)
+            {
+                int id = KeyboardShortcutRegistry.Register(shortcut, handler);
+                slot.State = id;
+                UseEffect(() =>
+                {
+                    KeyboardShortcutRegistry.Unregister(id);
+                    return null;
+                }, null);
+            }
+            return (int)slot.State!;
+        }
+
+        // ── UseTranslation ─────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Returns a translation function for the current locale.
+        /// </summary>
+        /// <example><code>
+        /// var t = Hooks.UseTranslation();
+        /// return &lt;Text&gt;{t("hello")}&lt;/Text&gt;;
+        /// </code></example>
+        public static Func<string, Dictionary<string, string>?, string> UseTranslation()
+        {
+            return Core.I18n.I18n.T;
+        }
+
+        /// <summary>
+        /// Returns the current locale.
+        /// </summary>
+        public static string UseLocale()
+        {
+            return Core.I18n.I18n.CurrentLocale;
         }
 
         // ── Helpers ───────────────────────────────────────────────────────────

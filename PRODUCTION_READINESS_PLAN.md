@@ -42,17 +42,34 @@
 - [ ] Implement transparency sorting
 - [ ] Add z-index and transform support
 
-## Phase 4: Layout Engine Completion (Weeks 23-30) – HIGH PRIORITY
-**Goal**: Complete core layout functionality
+## Phase 4b: Input System & Text Rendering (Weeks 23-30) – HIGH PRIORITY
+**Goal**: Complete text system and input handling
 
 ### Tasks
-- [ ] Complete CSS box model implementation (box-sizing, etc.)
-- [ ] Fix block layout overflow and floating elements
-- [ ] Add flexbox gap, order, and flex-basis properties
-- [ ] Complete grid layout (grid-area, complex templates)
-- [ ] Add absolute/fixed positioning support
+- [ ] Implement dynamic font sizing (not just 16px atlas)
+- [ ] Add font weight support (bold, light, etc.)
+- [ ] Add font family support with fallback fonts
+- [ ] Implement text baseline and vertical alignment
+- [ ] Add missing Input attributes (placeholder, maxLength, minLength)
+- [ ] Add Input type variants (email, password, number, tel, url)
+- [ ] Implement keyboard shortcuts system (Ctrl+S, Ctrl+Z, etc.)
+- [ ] Complete clipboard API (copy, cut, paste with proper event handling)
+- [ ] Add IME/composition text support for international input
+- [ ] Implement text selection with Shift+Click, Ctrl+A support
 
-## Phase 5: CSSS Compiler (Weeks 31-36) – MEDIUM PRIORITY
+## Phase 5b: Accessibility & i18n (Weeks 31-36) – MEDIUM PRIORITY
+**Goal**: Add accessibility and internationalization support
+
+### Tasks
+- [ ] Add ARIA role and attribute support
+- [ ] Implement focus management system
+- [ ] Add keyboard navigation (Tab, Arrow keys in lists/menus)
+- [ ] Add screen reader support foundation
+- [ ] Implement i18n key system for string localization
+- [ ] Add RTL (right-to-left) text direction support
+- [ ] Add locale-aware date/number formatting hooks
+
+## Phase 6: CSSS Compiler (Weeks 31-36) – MEDIUM PRIORITY
 **Goal**: Complete styling system
 
 ### Tasks

@@ -77,6 +77,29 @@ namespace Paper.Core.VirtualDom
         public PropsBuilder OnDragLeave(Action<DragEvent> handler) { _data["onDragLeave"] = handler; return this; }
         public PropsBuilder OnDrop(Action<DragEvent> handler) { _data["onDrop"] = handler; return this; }
 
+        // ── Input attributes ─────────────────────────────────────────────────
+
+        public PropsBuilder Placeholder(string placeholder) { _data["placeholder"] = placeholder; return this; }
+        public PropsBuilder MaxLength(int maxLength) { _data["maxLength"] = maxLength; return this; }
+        public PropsBuilder ReadOnly(bool readOnly = true) { _data["readOnly"] = readOnly; return this; }
+        public PropsBuilder Disabled(bool disabled = true) { _data["disabled"] = disabled; return this; }
+        public PropsBuilder InputType(string inputType) { _data["inputType"] = inputType; return this; }
+
+        // ── Accessibility ─────────────────────────────────────────────────────────
+
+        public PropsBuilder Role(string role) { _data["role"] = role; return this; }
+        public PropsBuilder TabIndex(int tabIndex) { _data["tabIndex"] = tabIndex; return this; }
+        public PropsBuilder AriaLabel(string label) { _data["aria-label"] = label; return this; }
+        public PropsBuilder AriaLabelledBy(string id) { _data["aria-labelledby"] = id; return this; }
+        public PropsBuilder AriaDescribedBy(string id) { _data["aria-describedby"] = id; return this; }
+        public PropsBuilder AriaExpanded(bool expanded = true) { _data["aria-expanded"] = expanded; return this; }
+        public PropsBuilder AriaChecked(bool checked_) { _data["aria-checked"] = checked_; return this; }
+        public PropsBuilder AriaSelected(bool selected = true) { _data["aria-selected"] = selected; return this; }
+        public PropsBuilder AriaDisabled(bool disabled = true) { _data["aria-disabled"] = disabled; return this; }
+        public PropsBuilder AriaValueText(string text) { _data["aria-valuetext"] = text; return this; }
+        public PropsBuilder AriaLive(string politeness) { _data["aria-live"] = politeness; return this; }
+        public PropsBuilder AriaHasPopup(bool hasPopup = true) { _data["aria-haspopup"] = hasPopup.ToString().ToLower(); return this; }
+
         // ── Custom ────────────────────────────────────────────────────────────
 
         public PropsBuilder Set(string key, object? value) { _data[key] = value; return this; }

@@ -79,6 +79,14 @@ namespace Paper.Core.VirtualDom
         public Action<KeyEvent>? OnKeyChar         => Get<Action<KeyEvent>>("onKeyChar");
         public Action<KeyEvent>? OnKeyCharCapture  => Get<Action<KeyEvent>>("onKeyCharCapture");
 
+        // ── Input attributes ─────────────────────────────────────────────────────
+
+        public string? Placeholder => Get<string>("placeholder");
+        public int? MaxLength => _data.TryGetValue("maxLength", out var v) && v is int i ? i : null;
+        public bool ReadOnly => Get<bool>("readOnly");
+        public bool Disabled => Get<bool>("disabled");
+        public string? InputType => Get<string>("inputType");
+
         public Action<DragEvent>? OnDragStart  => Get<Action<DragEvent>>("onDragStart");
         public Action<DragEvent>? OnDrag       => Get<Action<DragEvent>>("onDrag");
         public Action<DragEvent>? OnDragEnd    => Get<Action<DragEvent>>("onDragEnd");
@@ -86,6 +94,44 @@ namespace Paper.Core.VirtualDom
         public Action<DragEvent>? OnDragOver   => Get<Action<DragEvent>>("onDragOver");
         public Action<DragEvent>? OnDragLeave  => Get<Action<DragEvent>>("onDragLeave");
         public Action<DragEvent>? OnDrop       => Get<Action<DragEvent>>("onDrop");
+
+        // ── Accessibility (ARIA) ────────────────────────────────────────────────
+
+        /// <summary>The ARIA role attribute (e.g., "button", "menu", "dialog").</summary>
+        public string? Role => Get<string>("role");
+
+        /// <summary>Whether the element is focusable (0 = not focusable, -1 = focusable but not in tab order, positive = tab order).</summary>
+        public int? TabIndex => _data.TryGetValue("tabIndex", out var v) && v is int i ? i : null;
+
+        /// <summary>Accessible label for screen readers.</summary>
+        public string? AriaLabel => Get<string>("aria-label");
+
+        /// <summary>ID of the element that labels this element.</summary>
+        public string? AriaLabelledBy => Get<string>("aria-labelledby");
+
+        /// <summary>ID of the element that describes this element.</summary>
+        public string? AriaDescribedBy => Get<string>("aria-describedby");
+
+        /// <summary>Whether the element is currently in an expanded state.</summary>
+        public bool? AriaExpanded => Get<bool?>("aria-expanded");
+
+        /// <summary>Whether the element is checked (for checkboxes/radio).</summary>
+        public bool? AriaChecked => Get<bool?>("aria-checked");
+
+        /// <summary>Whether the element is selected (for listbox/tab).</summary>
+        public bool? AriaSelected => Get<bool?>("aria-selected");
+
+        /// <summary>Whether the element is disabled.</summary>
+        public bool? AriaDisabled => Get<bool?>("aria-disabled");
+
+        /// <summary>Current value for aria-valuenow (e.g., slider position).</summary>
+        public string? AriaValueText => Get<string>("aria-valuetext");
+
+        /// <summary>Live region politeness for dynamic content ("polite" or "assertive").</summary>
+        public string? AriaLive => Get<string>("aria-live");
+
+        /// <summary>Whether the element has a popup menu.</summary>
+        public string? AriaHasPopup => Get<string>("aria-haspopup");
 
         // ── Generic access ────────────────────────────────────────────────────
 

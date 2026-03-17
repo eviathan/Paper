@@ -53,12 +53,20 @@ namespace Paper.Core.VirtualDom
             Action<string>? onChange = null,
             int? rows = null,
             StyleSheet? style = null,
-            string? key = null)
+            string? key = null,
+            string? placeholder = null,
+            int? maxLength = null,
+            bool readOnly = false,
+            bool disabled = false)
         {
             var b = new PropsBuilder().Text(value);
             if (onChange != null) b.OnChange(onChange);
             if (rows.HasValue) b.Set("rows", rows.Value);
             if (style != null) b.Style(style);
+            if (placeholder != null) b.Placeholder(placeholder);
+            if (maxLength.HasValue) b.MaxLength(maxLength.Value);
+            if (readOnly) b.ReadOnly(true);
+            if (disabled) b.Disabled(true);
             return new UINode(ElementTypes.Textarea, b.Build(), key);
         }
 
@@ -71,12 +79,18 @@ namespace Paper.Core.VirtualDom
             Action<string>? onChange = null,
             int? rows = null,
             StyleSheet? style = null,
-            string? key = null)
+            string? key = null,
+            string? placeholder = null,
+            bool readOnly = false,
+            bool disabled = false)
         {
             var b = new PropsBuilder().Text(value);
             if (onChange != null) b.OnChange(onChange);
             if (rows.HasValue) b.Set("rows", rows.Value);
             if (style != null) b.Style(style);
+            if (placeholder != null) b.Placeholder(placeholder);
+            if (readOnly) b.ReadOnly(true);
+            if (disabled) b.Disabled(true);
             return new UINode(ElementTypes.MarkdownEditor, b.Build(), key);
         }
 
@@ -93,11 +107,21 @@ namespace Paper.Core.VirtualDom
             string value,
             Action<string>? onChange = null,
             StyleSheet? style = null,
-            string? key = null)
+            string? key = null,
+            string? placeholder = null,
+            int? maxLength = null,
+            bool readOnly = false,
+            bool disabled = false,
+            string? inputType = null)
         {
             var b = new PropsBuilder().Text(value);
             if (style != null) b.Style(style);
             if (onChange != null) b.OnChange(onChange);
+            if (placeholder != null) b.Placeholder(placeholder);
+            if (maxLength.HasValue) b.MaxLength(maxLength.Value);
+            if (readOnly) b.ReadOnly(true);
+            if (disabled) b.Disabled(true);
+            if (inputType != null) b.InputType(inputType);
             return new UINode(ElementTypes.Input, b.Build(), key);
         }
 

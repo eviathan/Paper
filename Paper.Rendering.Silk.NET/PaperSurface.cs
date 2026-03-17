@@ -4,6 +4,7 @@ using Paper.Core.Reconciler;
 using Paper.Core.VirtualDom;
 using Paper.Core.Events;
 using Paper.Core.Styles;
+using Paper.Core.Hooks;
 using Paper.Layout;
 using Paper.Rendering.Silk.NET.Text;
 using Silk.NET.Input;
@@ -1062,15 +1063,19 @@ private int GetCaretIndexFromX(Fiber fiber, float lx, float ly, float scrollX = 
 
         private void OnKeyDown(IKeyboard keyboard, Key key, int _)
         {
-            var target = _focused;
-            if (target == null) return;
-
             string ks = key.ToString();
             bool ctrl = keyboard.IsKeyPressed(Key.ControlLeft) || keyboard.IsKeyPressed(Key.ControlRight);
             bool cmd = keyboard.IsKeyPressed(Key.SuperLeft) || keyboard.IsKeyPressed(Key.SuperRight); // Cmd on macOS
             bool alt = keyboard.IsKeyPressed(Key.AltLeft) || keyboard.IsKeyPressed(Key.AltRight); // Option on macOS
             bool shortcutMod = ctrl || cmd; // Copy/Paste/Select All: Ctrl on Windows/Linux, Cmd on macOS
             bool shift = keyboard.IsKeyPressed(Key.ShiftLeft) || keyboard.IsKeyPressed(Key.ShiftRight);
+
+            // Dispatch to global keyboard shortcuts first
+            if (KeyboardShortcutRegistry.TryDispatch(ks, ctrl, alt, shift, cmd, out bool shortcutHandled) && shortcutHandled)
+                return;
+
+            var target = _focused;
+            if (target == null) return;
 
             // Tab / Shift+Tab: cycle focus between all focusable elements in tree order.
             if (key == Key.Tab && _reconciler?.Root != null)
@@ -1099,6 +1104,8 @@ private int GetCaretIndexFromX(Fiber fiber, float lx, float ly, float scrollX = 
             // Input/Textarea: navigation, Delete, and clipboard shortcuts (use _inputText so rapid keys don't read stale Props)
             if (target.Type is string t && IsTextInput(t))
             {
+                // Allow navigation even in readOnly/disabled, but block modification
+                bool canModify = !target.Props.ReadOnly && !target.Props.Disabled;
                 _lastInputActivityTicks = Environment.TickCount64;
                 var cur = _inputText ?? target.Props.Text ?? "";
                 ClampInputIndices(cur.Length, ref _inputCaret, ref _inputSelStart, ref _inputSelEnd);
@@ -1145,7 +1152,7 @@ private int GetCaretIndexFromX(Fiber fiber, float lx, float ly, float scrollX = 
                 }
                 else if (key == Key.Enter && IsMultiLineInput(t))
                 {
-                    if (target.Props.OnChange != null)
+                    if (canModify && target.Props.OnChange != null)
                     {
                         int selMin = Math.Min(_inputSelStart, _inputSelEnd);
                         int selMax = Math.Max(_inputSelStart, _inputSelEnd);
@@ -1168,7 +1175,7 @@ private int GetCaretIndexFromX(Fiber fiber, float lx, float ly, float scrollX = 
                 }
                 else if (key == Key.Backspace || ks.Equals("Backspace", StringComparison.OrdinalIgnoreCase))
                 {
-                    if (target.Props.OnChange != null)
+                    if (canModify && target.Props.OnChange != null)
                     {
                         int selMin = Math.Min(_inputSelStart, _inputSelEnd);
                         int selMax = Math.Max(_inputSelStart, _inputSelEnd);
@@ -1197,7 +1204,7 @@ private int GetCaretIndexFromX(Fiber fiber, float lx, float ly, float scrollX = 
                 }
                 else if (key == Key.Delete || ks.Equals("Delete", StringComparison.OrdinalIgnoreCase))
                 {
-                    if (target.Props.OnChange != null)
+                    if (canModify && target.Props.OnChange != null)
                     {
                         int selMin = Math.Min(_inputSelStart, _inputSelEnd);
                         int selMax = Math.Max(_inputSelStart, _inputSelEnd);
@@ -1227,7 +1234,7 @@ private int GetCaretIndexFromX(Fiber fiber, float lx, float ly, float scrollX = 
                 }
                 else if (shortcutMod && key == Key.X)
                 {
-                    if (target.Props.OnChange != null)
+                    if (canModify && target.Props.OnChange != null)
                     {
                         int a = Math.Min(_inputSelStart, _inputSelEnd), b = Math.Max(_inputSelStart, _inputSelEnd);
                         if (a < b) { keyboard.ClipboardText = cur[a..b]; var after = cur[..a] + cur[b..]; _inputText = after; target.Props.OnChange(after); _inputCaret = _inputSelStart = _inputSelEnd = a; }
@@ -1235,18 +1242,30 @@ private int GetCaretIndexFromX(Fiber fiber, float lx, float ly, float scrollX = 
                 }
                 else if (shortcutMod && key == Key.V)
                 {
-                    if (target.Props.OnChange != null)
+                    if (canModify && target.Props.OnChange != null)
                     {
                         var paste = keyboard.ClipboardText ?? "";
                         if (paste.Length > 0)
                         {
                             int selMin = Math.Min(_inputSelStart, _inputSelEnd);
                             int selMax = Math.Max(_inputSelStart, _inputSelEnd);
-                            string nextText = cur[..selMin] + paste + cur[selMax..];
-                            int nextCaret = selMin + paste.Length;
-                            _inputText = nextText;
-                            target.Props.OnChange(nextText);
-                            _inputCaret = _inputSelStart = _inputSelEnd = nextCaret;
+                            int maxLen = target.Props.MaxLength ?? int.MaxValue;
+                            int insertLen = cur.Length - (selMax - selMin) + paste.Length;
+                            if (insertLen > maxLen)
+                            {
+                                // Truncate paste to fit maxLength
+                                int available = maxLen - (cur.Length - (selMax - selMin));
+                                if (available > 0) paste = paste[..available];
+                                else paste = "";
+                            }
+                            if (paste.Length > 0)
+                            {
+                                string nextText = cur[..selMin] + paste + cur[selMax..];
+                                int nextCaret = selMin + paste.Length;
+                                _inputText = nextText;
+                                target.Props.OnChange(nextText);
+                                _inputCaret = _inputSelStart = _inputSelEnd = nextCaret;
+                            }
                         }
                     }
                 }
@@ -1286,12 +1305,17 @@ private int GetCaretIndexFromX(Fiber fiber, float lx, float ly, float scrollX = 
             if (target.Type is not string t || !IsTextInput(t) || target.Props.OnChange == null)
                 return;
 
+            // Check readOnly and disabled states
+            if (target.Props.ReadOnly || target.Props.Disabled)
+                return;
+
             _lastInputActivityTicks = Environment.TickCount64;
 
             var cur = _inputText ?? target.Props.Text ?? "";
             ClampInputIndices(cur.Length, ref _inputCaret, ref _inputSelStart, ref _inputSelEnd);
             int selMin = Math.Min(_inputSelStart, _inputSelEnd);
             int selMax = Math.Max(_inputSelStart, _inputSelEnd);
+            int maxLen = target.Props.MaxLength ?? int.MaxValue;
 
             // Backspace is handled in OnKeyDown to avoid double-delete when both KeyDown and KeyChar fire
             if (c == '\b') return;
@@ -1299,6 +1323,8 @@ private int GetCaretIndexFromX(Fiber fiber, float lx, float ly, float scrollX = 
             if (IsMultiLineInput(t) && (c == '\n' || c == '\r'))
             {
                 string insert = "\n";
+                int insertLen = cur.Length - (selMax - selMin) + insert.Length;
+                if (insertLen > maxLen) return;
                 string nextText = cur[..selMin] + insert + cur[selMax..];
                 int nextCaret = selMin + insert.Length;
                 _inputText = nextText;
@@ -1308,6 +1334,8 @@ private int GetCaretIndexFromX(Fiber fiber, float lx, float ly, float scrollX = 
             else if (!char.IsControl(c))
             {
                 string insert = c.ToString();
+                int insertLen = cur.Length - (selMax - selMin) + insert.Length;
+                if (insertLen > maxLen) return;
                 string nextText = cur[..selMin] + insert + cur[selMax..];
                 int nextCaret = selMin + insert.Length;
                 _inputText = nextText;
@@ -1545,7 +1573,12 @@ private int GetCaretIndexFromX(Fiber fiber, float lx, float ly, float scrollX = 
         private static bool IsFocusable(Fiber? f)
         {
             if (f == null) return false;
-            if (IsTextInput(f.Type as string)) return true;
+            if (IsTextInput(f.Type as string))
+            {
+                // Disabled inputs are not focusable
+                if (f.Props.Disabled) return false;
+                return true;
+            }
             var p = f.Props;
             return p.OnKeyDownEvent != null || p.OnKeyUpEvent != null || p.OnKeyChar != null || p.OnChange != null;
         }

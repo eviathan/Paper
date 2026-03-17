@@ -771,6 +771,12 @@ namespace Paper.Rendering.Silk.NET
                         DrawSelectionForLine(singleLine, 0, singleLine.Length, lb, lb, style, scrollX, scrollY, inputScrollX);
                     if (singleLine.Length > 0)
                         DrawText(singleLine, lb, style, col, opacity, scrollX, scrollY, inputScrollX);
+                    else if (!isFocusedInput && fiber.Props.Placeholder is string placeholder && placeholder.Length > 0)
+                    {
+                        // Render placeholder when empty and not focused
+                        var placeholderCol = new PaperColour(0.6f, 0.6f, 0.6f, col.A * opacity);
+                        DrawText(placeholder, lb, style, placeholderCol, opacity, scrollX, scrollY, inputScrollX);
+                    }
                     if (isFocusedInput)
                         DrawCaretForLine(singleLine, 0, singleLine.Length, lb, lb, style, col, opacity, scrollX, scrollY, inputScrollX);
                     if (_gl != null)
