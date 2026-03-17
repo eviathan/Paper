@@ -367,8 +367,12 @@ namespace Paper.Rendering.Silk.NET
             // Skip draw calls (and optionally the whole subtree) for fibers that are
             // completely outside the current visible clip rect.
             {
-                bool inView = dx + dw > _cullRect.X && dx < _cullRect.X + _cullRect.W &&
-                              dy + dh > _cullRect.Y && dy < _cullRect.Y + _cullRect.H;
+                // position:fixed elements are always viewport-relative, not container-relative.
+                // Check them against the full screen regardless of any narrowed _cullRect.
+                bool inView = pos == Position.Fixed
+                    ? dx + dw > 0 && dx < _screenW && dy + dh > 0 && dy < _screenH
+                    : dx + dw > _cullRect.X && dx < _cullRect.X + _cullRect.W &&
+                      dy + dh > _cullRect.Y && dy < _cullRect.Y + _cullRect.H;
                 if (!inView)
                 {
                     // Clip containers bound their children: if the container itself is off-screen,
@@ -862,15 +866,10 @@ namespace Paper.Rendering.Silk.NET
                 int hh = Math.Max(0, (int)dh);
                 _gl!.Enable(EnableCap.ScissorTest);
                 _gl.Scissor(hx, hy, (uint)hw, (uint)hh);
-                var prevCullRectH   = _cullRect;
-                var prevStrictCullH = _strictCull;
-                float hx0 = Math.Max(_cullRect.X, dx); float hy0 = Math.Max(_cullRect.Y, dy);
-                float hx1 = Math.Min(_cullRect.X + _cullRect.W, dx + dw); float hy1 = Math.Min(_cullRect.Y + _cullRect.H, dy + dh);
-                _cullRect   = (hx0, hy0, Math.Max(0, hx1 - hx0), Math.Max(0, hy1 - hy0));
-                _strictCull = true;
+                // Do NOT narrow _cullRect here: overflow:hidden may use PaddingTop-based virtual
+                // scrolling where children's AbsoluteY can exceed the container bounds in layout space.
+                // The GL scissor already handles all clipping correctly.
                 RenderChildren(fiber.Child, opacity, path, childScrollX, childScrollY);
-                _cullRect   = prevCullRectH;
-                _strictCull = prevStrictCullH;
                 _rects.Flush(_screenW, _screenH);
                 _fonts?.Flush(_screenW, _screenH);
                 _gl.Disable(EnableCap.ScissorTest);
