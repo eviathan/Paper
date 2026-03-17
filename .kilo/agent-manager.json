@@ -1,16 +1,8 @@
 {
-  "worktrees": {
-    "wt-1773183835339-1": {
-      "branch": "kilo-1773183835289",
-      "path": "/Users/brian/Dev/Frameworks/Paper/.kilocode/worktrees/kilo-1773183835289",
-      "parentBranch": "main",
-      "createdAt": "2026-03-10T23:03:55.339Z",
-      "remote": "origin"
-    }
-  },
+  "worktrees": {},
   "sessions": {
     "ses_32603927effeGCCV411Yab0b57": {
-      "worktreeId": "wt-1773183835339-1",
+      "worktreeId": null,
       "createdAt": "2026-03-10T23:03:55.340Z"
     }
   },

@@ -1,3 +1,4 @@
+using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -13,7 +14,19 @@ namespace Paper.CSX.LanguageServer
         {
             if (_refs != null) return _refs;
             var list = new List<MetadataReference>();
-            foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+
+            // Force load Paper assemblies explicitly before scanning AppDomain
+            // This ensures they're available for Roslyn compilation
+            var paperAssemblies = new[]
+            {
+                typeof(Paper.Core.VirtualDom.UINode).Assembly,
+                typeof(Paper.Core.Styles.StyleSheet).Assembly,
+                typeof(Paper.Core.Hooks.Hooks).Assembly,
+                typeof(Paper.Core.Components.Primitives).Assembly,
+                typeof(Paper.CSX.CSXCompiler).Assembly,
+            };
+
+            foreach (var asm in paperAssemblies.Concat(AppDomain.CurrentDomain.GetAssemblies()).DistinctBy(a => a.Location))
             {
                 if (asm.IsDynamic) continue;
                 if (string.IsNullOrWhiteSpace(asm.Location)) continue;

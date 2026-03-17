@@ -118,6 +118,9 @@ const PAPER_ELEMENTS = [
     'Textarea', 'Checkbox', 'Table', 'TableRow', 'TableCell',
     'RadioGroup', 'RadioOption', 'Fragment', 'Viewport', 'Modal',
     'Select', 'Slider', 'Tabs', 'Tooltip', 'Popover', 'Toast',
+    'List', 'ContextMenu', 'NumberInput', 'ToastContainer', 'ToastItem',
+    'Radio', 'Switch', 'Progress', 'Avatar', 'Badge', 'Card',
+    'Divider', 'Icon', 'ImageList', 'ListItem', 'Accordion',
 ];
 
 // Detailed element info for completions/hovers
@@ -135,6 +138,7 @@ const PAPER_ELEMENT_INFO: Record<string, string> = {
     'TableCell': 'Table cell container',
     'RadioGroup': 'Radio button group',
     'RadioOption': 'Radio button option',
+    'Radio': 'Single radio button option',
     'Fragment': 'Renders children without wrapper',
     'Viewport': 'External OpenGL texture viewport',
     'Modal': 'Full-screen modal overlay',
@@ -144,6 +148,21 @@ const PAPER_ELEMENT_INFO: Record<string, string> = {
     'Tooltip': 'Tooltip on hover',
     'Popover': 'Floating panel anchored to trigger',
     'Toast': 'Notification toast',
+    'List': 'Virtual scrolling list for large datasets',
+    'ContextMenu': 'Right-click context menu',
+    'NumberInput': 'Numeric input with increment/decrement',
+    'ToastContainer': 'Container for multiple toast notifications',
+    'ToastItem': 'Individual toast notification item',
+    'Switch': 'Toggle switch component',
+    'Progress': 'Progress bar indicator',
+    'Avatar': 'User avatar image',
+    'Badge': 'Status badge overlay',
+    'Card': 'Card container component',
+    'Divider': 'Horizontal divider line',
+    'Icon': 'SVG icon element',
+    'ImageList': 'Grid of images',
+    'ListItem': 'List item container',
+    'Accordion': 'Collapsible accordion panel',
 };
 
 // ── Activation ────────────────────────────────────────────────────────────────
@@ -152,15 +171,46 @@ const PAPER_ELEMENT_INFO: Record<string, string> = {
  * Forces *.csx → 'csx' language association in workspace settings (once).
  * Prevents the C# extension from treating .csx files as C# script files,
  * which would cause spurious Roslyn diagnostics on JSX syntax.
+ * Also excludes .csx and .generated.cs files from C# analysis.
  */
 function ensureCsxLanguageAssociation(): void {
     try {
         const config = vscode.workspace.getConfiguration();
         const assoc = config.get<Record<string, string>>('files.associations') ?? {};
+        let changed = false;
         if (assoc['*.csx'] !== 'csx') {
+            assoc['*.csx'] = 'csx';
+            changed = true;
+        }
+        if (assoc['*.generated.cs'] !== 'csx') {
+            assoc['*.generated.cs'] = 'csx';
+            changed = true;
+        }
+        if (changed) {
             config.update(
                 'files.associations',
-                { ...assoc, '*.csx': 'csx' },
+                assoc,
+                vscode.ConfigurationTarget.Workspace
+            );
+        }
+
+        // Also exclude .csx and .generated.cs from C# analyzer via OmniSharp settings
+        const csharpExcludes = config.get<Record<string, boolean>>('csharp.excludeFilesFromRegistration') ?? {};
+        const excludeChanged = [
+            '**/*.csx',
+            '**/*.generated.cs'
+        ].reduce((acc, pattern) => {
+            if (!csharpExcludes[pattern]) {
+                csharpExcludes[pattern] = true;
+                acc = true;
+            }
+            return acc;
+        }, false);
+
+        if (excludeChanged) {
+            config.update(
+                'csharp.excludeFilesFromRegistration',
+                csharpExcludes,
                 vscode.ConfigurationTarget.Workspace
             );
         }
