@@ -163,18 +163,20 @@ namespace Paper.CSX.CLI
             sb.AppendLine("using Paper.Core.Hooks;");
             sb.AppendLine("using Paper.Core.Context;");
             sb.AppendLine();
-            sb.AppendLine($"namespace {ns};");
-            sb.AppendLine();
-            sb.AppendLine($"public static partial class {componentName}");
+            sb.AppendLine($"namespace {ns}");
             sb.AppendLine("{");
-            sb.AppendLine($"    public static UINode {methodName}(Props props)");
+            sb.AppendLine();
+            sb.AppendLine($"    public static partial class {componentName}");
             sb.AppendLine("    {");
+            sb.AppendLine($"        public static UINode {methodName}(Props props)");
+            sb.AppendLine("        {");
             if (!string.IsNullOrEmpty(preamble))
             {
                 foreach (var line in preamble.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
-                    sb.AppendLine("        " + line.Trim());
+                    sb.AppendLine("            " + line.Trim());
             }
-            sb.AppendLine($"        return {parsedBody};");
+            sb.AppendLine($"            return {parsedBody};");
+            sb.AppendLine("        }");
             sb.AppendLine("    }");
             sb.AppendLine("}");
 

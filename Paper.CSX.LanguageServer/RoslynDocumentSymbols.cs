@@ -59,6 +59,10 @@ namespace Paper.CSX.LanguageServer
 
                     foreach (var variable in decl.Declaration.Variables)
                     {
+                        // Skip variables with no identifier (e.g., discard patterns)
+                        var identifierText = variable.Identifier.Text;
+                        if (string.IsNullOrEmpty(identifierText)) continue;
+
                         var varSpan    = tree.GetLineSpan(variable.Identifier.Span);
                         int genVarLine = varSpan.StartLinePosition.Line;
                         int genVarCol  = varSpan.StartLinePosition.Character;
@@ -69,11 +73,11 @@ namespace Paper.CSX.LanguageServer
                         string origVarLine  = csxLines[csxVarLine];
                         int    leadingWsVar = CsxPositionMapper.CountLeadingWhitespace(origVarLine);
                         int    csxVarChar   = Math.Max(0, genVarCol - CsxPositionMapper.PreambleColOffset) + leadingWsVar;
-                        int    nameLen      = variable.Identifier.Text.Length;
+                        int    nameLen      = identifierText.Length;
 
                         symbols.Add(new
                         {
-                            name  = variable.Identifier.Text,
+                            name  = identifierText,
                             kind  = KindVariable,
                             range = new
                             {
@@ -93,6 +97,10 @@ namespace Paper.CSX.LanguageServer
                 // Also emit symbols for local functions (CSX helper functions)
                 foreach (var fn in tree.GetRoot().DescendantNodes().OfType<LocalFunctionStatementSyntax>())
                 {
+                    // Skip functions with no identifier
+                    var fnIdentifierText = fn.Identifier.Text;
+                    if (string.IsNullOrEmpty(fnIdentifierText)) continue;
+
                     var lineSpan    = tree.GetLineSpan(fn.Span);
                     int genFnLine   = lineSpan.StartLinePosition.Line;
                     if (genFnLine < genPreambleStart) continue;
@@ -106,7 +114,7 @@ namespace Paper.CSX.LanguageServer
                     var nameSpan   = tree.GetLineSpan(fn.Identifier.Span);
                     int genNameCol = nameSpan.StartLinePosition.Character;
                     int csxNameCol = Math.Max(0, genNameCol - CsxPositionMapper.PreambleColOffset) + leadingWs;
-                    int nameLen    = fn.Identifier.Text.Length;
+                    int nameLen    = fnIdentifierText.Length;
 
                     int genEndLine = lineSpan.EndLinePosition.Line;
                     int csxEndLine = (genEndLine - genPreambleStart) + csxPreambleStart;
@@ -117,7 +125,7 @@ namespace Paper.CSX.LanguageServer
 
                     symbols.Add(new
                     {
-                        name  = fn.Identifier.Text,
+                        name  = fnIdentifierText,
                         kind  = KindFunction,
                         range = new
                         {

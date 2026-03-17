@@ -15,14 +15,23 @@ namespace Paper.CSX.LanguageServer
         // Debounce diagnostics: cancel previous run when text changes
         private readonly Dictionary<string, CancellationTokenSource> _diagCts = new(StringComparer.Ordinal);
 
+        private static void Log(string msg)
+        {
+            Console.Error.WriteLine($"[Paper] {msg}");
+        }
+
         public async Task RunAsync()
         {
+            Log("Language Server starting...");
             while (true)
             {
                 var message = await ReadMessageAsync();
 
                 if (message == null)
+                {
+                    Log("Connection closed");
                     break;
+                }
 
                 if (!message.RootElement.TryGetProperty("method", out var methodElement))
                     continue;
@@ -91,6 +100,7 @@ namespace Paper.CSX.LanguageServer
                             var uri = textDocument.GetProperty("uri").GetString() ?? "";
                             var text = textDocument.GetProperty("text").GetString() ?? "";
                             _docs[uri] = text;
+                            Log($"Document opened: {Path.GetFileName(uri)} ({text.Length} chars)");
                             // Pre-warm the Roslyn compilation immediately so the first hover/completion
                             // doesn't have to wait for a cold build (which can take 5-10 seconds).
                             _ = Task.Run(() => { try { RoslynHover.GetOrBuildCompilation(text); } catch { } });
@@ -106,6 +116,7 @@ namespace Paper.CSX.LanguageServer
                             var changes = parameters.GetProperty("contentChanges");
                             var text = changes[changes.GetArrayLength() - 1].GetProperty("text").GetString() ?? "";
                             _docs[uri] = text;
+                            Log($"Document changed: {Path.GetFileName(uri)} ({text.Length} chars)");
                             ScheduleDiagnostics(uri, text);
                             break;
                         }
@@ -265,6 +276,7 @@ namespace Paper.CSX.LanguageServer
             var cts = new CancellationTokenSource();
             _diagCts[uri] = cts;
             
+            Log($"Scheduling diagnostics for: {Path.GetFileName(uri)}");
             _ = RunDiagnosticsAsync(uri, text, cts.Token);
         }
 
@@ -273,6 +285,7 @@ namespace Paper.CSX.LanguageServer
             try { await Task.Delay(400, token); }
             catch (OperationCanceledException) { return; }
 
+            Log($"Running diagnostics for: {Path.GetFileName(uri)}");
             var diagnostics = new List<object>();
 
             // 1. CSX parser errors — parse only the JSX portion, not the full file.
@@ -304,6 +317,7 @@ namespace Paper.CSX.LanguageServer
                 diagnostics.AddRange(roslynDiags);
 
             if (token.IsCancellationRequested) return;
+            Log($"Publishing {diagnostics.Count} diagnostics for {Path.GetFileName(uri)}");
             await NotifyAsync("textDocument/publishDiagnostics", new { uri, diagnostics });
         }
 
