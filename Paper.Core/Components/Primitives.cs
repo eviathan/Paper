@@ -375,8 +375,6 @@ namespace Paper.Core.Components
             float clamped = Math.Clamp(value, min, max);
             float fraction = (max - min) > 0 ? (clamped - min) / (max - min) : 0f;
 
-            var (dragging, setDragging, _) = Hooks.Hooks.UseState(false);
-
             float Snap(float raw)
             {
                 float snapped = MathF.Round((raw - min) / step) * step + min;
@@ -396,16 +394,15 @@ namespace Paper.Core.Components
             void OnTrackDown(Paper.Core.Events.PointerEvent e)
             {
                 SeekToLocal(e.LocalX);
-                setDragging(true);
             }
 
+            // Button == 0 means this is a captured move (left button held) from PaperSurface,
+            // not a plain hover move — so we only seek during actual drags.
             void OnTrackMove(Paper.Core.Events.PointerEvent e)
             {
-                if (!dragging) return;
+                if (e.Button != 0) return;
                 SeekToLocal(e.LocalX);
             }
-
-            void OnTrackUp(Paper.Core.Events.PointerEvent e) => setDragging(false);
 
             void OnWheel(Paper.Core.Events.PointerEvent e)
             {
@@ -462,7 +459,6 @@ namespace Paper.Core.Components
                 .Style(trackStyle)
                 .OnPointerDown(OnTrackDown)
                 .OnPointerMove(OnTrackMove)
-                .OnPointerUp(OnTrackUp)
                 .Set("onWheel", (Action<Paper.Core.Events.PointerEvent>)OnWheel)
                 .Children(
                     UI.Box(new PropsBuilder()

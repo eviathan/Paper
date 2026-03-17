@@ -31,13 +31,9 @@ namespace Paper.Rendering.Silk.NET
         private float _ghostOffsetY;
 
         // ── Viewport culling ──────────────────────────────────────────────────
-        // Current visible clip rect in screen pixels. Fibers outside it skip draw calls.
-        // Narrowed when entering scroll/clip containers so off-screen children are skipped entirely.
+        // Current visible clip rect in screen pixels. Narrowed when entering scroll/clip containers
+        // so off-screen children can be skipped without GPU draw calls.
         private (float X, float Y, float W, float H) _cullRect;
-        // When true (inside a scroll/clip container), off-screen fibers skip their entire subtree.
-        // When false (top-level), off-screen fibers skip drawing but still recurse children
-        // in case position:absolute descendants are in view.
-        private bool _strictCull;
 
         public record struct ScrollbarHit(float TrackX, float TrackY, float TrackH, float ThumbY, float ThumbH, float MaxScroll, float MaxScrollX);
         public readonly Dictionary<string, ScrollbarHit> RenderedScrollbars = new();
@@ -224,8 +220,7 @@ namespace Paper.Rendering.Silk.NET
             _frameDt = _lastFrameTime < 0.0 ? 0f : (float)(now - _lastFrameTime);
             _lastFrameTime = now;
 
-            _cullRect   = (0, 0, _screenW, _screenH);
-            _strictCull = false;
+            _cullRect = (0, 0, _screenW, _screenH);
 
             RenderedScrollbars.Clear();
             _zIndexedList.Clear();
@@ -375,17 +370,19 @@ namespace Paper.Rendering.Silk.NET
                       dy + dh > _cullRect.Y && dy < _cullRect.Y + _cullRect.H;
                 if (!inView)
                 {
-                    // Clip containers bound their children: if the container itself is off-screen,
-                    // its children are guaranteed invisible → safe to skip the entire subtree.
+                    // Clip containers physically bound their children: if the container is off-screen,
+                    // children cannot escape its bounds → safe to skip the entire subtree.
+                    // Non-clip containers MUST still recurse: position:fixed/absolute children can
+                    // escape and be visible (e.g. a component wrapper whose fixed child is in view).
                     var ovfXc = style.OverflowX ?? Overflow.Visible;
                     var ovfYc = style.OverflowY ?? Overflow.Visible;
                     bool isClipContainer =
                         ovfXc is Overflow.Scroll or Overflow.Auto or Overflow.Hidden ||
                         ovfYc is Overflow.Scroll or Overflow.Auto or Overflow.Hidden;
-                    if (_strictCull || isClipContainer)
+                    if (isClipContainer)
                         goto siblings;       // safe to skip entire subtree
                     else
-                        goto children_section; // top-level: recurse children (position:absolute may be in view)
+                        goto children_section; // recurse: fixed/absolute children may be in view
                 }
             }
 
@@ -821,17 +818,14 @@ namespace Paper.Rendering.Silk.NET
                 _gl.Scissor(x, y, (uint)w, (uint)h);
                 // Narrow the cull rect to this container's visible screen area so children
                 // outside it skip their draw calls (and entire subtrees) without GPU overhead.
-                var prevCullRect   = _cullRect;
-                var prevStrictCull = _strictCull;
+                var prevCullRect = _cullRect;
                 float cx0 = Math.Max(_cullRect.X, dx);
                 float cy0 = Math.Max(_cullRect.Y, dy);
                 float cx1 = Math.Min(_cullRect.X + _cullRect.W, dx + dw);
                 float cy1 = Math.Min(_cullRect.Y + _cullRect.H, dy + dh);
-                _cullRect   = (cx0, cy0, Math.Max(0, cx1 - cx0), Math.Max(0, cy1 - cy0));
-                _strictCull = true;
+                _cullRect = (cx0, cy0, Math.Max(0, cx1 - cx0), Math.Max(0, cy1 - cy0));
                 RenderChildren(fiber.Child, opacity, path, childScrollX, childScrollY);
-                _cullRect   = prevCullRect;
-                _strictCull = prevStrictCull;
+                _cullRect = prevCullRect;
                 _rects.Flush(_screenW, _screenH);
                 _fonts?.Flush(_screenW, _screenH);
                 _gl.Disable(EnableCap.ScissorTest);
@@ -877,15 +871,12 @@ namespace Paper.Rendering.Silk.NET
             else if (roundedClip)
             {
                 PushRoundedClip(dx, dy, dw, dh, radius);
-                var prevCullRectR   = _cullRect;
-                var prevStrictCullR = _strictCull;
+                var prevCullRectR = _cullRect;
                 float rx0 = Math.Max(_cullRect.X, dx); float ry0 = Math.Max(_cullRect.Y, dy);
                 float rx1 = Math.Min(_cullRect.X + _cullRect.W, dx + dw); float ry1 = Math.Min(_cullRect.Y + _cullRect.H, dy + dh);
-                _cullRect   = (rx0, ry0, Math.Max(0, rx1 - rx0), Math.Max(0, ry1 - ry0));
-                _strictCull = true;
+                _cullRect = (rx0, ry0, Math.Max(0, rx1 - rx0), Math.Max(0, ry1 - ry0));
                 RenderChildren(fiber.Child, opacity, path, childScrollX, childScrollY);
-                _cullRect   = prevCullRectR;
-                _strictCull = prevStrictCullR;
+                _cullRect = prevCullRectR;
                 PopRoundedClip(dx, dy, dw, dh, radius);
             }
             else

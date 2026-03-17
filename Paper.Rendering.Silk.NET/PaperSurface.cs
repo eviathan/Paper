@@ -79,6 +79,11 @@ namespace Paper.Rendering.Silk.NET
         private float _scrollbarDragAnchorY;
         private float _scrollbarDragAnchorScroll;
 
+        // Pointer capture: fiber that received the last PointerDown. Receives Move events
+        // regardless of cursor position while the button is held, so sliders/knobs work
+        // correctly when the cursor leaves the element during drag.
+        private Fiber? _pointerDownFiber;
+
         // Drag-and-drop state
         private Fiber? _dragSource;        // fiber where drag started
         private string? _dragSourcePath;   // stable path of drag source
@@ -449,6 +454,7 @@ namespace Paper.Rendering.Silk.NET
             var target = HitTest(_reconciler.Root, lx, ly, "", 0, 0f, 0f, p => _scrollOffsets.TryGetValue(p, out var v) ? v : (0f, 0f));
             _pressed = target;
             _pressedPath = target != null ? GetPathString(target) : null;
+            if (button == MouseButton.Left) _pointerDownFiber = target;
 
             // Track potential drag source — walk up from target to find element with OnDragStart
             // (clicks often land on a child text node, not the draggable container itself).
@@ -556,6 +562,20 @@ namespace Paper.Rendering.Silk.NET
                 _dragSourcePath = null;
                 _dragActive = false;
             }
+
+            // If the mouse was released somewhere other than the originally-pressed fiber,
+            // dispatch PointerUp to that fiber too so handlers like OnTrackUp always fire.
+            if (button == MouseButton.Left && _pointerDownFiber != null && !ReferenceEquals(_pointerDownFiber, target))
+            {
+                DispatchPointer(_pointerDownFiber, new PointerEvent
+                {
+                    Type = PointerEventType.Up,
+                    X = lx,
+                    Y = ly,
+                    Button = 0,
+                });
+            }
+            if (button == MouseButton.Left) _pointerDownFiber = null;
 
             DispatchPointer(target, new PointerEvent
             {
@@ -820,7 +840,17 @@ namespace Paper.Rendering.Silk.NET
                 MarkDirty(); // hover state affects :hover styles
             }
 
-            if (target != null)
+            // If a button is held, route moves to the originally-pressed fiber so elements
+            // like sliders keep responding even when the cursor leaves their bounds.
+            if (mouse.IsButtonPressed(MouseButton.Left) && _pointerDownFiber != null)
+            {
+                var lb = _pointerDownFiber.Layout;
+                var capturedEvt = new PointerEvent { Type = PointerEventType.Move, X = lx, Y = ly, Button = 0 };
+                capturedEvt.LocalX = lx - lb.AbsoluteX;
+                capturedEvt.LocalY = ly - lb.AbsoluteY;
+                DispatchPointer(_pointerDownFiber, capturedEvt);
+            }
+            else if (target != null)
             {
                 DispatchPointer(target, new PointerEvent { Type = PointerEventType.Move, X = lx, Y = ly, Button = -1 });
             }
