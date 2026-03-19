@@ -121,7 +121,7 @@ namespace Paper.CSX.LanguageServer
                 return MkHover($"**{word}** — {cssDoc}");
 
             // Roslyn semantic hover — resolve type/symbol for any C# identifier
-            var roslynHover = RoslynHover.GetHover(src, word);
+            var roslynHover = RoslynHover.GetHover(src, word, line, ch);
             if (roslynHover != null) return roslynHover;
 
             return null;

@@ -108,7 +108,7 @@
     }
   },
   "activationEvents": [
-    "onLanguage:csharp",
+    "onLanguage:csx",
     "workspaceContains:**/*.csx"
   ],
   "main": "./out/extension.js",

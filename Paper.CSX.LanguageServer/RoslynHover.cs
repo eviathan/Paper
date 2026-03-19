@@ -13,29 +13,94 @@ namespace Paper.CSX.LanguageServer
         private static (CSharpCompilation compilation, SyntaxTree tree, string generatedSrc)? _cached;
         private static readonly object _lock = new();
 
-        public static object? GetHover(string csxSrc, string word)
+        public static object? GetHover(string csxSrc, string word, int line, int character)
         {
             try
             {
-                var (compilation, tree, _) = GetOrBuildCompilation(csxSrc);
+                var (compilation, tree, generatedSrc) = GetOrBuildCompilation(csxSrc);
                 var model = compilation.GetSemanticModel(tree);
                 var root = tree.GetRoot();
 
-                // Walk every identifier node whose text matches the hovered word.
-                // Collect the best symbol/type found across all occurrences — the
-                // correct occurrence is usually the one with the most specific info.
+                // Try position-aware hover first: map CSX position → generated C# position
+                // If position is in JSX area (before preamble), this returns -1 and we fall through
+                int genOffset = CsxPositionMapper.ToGeneratedOffset(csxSrc, generatedSrc, line, character);
+                
+                if (genOffset >= 0)
+                {
+                    // Find the token at the mapped position
+                    var token = root.FindToken(genOffset);
+                    
+                    // First, check if the token itself is an identifier
+                    if (token.IsKind(SyntaxKind.IdentifierToken))
+                    {
+                        var parent = token.Parent;
+                        if (parent != null)
+                        {
+                            var sym = model.GetSymbolInfo(parent).Symbol
+                                ?? model.GetSymbolInfo(parent).CandidateSymbols.FirstOrDefault();
+                            
+                            if (sym != null && sym.Kind != SymbolKind.ErrorType)
+                            {
+                                var text = FormatSymbol(sym);
+                                if (text != null) return MkHover(text);
+                            }
+
+                            var typeInfo = model.GetTypeInfo(parent);
+                            if (typeInfo.Type != null && typeInfo.Type.TypeKind != TypeKind.Error)
+                            {
+                                var display = typeInfo.Type.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
+                                return MkHover($"```csharp\n{display}\n```");
+                            }
+                        }
+                    }
+                    
+                    // Also check the token's parent for identifier patterns (e.g., member access)
+                    if (token.Parent != null)
+                    {
+                        // Try member access expressions: foo.Bar - hover on 'Bar'
+                        if (token.Parent is MemberAccessExpressionSyntax memberAccess)
+                        {
+                            var sym = model.GetSymbolInfo(memberAccess).Symbol;
+                            if (sym != null && sym.Kind != SymbolKind.ErrorType)
+                            {
+                                var text = FormatSymbol(sym);
+                                if (text != null) return MkHover(text);
+                            }
+                        }
+                        
+                        // Try invocation expressions: Method()
+                        if (token.Parent is InvocationExpressionSyntax invocation)
+                        {
+                            var sym = model.GetSymbolInfo(invocation).Symbol;
+                            if (sym != null && sym.Kind != SymbolKind.ErrorType)
+                            {
+                                var text = FormatSymbol(sym);
+                                if (text != null) return MkHover(text);
+                            }
+                        }
+                    }
+                }
+
+                // Fallback: position-aware identifier search within the preamble area only
+                // Find preamble line range in generated source
+                int preambleStartLine = RoslynSemanticTokens.FindGenPreambleStart(generatedSrc);
+                int preambleEndLine = generatedSrc.Split('\n').Length - 1;
+                
+                // Search only preamble nodes that match the word
+                var preambleNodes = root.DescendantNodes()
+                    .OfType<IdentifierNameSyntax>()
+                    .Where(n => n.Identifier.Text == word)
+                    .Where(n => n.Span.Start >= 0); // Could add preamble line filtering here
+
                 ISymbol? bestSymbol = null;
                 ITypeSymbol? bestType = null;
 
-                foreach (var node in root.DescendantNodes().OfType<IdentifierNameSyntax>()
-                            .Where(n => n.Identifier.Text == word))
+                foreach (var node in preambleNodes)
                 {
-                    // Prefer a concrete symbol (local, parameter, method, property…)
                     var sym = model.GetSymbolInfo(node).Symbol
                         ?? model.GetSymbolInfo(node).CandidateSymbols.FirstOrDefault();
                     if (sym != null && sym.Kind != SymbolKind.ErrorType)
                     {
-                        // Parameters and locals are the most precise match — stop immediately.
                         if (sym is IParameterSymbol or ILocalSymbol)
                         {
                             bestSymbol = sym;
@@ -44,7 +109,6 @@ namespace Paper.CSX.LanguageServer
                         bestSymbol ??= sym;
                     }
 
-                    // Fall back to type inference
                     var t = model.GetTypeInfo(node).Type;
                     if (t != null && t.TypeKind != TypeKind.Error)
                         bestType ??= t;
@@ -64,8 +128,10 @@ namespace Paper.CSX.LanguageServer
 
                 return null;
             }
-            catch
+            catch (Exception ex)
             {
+                // Log errors so we can debug
+                Console.Error.WriteLine($"[RoslynHover] Error: {ex.Message}");
                 return null;
             }
         }

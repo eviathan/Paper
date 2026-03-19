@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Formatting;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.Text;
 using Paper.CSX;
 
 namespace Paper.CSX.LanguageServer
@@ -16,7 +17,8 @@ namespace Paper.CSX.LanguageServer
                 
                 var workspace = new AdhocWorkspace();
                 var project = workspace.AddProject("temp", LanguageNames.CSharp);
-                var document = workspace.AddDocument(project.Id, "temp.csx", csxSrc);
+                var sourceText = SourceText.From(csxSrc);
+                var document = workspace.AddDocument(project.Id, "temp.csx", sourceText);
                 
                 var formattedDoc = Formatter.FormatAsync(document).GetAwaiter().GetResult();
                 var formattedSrc = formattedDoc.GetTextAsync().GetAwaiter().GetResult().ToString();

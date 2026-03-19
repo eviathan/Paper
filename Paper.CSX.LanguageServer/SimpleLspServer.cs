@@ -131,8 +131,16 @@ namespace Paper.CSX.LanguageServer
                             int line = position.GetProperty("line").GetInt32();
                             int character = position.GetProperty("character").GetInt32();
 
+                            Log($"Completion request: {Path.GetFileName(uri)}:{line}:{character}");
                             _docs.TryGetValue(uri, out var src);
-                            var items = Completions.Compute(src ?? "", line, character, uri);
+                            if (src == null)
+                            {
+                                Log($"  -> No document found for {uri}");
+                                await ReplyAsync(id, new { isIncomplete = false, items = Array.Empty<object>() });
+                                break;
+                            }
+                            var items = Completions.Compute(src, line, character, uri);
+                            Log($"  -> Returning {items.Length} items");
                             await ReplyAsync(id, new { isIncomplete = false, items });
                             break;
                         }
@@ -146,8 +154,16 @@ namespace Paper.CSX.LanguageServer
                             int line = position.GetProperty("line").GetInt32();
                             int character = position.GetProperty("character").GetInt32();
 
+                            Log($"Hover request: {Path.GetFileName(uri)}:{line}:{character}");
                             _docs.TryGetValue(uri, out var src);
-                            var hover = Hover.Compute(src ?? "", line, character);
+                            if (src == null)
+                            {
+                                Log($"  -> No document found for {uri}");
+                                await ReplyAsync(id, (object?)null);
+                                break;
+                            }
+                            var hover = Hover.Compute(src, line, character);
+                            Log($"  -> Hover result: {(hover != null ? "has content" : "null")}");
                             await ReplyAsync(id, hover);
                             break;
                         }

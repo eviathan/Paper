@@ -23,13 +23,21 @@ namespace Paper.CSX.LanguageServer
                 var model = compilation.GetSemanticModel(tree);
 
                 var genOffset = CsxPositionMapper.ToGeneratedOffset(csxSrc, generatedSrc, csxLine, csxCol);
+                
+                // If position is not in preamble (JSX area), don't offer C# completions
+                if (genOffset < 0)
+                {
+                    return [];
+                }
+
                 genOffset = Math.Clamp(genOffset, 0, generatedSrc.Length);
 
                 var symbols = model.LookupSymbols(genOffset);
                 return FormatSymbols(symbols);
             }
-            catch
+            catch (Exception ex)
             {
+                Console.Error.WriteLine($"[RoslynCompletions] Error: {ex.Message}");
                 return [];
             }
         }

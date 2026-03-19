@@ -172,18 +172,15 @@ function ensureCsxLanguageAssociation() {
             assoc['*.csx'] = 'csx';
             changed = true;
         }
-        if (assoc['*.generated.cs'] !== 'csx') {
-            assoc['*.generated.cs'] = 'csx';
-            changed = true;
-        }
+        // Don't associate .generated.cs with csx - that causes the LSP to try to handle
+        // C# files which breaks hover/completion for real .csx files
         if (changed) {
             config.update('files.associations', assoc, vscode.ConfigurationTarget.Workspace);
         }
-        // Also exclude .csx and .generated.cs from C# analyzer via OmniSharp settings
+        // Also exclude .csx from C# analyzer via OmniSharp settings
         const csharpExcludes = config.get('csharp.excludeFilesFromRegistration') ?? {};
         const excludeChanged = [
-            '**/*.csx',
-            '**/*.generated.cs'
+            '**/*.csx'
         ].reduce((acc, pattern) => {
             if (!csharpExcludes[pattern]) {
                 csharpExcludes[pattern] = true;
@@ -217,9 +214,19 @@ function activate(context) {
     // ── CSSS completions (in-process, no separate server needed) ─────────────
     context.subscriptions.push(vscode.languages.registerCompletionItemProvider({ scheme: 'file', language: 'csss' }, new CSSSCompletionProvider(), '$', '.', '#', ':', ' ', '\n'));
     // ── CSX element completions ────────────────────────────────────────────────
-    context.subscriptions.push(vscode.languages.registerCompletionItemProvider({ scheme: 'file', language: 'csx' }, new CSXCompletionProvider(), '<'));
+    context.subscriptions.push(vscode.languages.registerCompletionItemProvider({ scheme: 'file', language: 'csx' }, {
+        provideCompletionItems(document, position, token) {
+            console.log('[CSX Extension] Completion requested at', position.line, position.character);
+            return new CSXCompletionProvider().provideCompletionItems(document, position);
+        }
+    }, '<'));
     // ── CSX hover for element names ─────────────────────────────────────────
-    context.subscriptions.push(vscode.languages.registerHoverProvider({ scheme: 'file', language: 'csx' }, new CSXHoverProvider()));
+    context.subscriptions.push(vscode.languages.registerHoverProvider({ scheme: 'file', language: 'csx' }, {
+        provideHover(document, position, token) {
+            console.log('[CSX Extension] Hover requested at', position.line, position.character);
+            return new CSXHoverProvider().provideHover(document, position);
+        }
+    }));
     // ── CSSS hover ────────────────────────────────────────────────────────────
     context.subscriptions.push(vscode.languages.registerHoverProvider({ scheme: 'file', language: 'csss' }, new CSSSHoverProvider()));
     // ── CSSS go-to-definition (for $variables) ────────────────────────────────
@@ -666,6 +673,7 @@ function tryStartLanguageServer(context, fromFilePath) {
             // full documentation (XML docs, overloads, type signatures).
             // Falls back to our custom LSP hover for JSX-specific positions.
             async provideHover(document, position, token, next) {
+                console.log('[CSX Middleware] provideHover called, calling next()');
                 // For Paper elements (Box, Text, etc.) go straight to LSP — it has element docs.
                 // For everything else forward to the generated .cs for C# type info.
                 const wordRange = document.getWordRangeAtPosition(position);
@@ -679,7 +687,9 @@ function tryStartLanguageServer(context, fromFilePath) {
                     }
                     catch { /* generated.cs not in project — fall through to LSP */ }
                 }
-                return next(document, position, token);
+                const result = await next(document, position, token);
+                console.log('[CSX Middleware] next() returned', result ? 'hover' : 'null');
+                return result;
             },
             // Forward go-to-definition to generated.cs (maps result back to .csx)
             async provideDefinition(document, position, token, next) {
@@ -702,7 +712,11 @@ function tryStartLanguageServer(context, fromFilePath) {
                 return next(document, position, context, token);
             },
             async provideCompletionItem(document, position, context, token, next) {
-                return next(document, position, context, token);
+                console.log('[CSX Middleware] provideCompletionItem called');
+                const result = await next(document, position, context, token);
+                const count = result && 'items' in result ? result.items?.length : (Array.isArray(result) ? result.length : 0);
+                console.log('[CSX Middleware] completion result:', result ? `${count} items` : 'null');
+                return result;
             },
         },
     };
