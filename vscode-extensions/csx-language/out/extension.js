@@ -220,13 +220,8 @@ function activate(context) {
             return new CSXCompletionProvider().provideCompletionItems(document, position);
         }
     }, '<'));
-    // ── CSX hover for element names ─────────────────────────────────────────
-    context.subscriptions.push(vscode.languages.registerHoverProvider({ scheme: 'file', language: 'csx' }, {
-        provideHover(document, position, token) {
-            console.log('[CSX Extension] Hover requested at', position.line, position.character);
-            return new CSXHoverProvider().provideHover(document, position);
-        }
-    }));
+    // CSX hover is handled entirely by the LSP server (Hover.cs / RoslynHover.cs).
+    // No separate registerHoverProvider here — that would cause duplicate hover popups.
     // ── CSSS hover ────────────────────────────────────────────────────────────
     context.subscriptions.push(vscode.languages.registerHoverProvider({ scheme: 'file', language: 'csss' }, new CSSSHoverProvider()));
     // ── CSSS go-to-definition (for $variables) ────────────────────────────────
@@ -241,6 +236,37 @@ function activate(context) {
     context.subscriptions.push(vscode.workspace.onDidOpenTextDocument(updateCSSSDiags), vscode.workspace.onDidChangeTextDocument(e => updateCSSSDiags(e.document)), vscode.workspace.onDidCloseTextDocument(doc => csssCollection.delete(doc.uri)));
     // Seed diagnostics for already-open CSSS files
     vscode.workspace.textDocuments.forEach(updateCSSSDiags);
+    // ── CSSS color provider ────────────────────────────────────────────────────
+    context.subscriptions.push(vscode.languages.registerColorProvider({ scheme: 'file', language: 'csss' }, {
+        provideDocumentColors(document) {
+            return parseCsssColors(document);
+        },
+        provideColorPresentations(color, ctx) {
+            const hex = colorToHex(color);
+            const presentations = [
+                new vscode.ColorPresentation(hex),
+            ];
+            // Also offer rgb/rgba form
+            const r = Math.round(color.red * 255);
+            const g = Math.round(color.green * 255);
+            const b = Math.round(color.blue * 255);
+            if (color.alpha < 1) {
+                presentations.push(new vscode.ColorPresentation(`rgba(${r}, ${g}, ${b}, ${color.alpha.toFixed(2)})`));
+            }
+            else {
+                presentations.push(new vscode.ColorPresentation(`rgb(${r}, ${g}, ${b})`));
+            }
+            return presentations;
+        },
+    }));
+    // ── CSSS formatter ────────────────────────────────────────────────────────
+    context.subscriptions.push(vscode.languages.registerDocumentFormattingEditProvider({ scheme: 'file', language: 'csss' }, {
+        provideDocumentFormattingEdits(document, options) {
+            const formatted = formatCsss(document.getText(), options.tabSize, options.insertSpaces);
+            const fullRange = new vscode.Range(document.positionAt(0), document.positionAt(document.getText().length));
+            return [new vscode.TextEdit(fullRange, formatted)];
+        },
+    }));
     // ── CSX compile commands ──────────────────────────────────────────────────
     context.subscriptions.push(vscode.commands.registerCommand('csx.compile', async () => {
         const editor = vscode.window.activeTextEditor;
@@ -464,13 +490,17 @@ class CSXHoverProvider {
         if (!wordRange)
             return null;
         const word = document.getText(wordRange);
-        if (PAPER_ELEMENTS.includes(word)) {
-            const md = new vscode.MarkdownString();
-            md.appendCodeblock(word, 'tsx');
-            md.appendText(PAPER_ELEMENT_INFO[word] || 'Paper element');
-            return new vscode.Hover(md, wordRange);
-        }
-        return null;
+        if (!PAPER_ELEMENTS.includes(word))
+            return null;
+        // Only show Paper element docs when the word is used as a JSX tag (<List, </List).
+        // In C# type context (List<string>, etc.) the C# extension hover is correct.
+        const before = document.lineAt(position).text.slice(0, wordRange.start.character);
+        if (!/<\/?$/.test(before.trimEnd()))
+            return null;
+        const md = new vscode.MarkdownString();
+        md.appendCodeblock(word, 'tsx');
+        md.appendText(PAPER_ELEMENT_INFO[word] || 'Paper element');
+        return new vscode.Hover(md, wordRange);
     }
 }
 // ── CSSS diagnostics ──────────────────────────────────────────────────────────
@@ -521,137 +551,98 @@ function updateCSSSDiagnostics(doc, collection) {
     }
     collection.set(doc.uri, diagnostics);
 }
-// ── Generated-C# forwarding ───────────────────────────────────────────────────
-// Maps a CSX (line, character) position to the corresponding position in the
-// co-located .generated.cs file by dynamically scanning both files for their
-// respective preamble start lines.
-const PREAMBLE_COL_OFFSET = 8;
-/** Find the first line of the preamble (method body) in a generated .cs file. */
-function findGenPreambleStart(genLines) {
-    for (let i = 0; i < genLines.length; i++) {
-        if (/^\s*public static UINode\s/.test(genLines[i])) {
-            for (let j = i + 1; j < genLines.length; j++) {
-                if (genLines[j].trim() === '{')
-                    return j + 1;
-            }
+// ── CSSS color provider ────────────────────────────────────────────────────────
+/** Parses all color values in a CSSS document for the color picker API. */
+function parseCsssColors(document) {
+    const text = document.getText();
+    const result = [];
+    // hex colors: #rgb, #rgba, #rrggbb, #rrggbbaa
+    const hexRe = /#([0-9a-fA-F]{3,8})\b/g;
+    let m;
+    while ((m = hexRe.exec(text)) !== null) {
+        const hex = m[1];
+        let r, g, b, a = 1;
+        if (hex.length === 3 || hex.length === 4) {
+            r = parseInt(hex[0] + hex[0], 16) / 255;
+            g = parseInt(hex[1] + hex[1], 16) / 255;
+            b = parseInt(hex[2] + hex[2], 16) / 255;
+            if (hex.length === 4)
+                a = parseInt(hex[3] + hex[3], 16) / 255;
         }
+        else if (hex.length === 6 || hex.length === 8) {
+            r = parseInt(hex.slice(0, 2), 16) / 255;
+            g = parseInt(hex.slice(2, 4), 16) / 255;
+            b = parseInt(hex.slice(4, 6), 16) / 255;
+            if (hex.length === 8)
+                a = parseInt(hex.slice(6, 8), 16) / 255;
+        }
+        else
+            continue;
+        const pos = document.positionAt(m.index);
+        const endPos = document.positionAt(m.index + m[0].length);
+        result.push(new vscode.ColorInformation(new vscode.Range(pos, endPos), new vscode.Color(r, g, b, a)));
     }
-    return 10; // safe fallback
-}
-/** Find the first preamble line in the CSX source (line after function declaration). */
-function findCsxPreambleStart(lines) {
-    let i = 0;
-    while (i < lines.length && lines[i].trimStart().startsWith('@import'))
-        i++;
-    for (let j = i; j < lines.length; j++) {
-        if (/^\s*function\s+\w/.test(lines[j]))
-            return j + 1;
+    // rgb(r, g, b) and rgba(r, g, b, a)
+    const rgbRe = /rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})(?:\s*,\s*([\d.]+))?\s*\)/g;
+    while ((m = rgbRe.exec(text)) !== null) {
+        const r = parseInt(m[1]) / 255;
+        const g = parseInt(m[2]) / 255;
+        const b = parseInt(m[3]) / 255;
+        const a = m[4] !== undefined ? parseFloat(m[4]) : 1;
+        const pos = document.positionAt(m.index);
+        const endPos = document.positionAt(m.index + m[0].length);
+        result.push(new vscode.ColorInformation(new vscode.Range(pos, endPos), new vscode.Color(r, g, b, a)));
     }
-    return i;
+    return result;
 }
-function mapCsxToGeneratedPos(csxText, genLines, pos) {
-    const csxLines = csxText.split('\n');
-    const csxPreamble = findCsxPreambleStart(csxLines);
-    const genPreamble = findGenPreambleStart(genLines);
-    if (pos.line < csxPreamble)
-        return null; // JSX / import area — not in generated preamble
-    const origLine = pos.line < csxLines.length ? csxLines[pos.line] : '';
-    const leadingWs = origLine.length - origLine.trimStart().length;
-    const genLine = (pos.line - csxPreamble) + genPreamble;
-    const genChar = Math.max(0, pos.character - leadingWs) + PREAMBLE_COL_OFFSET;
-    return new vscode.Position(genLine, genChar);
+function colorToHex(color) {
+    const toHex = (v) => Math.round(v * 255).toString(16).padStart(2, '0');
+    const hex = toHex(color.red) + toHex(color.green) + toHex(color.blue);
+    return color.alpha < 1 ? '#' + hex + toHex(color.alpha) : '#' + hex;
 }
-async function forwardHoverToGeneratedCs(document, position) {
-    const genPath = document.uri.fsPath.replace(/\.csx$/, '.generated.cs');
-    if (!fs.existsSync(genPath))
-        return null;
-    const genText = fs.readFileSync(genPath, 'utf-8');
-    const genLines = genText.split('\n');
-    const genPos = mapCsxToGeneratedPos(document.getText(), genLines, position);
-    if (!genPos)
-        return null;
-    const genUri = vscode.Uri.file(genPath);
-    const hovers = await vscode.commands.executeCommand('vscode.executeHoverProvider', genUri, genPos);
-    return hovers && hovers.length > 0 ? hovers[0] : null;
-}
-async function forwardCompletionsToGeneratedCs(document, position, triggerChar) {
-    const genPath = document.uri.fsPath.replace(/\.csx$/, '.generated.cs');
-    if (!fs.existsSync(genPath))
-        return null;
-    const genText = fs.readFileSync(genPath, 'utf-8');
-    const genLines = genText.split('\n');
-    const genPos = mapCsxToGeneratedPos(document.getText(), genLines, position);
-    if (!genPos)
-        return null;
-    const genUri = vscode.Uri.file(genPath);
-    const list = await vscode.commands.executeCommand('vscode.executeCompletionItemProvider', genUri, genPos, triggerChar);
-    return list && list.items.length > 0 ? list : null;
-}
-/** Map a position in the generated .cs file back to its original .csx position. */
-function mapGeneratedToCsxPos(genText, csxText, genPos) {
-    const genLines = genText.split('\n');
-    const csxLines = csxText.split('\n');
-    const genPreamble = findGenPreambleStart(genLines);
-    const csxPreamble = findCsxPreambleStart(csxLines);
-    if (genPos.line < genPreamble)
-        return null;
-    const csxLine = (genPos.line - genPreamble) + csxPreamble;
-    if (csxLine >= csxLines.length)
-        return null;
-    const origLine = csxLines[csxLine] || '';
-    const leadingWs = origLine.length - origLine.trimStart().length;
-    const csxChar = Math.max(0, genPos.character - PREAMBLE_COL_OFFSET) + leadingWs;
-    return new vscode.Position(csxLine, csxChar);
-}
-async function forwardDefinitionToGeneratedCs(document, position) {
-    const genPath = document.uri.fsPath.replace(/\.csx$/, '.generated.cs');
-    if (!fs.existsSync(genPath))
-        return null;
-    const genText = fs.readFileSync(genPath, 'utf-8');
-    const genLines = genText.split('\n');
-    const genPos = mapCsxToGeneratedPos(document.getText(), genLines, position);
-    if (!genPos)
-        return null;
-    const genUri = vscode.Uri.file(genPath);
-    const locs = await vscode.commands.executeCommand('vscode.executeDefinitionProvider', genUri, genPos);
-    if (!locs || locs.length === 0)
-        return null;
-    const csxText = document.getText();
-    return locs.map(loc => {
-        if (loc.uri.fsPath === genPath) {
-            const mappedStart = mapGeneratedToCsxPos(genText, csxText, loc.range.start);
-            if (mappedStart) {
-                const mappedEnd = mapGeneratedToCsxPos(genText, csxText, loc.range.end) ?? mappedStart;
-                return new vscode.Location(document.uri, new vscode.Range(mappedStart, mappedEnd));
-            }
+// ── CSSS formatter ─────────────────────────────────────────────────────────────
+/** Simple CSSS formatter: normalises indentation and spacing. */
+function formatCsss(text, tabSize, insertSpaces) {
+    const indent = insertSpaces ? ' '.repeat(tabSize) : '\t';
+    const lines = text.split('\n');
+    const out = [];
+    let depth = 0;
+    for (let i = 0; i < lines.length; i++) {
+        const raw = lines[i].trim();
+        if (raw === '') {
+            out.push('');
+            continue;
         }
-        return loc;
-    });
-}
-async function forwardReferencesToGeneratedCs(document, position) {
-    const genPath = document.uri.fsPath.replace(/\.csx$/, '.generated.cs');
-    if (!fs.existsSync(genPath))
-        return null;
-    const genText = fs.readFileSync(genPath, 'utf-8');
-    const genLines = genText.split('\n');
-    const genPos = mapCsxToGeneratedPos(document.getText(), genLines, position);
-    if (!genPos)
-        return null;
-    const genUri = vscode.Uri.file(genPath);
-    const locs = await vscode.commands.executeCommand('vscode.executeReferenceProvider', genUri, genPos);
-    if (!locs || locs.length === 0)
-        return null;
-    const csxText = document.getText();
-    return locs.map(loc => {
-        if (loc.uri.fsPath === genPath) {
-            const mappedStart = mapGeneratedToCsxPos(genText, csxText, loc.range.start);
-            if (mappedStart) {
-                const mappedEnd = mapGeneratedToCsxPos(genText, csxText, loc.range.end) ?? mappedStart;
-                return new vscode.Location(document.uri, new vscode.Range(mappedStart, mappedEnd));
-            }
+        // Comment lines — preserve as-is with current indent
+        if (raw.startsWith('//') || raw.startsWith('/*') || raw.startsWith('*')) {
+            out.push(indent.repeat(depth) + raw);
+            continue;
         }
-        return loc;
-    });
+        // Opening brace at end of selector line
+        if (raw.endsWith('{')) {
+            out.push(indent.repeat(depth) + raw);
+            depth++;
+            continue;
+        }
+        // Closing brace
+        if (raw === '}') {
+            depth = Math.max(0, depth - 1);
+            out.push(indent.repeat(depth) + '}');
+            continue;
+        }
+        // Declaration: ensure single space after `:` and `;` at end
+        if (depth > 0 && raw.includes(':') && !raw.startsWith('//') && !raw.startsWith('@')) {
+            const colonIdx = raw.indexOf(':');
+            const prop = raw.slice(0, colonIdx).trim();
+            let val = raw.slice(colonIdx + 1).trim();
+            if (!val.endsWith(';') && !val.endsWith('{') && !val.endsWith('}'))
+                val += ';';
+            out.push(indent.repeat(depth) + prop + ': ' + val);
+            continue;
+        }
+        out.push(indent.repeat(depth) + raw);
+    }
+    return out.join('\n');
 }
 // ── LSP startup ───────────────────────────────────────────────────────────────
 function tryStartLanguageServer(context, fromFilePath) {
@@ -668,57 +659,6 @@ function tryStartLanguageServer(context, fromFilePath) {
     const clientOptions = {
         documentSelector: [{ scheme: 'file', language: 'csx' }],
         synchronize: { fileEvents: vscode.workspace.createFileSystemWatcher('**/*.csx') },
-        middleware: {
-            // Forward hover to the generated .cs file so the C# extension provides
-            // full documentation (XML docs, overloads, type signatures).
-            // Falls back to our custom LSP hover for JSX-specific positions.
-            async provideHover(document, position, token, next) {
-                console.log('[CSX Middleware] provideHover called, calling next()');
-                // For Paper elements (Box, Text, etc.) go straight to LSP — it has element docs.
-                // For everything else forward to the generated .cs for C# type info.
-                const wordRange = document.getWordRangeAtPosition(position);
-                const word = wordRange ? document.getText(wordRange) : '';
-                const isPaperElement = PAPER_ELEMENTS.includes(word);
-                if (!isPaperElement) {
-                    try {
-                        const csHover = await forwardHoverToGeneratedCs(document, position);
-                        if (csHover)
-                            return csHover;
-                    }
-                    catch { /* generated.cs not in project — fall through to LSP */ }
-                }
-                const result = await next(document, position, token);
-                console.log('[CSX Middleware] next() returned', result ? 'hover' : 'null');
-                return result;
-            },
-            // Forward go-to-definition to generated.cs (maps result back to .csx)
-            async provideDefinition(document, position, token, next) {
-                try {
-                    const locs = await forwardDefinitionToGeneratedCs(document, position);
-                    if (locs && locs.length > 0)
-                        return locs;
-                }
-                catch { /* fall through */ }
-                return next(document, position, token);
-            },
-            // Forward find-references to generated.cs (maps results back to .csx)
-            async provideReferences(document, position, context, token, next) {
-                try {
-                    const locs = await forwardReferencesToGeneratedCs(document, position);
-                    if (locs && locs.length > 0)
-                        return locs;
-                }
-                catch { /* fall through */ }
-                return next(document, position, context, token);
-            },
-            async provideCompletionItem(document, position, context, token, next) {
-                console.log('[CSX Middleware] provideCompletionItem called');
-                const result = await next(document, position, context, token);
-                const count = result && 'items' in result ? result.items?.length : (Array.isArray(result) ? result.length : 0);
-                console.log('[CSX Middleware] completion result:', result ? `${count} items` : 'null');
-                return result;
-            },
-        },
     };
     client = new node_1.LanguageClient('paperCSXLanguageServer', 'Paper CSX Language Server', serverOptions, clientOptions);
     context.subscriptions.push(client);

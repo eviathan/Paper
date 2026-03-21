@@ -61,31 +61,44 @@ namespace Paper.CSX.LanguageServer
         }
 
         /// <summary>
-        /// Returns the 0-indexed line in <paramref name="csxSrc"/> where the preamble content begins
-        /// (i.e. first line inside the entry function body, after @import lines and the function-decl line).
+        /// Returns the 0-indexed line in <paramref name="csxSrc"/> where the preamble content begins.
+        ///
+        /// Two cases:
+        /// <list type="bullet">
+        /// <item><b>Simple</b> — all code is inside a single entry function (e.g. App.csx):
+        ///   preamble starts on the line after the function declaration.</item>
+        /// <item><b>Complex</b> — module-level declarations appear before the first
+        ///   <c>function</c> keyword (e.g. DemoApp.csx): preamble starts at the first
+        ///   non-@import, non-blank line because the entire CSX body is flattened into
+        ///   the generated method.</item>
+        /// </list>
         /// </summary>
         public static int FindPreambleStartLine(string csxSrc)
         {
             var lines = csxSrc.Split('\n');
             int i = 0;
 
-            // Skip @import lines at the top (both .csx and .csss imports)
+            // Skip @import lines at the top
             while (i < lines.Length && lines[i].TrimStart().StartsWith("@import", StringComparison.OrdinalIgnoreCase))
                 i++;
 
-            // Scan forward past blank lines to find the entry function declaration
-            int functionDeclLine = -1;
+            // Check for module-level code (non-blank, non-function) before the first function
             for (int j = i; j < lines.Length; j++)
             {
-                if (Regex.IsMatch(lines[j].Trim(), @"^function\s+\w"))
-                {
-                    functionDeclLine = j;
-                    break;
-                }
+                var trimmed = lines[j].Trim();
+                if (trimmed.Length == 0) continue;
+                if (Regex.IsMatch(trimmed, @"^UINode(?:<[^>]*>)?\s+\w")) break; // no module-level code found
+                return j;                                             // complex: preamble starts here
             }
 
-            // Preamble starts on the line AFTER the function declaration
-            return functionDeclLine >= 0 ? functionDeclLine + 1 : i;
+            // Simple: preamble starts on the line after the entry function declaration
+            for (int j = i; j < lines.Length; j++)
+            {
+                if (Regex.IsMatch(lines[j].Trim(), @"^UINode\s+\w"))
+                    return j + 1;
+            }
+
+            return i;
         }
 
         private static int LineColToOffset(string src, int targetLine, int targetCol)

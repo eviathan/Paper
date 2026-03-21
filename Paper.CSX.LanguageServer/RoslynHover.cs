@@ -13,7 +13,7 @@ namespace Paper.CSX.LanguageServer
         private static (CSharpCompilation compilation, SyntaxTree tree, string generatedSrc)? _cached;
         private static readonly object _lock = new();
 
-        public static object? GetHover(string csxSrc, string word, int line, int character)
+        public static object? GetHover(string csxSrc, int line, int character)
         {
             try
             {
@@ -27,103 +27,52 @@ namespace Paper.CSX.LanguageServer
                 
                 if (genOffset >= 0)
                 {
-                    // Find the token at the mapped position
                     var token = root.FindToken(genOffset);
-                    
-                    // First, check if the token itself is an identifier
-                    if (token.IsKind(SyntaxKind.IdentifierToken))
+
+                    // Walk up the syntax tree from the token, trying each ancestor for symbol/type info.
+                    // This handles identifiers, predefined-type keywords (string/int/bool),
+                    // collection expressions ([]), new expressions, member access, invocations, etc.
+                    // — anything Roslyn's semantic model can resolve at that position.
+                    for (SyntaxNode? node = token.Parent; node != null; node = node.Parent)
                     {
-                        var parent = token.Parent;
-                        if (parent != null)
-                        {
-                            var sym = model.GetSymbolInfo(parent).Symbol
-                                ?? model.GetSymbolInfo(parent).CandidateSymbols.FirstOrDefault();
-                            
-                            if (sym != null && sym.Kind != SymbolKind.ErrorType)
-                            {
-                                var text = FormatSymbol(sym);
-                                if (text != null) return MkHover(text);
-                            }
-
-                            var typeInfo = model.GetTypeInfo(parent);
-                            if (typeInfo.Type != null && typeInfo.Type.TypeKind != TypeKind.Error)
-                            {
-                                var display = typeInfo.Type.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
-                                return MkHover($"```csharp\n{display}\n```");
-                            }
-                        }
-                    }
-                    
-                    // Also check the token's parent for identifier patterns (e.g., member access)
-                    if (token.Parent != null)
-                    {
-                        // Try member access expressions: foo.Bar - hover on 'Bar'
-                        if (token.Parent is MemberAccessExpressionSyntax memberAccess)
-                        {
-                            var sym = model.GetSymbolInfo(memberAccess).Symbol;
-                            if (sym != null && sym.Kind != SymbolKind.ErrorType)
-                            {
-                                var text = FormatSymbol(sym);
-                                if (text != null) return MkHover(text);
-                            }
-                        }
-                        
-                        // Try invocation expressions: Method()
-                        if (token.Parent is InvocationExpressionSyntax invocation)
-                        {
-                            var sym = model.GetSymbolInfo(invocation).Symbol;
-                            if (sym != null && sym.Kind != SymbolKind.ErrorType)
-                            {
-                                var text = FormatSymbol(sym);
-                                if (text != null) return MkHover(text);
-                            }
-                        }
-                    }
-                }
-
-                // Fallback: position-aware identifier search within the preamble area only
-                // Find preamble line range in generated source
-                int preambleStartLine = RoslynSemanticTokens.FindGenPreambleStart(generatedSrc);
-                int preambleEndLine = generatedSrc.Split('\n').Length - 1;
-                
-                // Search only preamble nodes that match the word
-                var preambleNodes = root.DescendantNodes()
-                    .OfType<IdentifierNameSyntax>()
-                    .Where(n => n.Identifier.Text == word)
-                    .Where(n => n.Span.Start >= 0); // Could add preamble line filtering here
-
-                ISymbol? bestSymbol = null;
-                ITypeSymbol? bestType = null;
-
-                foreach (var node in preambleNodes)
-                {
-                    var sym = model.GetSymbolInfo(node).Symbol
-                        ?? model.GetSymbolInfo(node).CandidateSymbols.FirstOrDefault();
-                    if (sym != null && sym.Kind != SymbolKind.ErrorType)
-                    {
-                        if (sym is IParameterSymbol or ILocalSymbol)
-                        {
-                            bestSymbol = sym;
+                        if (node is MethodDeclarationSyntax or ClassDeclarationSyntax)
                             break;
+
+                        // Declarations: local variables, parameters, local functions
+                        var declaredSym = model.GetDeclaredSymbol(node);
+                        if (declaredSym != null && declaredSym.Kind != SymbolKind.ErrorType)
+                        {
+                            var text = FormatSymbol(declaredSym);
+                            if (text != null) return MkHover(text);
                         }
-                        bestSymbol ??= sym;
+
+                        // Expression and type nodes: resolve via GetSymbolInfo / GetTypeInfo
+                        if (node is ExpressionSyntax or TypeSyntax)
+                        {
+                            var sym = model.GetSymbolInfo(node).Symbol
+                                   ?? model.GetSymbolInfo(node).CandidateSymbols.FirstOrDefault();
+                            if (sym != null && sym.Kind != SymbolKind.ErrorType)
+                            {
+                                var text = FormatSymbol(sym);
+                                if (text != null) return MkHover(text);
+                            }
+
+                            var ti = model.GetTypeInfo(node);
+                            // ConvertedType handles target-typed expressions like [] and new()
+                            var t = ti.Type ?? ti.ConvertedType;
+                            if (t != null && t.TypeKind != TypeKind.Error)
+                            {
+                                if (t is INamedTypeSymbol namedT) return MkHover(FormatNamedType(namedT));
+                                return MkHover($"```csharp\n{t.ToDisplayString(_fmt)}\n```");
+                            }
+                        }
                     }
 
-                    var t = model.GetTypeInfo(node).Type;
-                    if (t != null && t.TypeKind != TypeKind.Error)
-                        bestType ??= t;
-                }
-
-                if (bestSymbol != null)
-                {
-                    var text = FormatSymbol(bestSymbol);
-                    if (text != null) return MkHover(text);
-                }
-
-                if (bestType != null)
-                {
-                    var display = bestType.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
-                    return MkHover($"```csharp\n{display}\n```");
+                    // If genOffset is in the preamble, don't fall through to the word-search fallback
+                    // (it would find identifiers from the JSX return expression instead).
+                    int preambleEndOff = generatedSrc.IndexOf("\n        return ", StringComparison.Ordinal);
+                    if (preambleEndOff < 0 || genOffset < preambleEndOff)
+                        return null;
                 }
 
                 return null;
@@ -226,8 +175,18 @@ public static class _LsHover_
         private static readonly SymbolDisplayFormat _fmt =
             SymbolDisplayFormat.MinimallyQualifiedFormat;
 
+        // Format for fully-qualified names: System.Collections.Generic.List<T>
+        private static readonly SymbolDisplayFormat _fullFmt = new SymbolDisplayFormat(
+            globalNamespaceStyle:    SymbolDisplayGlobalNamespaceStyle.Omitted,
+            typeQualificationStyle:  SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces,
+            genericsOptions:         SymbolDisplayGenericsOptions.IncludeTypeParameters);
+
         private static string? FormatSymbol(ISymbol symbol)
         {
+            // Named types get VS-style display: "class Namespace.TypeName<T>" + docs + type args
+            if (symbol is INamedTypeSymbol namedType)
+                return FormatNamedType(namedType);
+
             var code = symbol switch
             {
                 ILocalSymbol local =>
@@ -285,6 +244,48 @@ public static class _LsHover_
             // Render XML documentation: summary, returns, exceptions
             var xml = symbol.GetDocumentationCommentXml();
             AppendXmlDocs(sb, xml);
+
+            return sb.ToString();
+        }
+
+        /// <summary>
+        /// VS-style hover for named types: keyword + fully-qualified name with original type params,
+        /// followed by XML summary and type-argument bindings (e.g. "T is string").
+        /// </summary>
+        private static string FormatNamedType(INamedTypeSymbol type)
+        {
+            // Use original definition to get unsubstituted type parameters (List<T> not List<string>)
+            var origDef = type.IsGenericType ? type.OriginalDefinition : (INamedTypeSymbol)type;
+
+            var keyword = type.TypeKind switch
+            {
+                TypeKind.Class     => "class",
+                TypeKind.Struct    => "struct",
+                TypeKind.Interface => "interface",
+                TypeKind.Enum      => "enum",
+                TypeKind.Delegate  => "delegate",
+                _                  => "class",
+            };
+
+            var fullName = origDef.ToDisplayString(_fullFmt);  // e.g. System.Collections.Generic.List<T>
+
+            var sb = new System.Text.StringBuilder();
+            sb.Append($"```csharp\n{keyword} {fullName}\n```");
+
+            // XML summary from original definition (has the full docs)
+            var xml = origDef.GetDocumentationCommentXml();
+            AppendXmlDocs(sb, xml);
+
+            // Type-argument bindings: "T is string" (matches C# Dev Kit plain-text style)
+            if (type.IsGenericType && type.TypeArguments.Length > 0)
+            {
+                for (int i = 0; i < type.TypeArguments.Length; i++)
+                {
+                    var paramName = origDef.TypeParameters[i].Name;
+                    var argDisplay = type.TypeArguments[i].ToDisplayString(_fmt);
+                    sb.Append($"\n\n{paramName} is {argDisplay}");
+                }
+            }
 
             return sb.ToString();
         }

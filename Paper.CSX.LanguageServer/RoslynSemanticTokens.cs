@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -104,6 +105,9 @@ namespace Paper.CSX.LanguageServer
                     entries.Add(new TokenEntry(csxLine, csxCol, 2, 12)); // length=2 (=>), type=operator
                 }
 
+                // Extend to JSX {…} expression zones
+                AddJsxInterpolationTokens(csxSrc, model, generatedSrc, entries);
+
                 // LSP requires tokens sorted by position
                 entries.Sort((a, b) => a.Line != b.Line ? a.Line - b.Line : a.Col - b.Col);
                 return Encode(entries);
@@ -113,6 +117,199 @@ namespace Paper.CSX.LanguageServer
                 return [];
             }
         }
+
+        // ── JSX interpolation token classification ────────────────────────────
+
+        private static readonly Regex IdentifierPattern = new(@"\b([A-Za-z_]\w*)\b", RegexOptions.Compiled);
+
+        /// <summary>
+        /// Scans the JSX portion of the CSX source for <c>{…}</c> interpolation zones and emits
+        /// semantic tokens for any identifiers that resolve to in-scope C# symbols.
+        /// </summary>
+        private static void AddJsxInterpolationTokens(
+            string csxSrc,
+            SemanticModel model,
+            string generatedSrc,
+            List<TokenEntry> entries)
+        {
+            // Pre-build the lookup set from the preamble's scope so we avoid repeated model calls.
+            int preambleEndOffset = GetPreambleEndOffset(generatedSrc);
+            if (preambleEndOffset < 0) return;
+
+            var inScopeSymbols = new Dictionary<string, int>(StringComparer.Ordinal);
+            foreach (var sym in model.LookupSymbols(preambleEndOffset))
+            {
+                int? typeIdx = sym switch
+                {
+                    ILocalSymbol     => 10,
+                    IParameterSymbol => 11,
+                    IMethodSymbol { MethodKind: MethodKind.LocalFunction } => 6,
+                    IMethodSymbol    => 7,
+                    IPropertySymbol  => 8,
+                    IFieldSymbol     => 9,
+                    INamedTypeSymbol { TypeKind: TypeKind.Class }     => 1,
+                    INamedTypeSymbol { TypeKind: TypeKind.Struct }    => 2,
+                    INamedTypeSymbol { TypeKind: TypeKind.Interface } => 3,
+                    _                => null,
+                };
+                if (typeIdx.HasValue && !inScopeSymbols.ContainsKey(sym.Name))
+                    inScopeSymbols[sym.Name] = typeIdx.Value;
+            }
+            if (inScopeSymbols.Count == 0) return;
+
+            // Build a set of (line,col) already covered by preamble tokens to avoid duplicates.
+            var covered = new HashSet<(int, int)>(entries.Select(e => (e.Line, e.Col)));
+
+            var csxLines = csxSrc.Split('\n');
+            int jsxStart = FindJsxStartLine(csxLines);
+            if (jsxStart < 0) return;
+
+            // Scan from the return-statement line onwards for {…} zones.
+            foreach (var (zoneLine, zoneCol, zoneText) in ExtractJsxZones(csxLines, jsxStart))
+            {
+                var zoneLines = zoneText.Split('\n');
+                foreach (Match m in IdentifierPattern.Matches(zoneText))
+                {
+                    var name = m.Groups[1].Value;
+                    if (!inScopeSymbols.TryGetValue(name, out int typeIdx)) continue;
+
+                    // Skip keywords and common non-variable identifiers
+                    if (CSharpKeywords.Contains(name)) continue;
+
+                    // Compute absolute (line, col) in the CSX source
+                    int relLine = CountNewlines(zoneText, m.Index);
+                    int relCol  = m.Index - (relLine == 0 ? 0 : zoneText.LastIndexOf('\n', m.Index) + 1);
+                    int absLine = zoneLine + relLine;
+                    int absCol  = relLine == 0 ? zoneCol + relCol : relCol;
+
+                    if (absLine < 0 || absLine >= csxLines.Length) continue;
+                    if (covered.Contains((absLine, absCol))) continue;
+
+                    entries.Add(new TokenEntry(absLine, absCol, name.Length, typeIdx));
+                    covered.Add((absLine, absCol));
+                }
+            }
+        }
+
+        /// <summary>Returns the offset in the generated source at the end of the preamble (just before "return").</summary>
+        private static int GetPreambleEndOffset(string generatedSrc)
+        {
+            int returnIdx = generatedSrc.IndexOf("\n        return ", StringComparison.Ordinal);
+            if (returnIdx < 0) returnIdx = generatedSrc.IndexOf("\nreturn ", StringComparison.Ordinal);
+            return returnIdx > 0 ? returnIdx : -1;
+        }
+
+        /// <summary>Finds the 0-indexed line number in the CSX source where the JSX return statement begins.</summary>
+        private static int FindJsxStartLine(string[] csxLines)
+        {
+            for (int i = 0; i < csxLines.Length; i++)
+            {
+                var trimmed = csxLines[i].TrimStart();
+                if (trimmed.StartsWith("return (", StringComparison.Ordinal) ||
+                    trimmed.StartsWith("return(<",  StringComparison.Ordinal) ||
+                    trimmed.StartsWith("return <",  StringComparison.Ordinal))
+                    return i;
+            }
+            return -1;
+        }
+
+        /// <summary>
+        /// Yields all <c>{…}</c> interpolation zones in the JSX portion of the CSX source.
+        /// Returns (startLine, startCol, zoneText) tuples — the position of the character
+        /// immediately after the opening <c>{</c>, and the text up to the matching <c>}</c>.
+        /// </summary>
+        private static IEnumerable<(int line, int col, string text)> ExtractJsxZones(
+            string[] csxLines, int jsxStartLine)
+        {
+            int depth       = 0;       // brace depth relative to JSX context
+            int zoneStartLn = 0;
+            int zoneStartCl = 0;
+            var zoneBuilder = new System.Text.StringBuilder();
+            bool inZone       = false;
+            bool inSingleQ    = false;
+            bool inDoubleQ    = false;
+            bool inTemplateLit = false;
+
+            for (int ln = jsxStartLine; ln < csxLines.Length; ln++)
+            {
+                var line = csxLines[ln];
+                for (int col = 0; col < line.Length; col++)
+                {
+                    char c = line[col];
+                    char next = col + 1 < line.Length ? line[col + 1] : '\0';
+
+                    // Track string contexts so braces inside strings don't count
+                    if (!inDoubleQ && !inTemplateLit && c == '\'' && (col == 0 || line[col - 1] != '\\'))
+                    { inSingleQ = !inSingleQ; }
+                    else if (!inSingleQ && !inTemplateLit && c == '"' && (col == 0 || line[col - 1] != '\\'))
+                    { inDoubleQ = !inDoubleQ; }
+                    else if (!inSingleQ && !inDoubleQ && c == '`' && (col == 0 || line[col - 1] != '\\'))
+                    { inTemplateLit = !inTemplateLit; }
+
+                    if (inSingleQ || inDoubleQ || inTemplateLit)
+                    {
+                        if (inZone) zoneBuilder.Append(c);
+                        continue;
+                    }
+
+                    if (c == '{')
+                    {
+                        if (depth == 0)
+                        {
+                            // Opening a new top-level JSX interpolation zone
+                            inZone       = true;
+                            zoneStartLn  = ln;
+                            zoneStartCl  = col + 1;
+                            zoneBuilder.Clear();
+                        }
+                        else if (inZone)
+                        {
+                            zoneBuilder.Append(c);
+                        }
+                        depth++;
+                    }
+                    else if (c == '}')
+                    {
+                        depth--;
+                        if (depth == 0 && inZone)
+                        {
+                            yield return (zoneStartLn, zoneStartCl, zoneBuilder.ToString());
+                            inZone = false;
+                        }
+                        else if (inZone)
+                        {
+                            zoneBuilder.Append(c);
+                        }
+                    }
+                    else if (inZone)
+                    {
+                        zoneBuilder.Append(c);
+                    }
+                }
+                // End of line — if inside a zone, add a newline to preserve line offsets
+                if (inZone) zoneBuilder.Append('\n');
+            }
+        }
+
+        private static int CountNewlines(string s, int upTo)
+        {
+            int count = 0;
+            for (int i = 0; i < upTo && i < s.Length; i++)
+                if (s[i] == '\n') count++;
+            return count;
+        }
+
+        // C# keywords that look like identifiers but are never symbols
+        private static readonly HashSet<string> CSharpKeywords = new(StringComparer.Ordinal)
+        {
+            "true","false","null","new","this","base","typeof","sizeof","nameof","default",
+            "if","else","for","foreach","while","do","switch","case","break","continue","return",
+            "var","void","int","long","short","byte","float","double","decimal","bool","char","string","object",
+            "class","struct","interface","enum","namespace","using","static","public","private","protected",
+            "internal","readonly","const","override","virtual","abstract","sealed","async","await",
+            "in","out","ref","params","is","as","where","select","from","let","join","on","equals","into",
+            "throw","try","catch","finally","lock","checked","unchecked","fixed","unsafe",
+        };
 
         /// <summary>
         /// Finds the first line of the method body in the in-memory generated source by scanning

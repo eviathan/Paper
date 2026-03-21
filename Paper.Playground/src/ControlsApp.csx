@@ -1,4 +1,4 @@
-function ControlsApp() {
+UINode ControlsApp() {
   var (check1, setCheck1, _) = Hooks.UseState(false);
   var (check2, setCheck2, _) = Hooks.UseState(true);
   var (inputVal, setInputVal, _) = Hooks.UseState("");

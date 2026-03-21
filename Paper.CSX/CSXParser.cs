@@ -11,6 +11,12 @@ namespace Paper.CSX
         [System.ThreadStatic]
         private static HashSet<string>? _currentClassNames;
 
+        // Maps functional component name → typed props record name (e.g. "Badge" → "BadgeProps").
+        // Used so JSX codegen can emit UI.Component(Badge, new BadgeProps(Label: "hi")) with full
+        // Roslyn intellisense and nullable validation at the call site.
+        [System.ThreadStatic]
+        private static Dictionary<string, string>? _componentPropsTypes;
+
         /// <summary>
         /// If the file contains "return ( ... );", returns (preamble, jsxContent) so callers can emit preamble + "return " + Parse(jsxContent).
         /// Otherwise returns ("", fileContent) so the whole file is parsed as JSX.
@@ -56,60 +62,62 @@ namespace Paper.CSX
                 {
                     var jsxContent = cleanBody.Substring(jsxStart, i - 1 - jsxStart).Trim();
                     var preamble = cleanBody.Substring(0, returnOpen).Trim();
-                    // Strip the last "function Name(...) {" declaration from the preamble
-                    // (the entry function's declaration; its body preamble follows the '{')
-                    var lastFuncIdx = preamble.LastIndexOf("function ", StringComparison.Ordinal);
-                    if (lastFuncIdx >= 0)
+                    // Strip the last UINode declaration from the preamble.
+                    // Handles: UINode<T> Name(…) and UINode Name<T>(…) and UINode Name(…)
+                    var entryDeclRegex = new System.Text.RegularExpressions.Regex(@"\bUINode(?:<([^>]*)>)?\s+\w+\s*(?:<[^>]*>)?\s*\(");
+                    System.Text.RegularExpressions.Match? lastEntryMatch = null;
+                    foreach (System.Text.RegularExpressions.Match em in entryDeclRegex.Matches(preamble))
+                        lastEntryMatch = em;
+
+                    if (lastEntryMatch != null)
                     {
-                        // Extract param and optional generic type from the entry function declaration
-                        var epParenOpen = preamble.IndexOf('(', lastFuncIdx);
-                        var epParenClose = epParenOpen >= 0 ? preamble.IndexOf(')', epParenOpen) : -1;
-                        var entryParam = (epParenOpen >= 0 && epParenClose > epParenOpen)
+                        int lastFuncIdx = lastEntryMatch.Index;
+                        // Find the matching paren close for the parameter list
+                        int epParenOpen = lastEntryMatch.Index + lastEntryMatch.Length - 1;
+                        int epParenClose = FindMatchingParen(preamble, epParenOpen);
+                        var entryParam = epParenClose > epParenOpen
                             ? preamble.Substring(epParenOpen + 1, epParenClose - epParenOpen - 1).Trim()
                             : null;
 
-                        // Extract optional generic: "function Badge<BadgeProps>(" → "BadgeProps"
-                        string? entryGenericType = null;
-                        if (epParenOpen >= 0)
+                        // Prefer return-type generic (group 1 of the new regex); fall back to method-level generic
+                        string? entryGenericType = lastEntryMatch.Groups[1].Success
+                            ? lastEntryMatch.Groups[1].Value.Trim()
+                            : null;
+                        if (entryGenericType == null)
                         {
-                            var rawEntryName = preamble.Substring(lastFuncIdx + "function ".Length,
-                                epParenOpen - (lastFuncIdx + "function ".Length)).Trim();
-                            var ag = rawEntryName.IndexOf('<');
-                            var agc = ag >= 0 ? rawEntryName.IndexOf('>', ag) : -1;
-                            if (ag >= 0 && agc > ag)
-                                entryGenericType = rawEntryName.Substring(ag + 1, agc - ag - 1).Trim();
+                            // Check for method-level generic (old syntax): UINode Name<T>(
+                            var g2 = lastEntryMatch.Value;
+                            var ag = g2.IndexOf('<', g2.IndexOf('>') + 1); // skip return-type <> if any
+                            if (ag < 0) ag = g2.IndexOf('<');
+                            var agc = ag >= 0 ? g2.IndexOf('>', ag) : -1;
+                            if (ag >= 0 && agc > ag && !lastEntryMatch.Groups[1].Success)
+                                entryGenericType = g2.Substring(ag + 1, agc - ag - 1).Trim();
                         }
 
-                        var declBrace = preamble.IndexOf('{', lastFuncIdx);
+                        var declBrace = preamble.IndexOf('{', epParenClose >= 0 ? epParenClose : lastFuncIdx);
                         if (declBrace >= 0)
                             preamble = preamble.Substring(0, lastFuncIdx) + preamble.Substring(declBrace + 1);
                         preamble = preamble.Trim();
 
-                        // Inject prop bindings at the top of the entry function body
+                        // Inject prop bindings at the top of the entry function body.
+                        var epParts = (entryParam ?? "").Trim().Split(' ', System.StringSplitOptions.RemoveEmptyEntries);
+                        string epParamType = epParts.Length >= 2 ? string.Join(" ", epParts[0..^1]) : "Props";
+                        // For UINode<T> App() with no params, default variable name to "props"
+                        string epParamName = epParts.Length >= 1 ? epParts[^1]
+                                           : !string.IsNullOrEmpty(entryGenericType) ? "props"
+                                           : "props";
+
                         if (!string.IsNullOrEmpty(entryGenericType))
                         {
-                            var untypedNames = ParseUntypedDestructuredNames(entryParam ?? "");
-                            if (untypedNames != null)
-                            {
-                                // function App<AppProps>({ Label, Colour }) → destructure from typed record
-                                var pb2 = new StringBuilder();
-                                pb2.AppendLine($"var __typed = props.As<{entryGenericType}>();");
-                                foreach (var propName in untypedNames)
-                                    pb2.AppendLine($"var {propName} = __typed.{propName};");
-                                preamble = pb2.ToString() + preamble;
-                            }
-                            else if (!string.IsNullOrEmpty(entryParam))
-                            {
-                                // function App<AppProps>(p) → var p = props.As<AppProps>();
-                                preamble = $"var {entryParam} = props.As<{entryGenericType}>();\n" + preamble;
-                            }
+                            // UINode<AppProps> App() or UINode App<AppProps>(…) → inject var props = props.As<AppProps>();
+                            preamble = $"var {epParamName} = props.As<{entryGenericType}>();\n" + preamble;
                         }
-                        else if (entryParam != null)
+                        else if (epParamType != "Props" && epParts.Length >= 2)
                         {
-                            var typedParams = ParseTypedDestructuredParams(entryParam);
-                            if (typedParams != null)
-                                preamble = BuildPropBindings(typedParams, "props") + preamble;
+                            // UINode App(AppProps appProps) → inject var appProps = props.As<AppProps>();
+                            preamble = $"var {epParamName} = props.As<{epParamType}>();\n" + preamble;
                         }
+                        // else: UINode App() or UINode App(Props props) — no injection needed
                     }
                     else
                     {
@@ -127,10 +135,31 @@ namespace Paper.CSX
         /// <c>Func&lt;Props, UINode&gt; Name = (params) => { ... return compiledJsx; };</c> declarations.
         /// The last function (the entry point) is left untouched for normal extraction.
         /// </summary>
+        /// <summary>
+        /// Returns the typed props record name for a function given its parameter list and generic type,
+        /// or null if the function takes no typed props.
+        /// </summary>
+        private static string? ResolvePropsType(string param, string? genericType)
+        {
+            if (!string.IsNullOrEmpty(genericType)) return genericType;
+            var parts = param.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            string paramType = parts.Length >= 2 ? string.Join(" ", parts[0..^1]) : "Props";
+            return paramType != "Props" && parts.Length >= 2 ? paramType : null;
+        }
+
         private static string ConvertHelperFunctions(string source)
         {
             var funcs = FindTopLevelFunctions(source);
             if (funcs.Count <= 1) return source;
+
+            // Build the component → props type map for ALL functions upfront so that
+            // JSX bodies compiled later (even for later helpers) see the full map.
+            _componentPropsTypes = new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (var (_, _, _, name, param, genericType) in funcs)
+            {
+                var pt = ResolvePropsType(param, genericType);
+                if (pt != null) _componentPropsTypes[name] = pt;
+            }
 
             var sb = new StringBuilder();
             int pos = 0;
@@ -148,44 +177,36 @@ namespace Paper.CSX
 
                 var body = source.Substring(bodyStart + 1, bodyEnd - bodyStart - 1);
 
-                // Four ways to declare typed props:
-                //   1. function Badge<BadgeProps>({ Label, Colour }) → destructure from typed record
-                //   2. function Badge<BadgeProps>(props)             → var props = __props.As<BadgeProps>();
-                //   3. function Badge({ string label })              → var label = __props.Get<string>("label");
-                //   4. function Badge(props)                         → plain Props parameter
+                // Determine how to bind props in the generated lambda.
+                //
+                // UINode<BadgeProps> Badge()          → var props = __props.As<BadgeProps>();  (auto name "props")
+                // UINode<BadgeProps> Badge(BadgeProps p) → var p = __props.As<BadgeProps>();   (explicit name)
+                // UINode Badge<BadgeProps>(…)         → same as UINode<BadgeProps> Badge(…)
+                // UINode Badge(BadgeProps p)           → var p = __props.As<BadgeProps>();
+                // UINode Badge(Props p) / UINode Badge() → use __props directly, no injection
                 string csParam = "Props __props";
                 string propBindings = string.Empty;
+                var paramParts = param.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                string paramType = paramParts.Length >= 2 ? string.Join(" ", paramParts[0..^1]) : "Props";
+                // For UINode<T> Badge() with no params, default the variable name to "props"
+                string paramName = paramParts.Length >= 1 ? paramParts[^1]
+                                 : !string.IsNullOrEmpty(genericType) ? "props"
+                                 : "__props";
+
                 if (!string.IsNullOrEmpty(genericType))
                 {
-                    var untypedNames = ParseUntypedDestructuredNames(param);
-                    if (untypedNames != null)
-                    {
-                        // Case 1: function Badge<BadgeProps>({ Label, Colour })
-                        var pb2 = new StringBuilder();
-                        pb2.AppendLine($"var __typed = __props.As<{genericType}>();");
-                        foreach (var propName in untypedNames)
-                            pb2.AppendLine($"var {propName} = __typed.{propName};");
-                        propBindings = pb2.ToString();
-                    }
-                    else if (!string.IsNullOrEmpty(param))
-                    {
-                        // Case 2: function Badge<BadgeProps>(props)
-                        propBindings = $"var {param} = __props.As<{genericType}>();\n";
-                    }
+                    // UINode<BadgeProps> Badge() or UINode Badge<BadgeProps>(…)
+                    propBindings = $"var {paramName} = __props.As<{genericType}>();\n";
+                }
+                else if (paramType != "Props")
+                {
+                    // UINode Badge(BadgeProps p) → var p = __props.As<BadgeProps>();
+                    propBindings = $"var {paramName} = __props.As<{paramType}>();\n";
                 }
                 else
                 {
-                    var typedParams = ParseTypedDestructuredParams(param);
-                    if (typedParams != null)
-                    {
-                        // Case 3: function Badge({ string label, PaperColour colour })
-                        propBindings = BuildPropBindings(typedParams, "__props");
-                    }
-                    else
-                    {
-                        // Case 4: plain
-                        csParam = string.IsNullOrEmpty(param) ? "Props __props" : $"Props {param}";
-                    }
+                    // UINode Badge(Props p) or UINode Badge() — use __props directly
+                    csParam = paramParts.Length >= 1 ? $"Props {paramName}" : "Props __props";
                 }
 
                 // Wrap in UseStable so the same Func<> reference is returned on every re-render.
@@ -374,32 +395,24 @@ namespace Paper.CSX
 
                 var body = source.Substring(bodyStart + 1, bodyEnd - bodyStart - 1);
 
-                // Same four-way prop binding logic used in ConvertHelperFunctions
+                // Same C# method prop binding logic as ConvertHelperFunctions
                 string csParam = "Props __props";
                 string propBindings = string.Empty;
+                var paramParts2 = param.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                string paramType2 = paramParts2.Length >= 2 ? string.Join(" ", paramParts2[0..^1]) : "Props";
+                string paramName2 = paramParts2.Length >= 1 ? paramParts2[^1] : "__props";
+
                 if (!string.IsNullOrEmpty(genericType))
                 {
-                    var untypedNames = ParseUntypedDestructuredNames(param);
-                    if (untypedNames != null)
-                    {
-                        var pb2 = new StringBuilder();
-                        pb2.AppendLine($"var __typed = __props.As<{genericType}>();");
-                        foreach (var propName in untypedNames)
-                            pb2.AppendLine($"var {propName} = __typed.{propName};");
-                        propBindings = pb2.ToString();
-                    }
-                    else if (!string.IsNullOrEmpty(param))
-                    {
-                        propBindings = $"var {param} = __props.As<{genericType}>();\n";
-                    }
+                    propBindings = $"var {paramName2} = __props.As<{genericType}>();\n";
+                }
+                else if (paramType2 != "Props")
+                {
+                    propBindings = $"var {paramName2} = __props.As<{paramType2}>();\n";
                 }
                 else
                 {
-                    var typedParams = ParseTypedDestructuredParams(param);
-                    if (typedParams != null)
-                        propBindings = BuildPropBindings(typedParams, "__props");
-                    else
-                        csParam = string.IsNullOrEmpty(param) ? "Props __props" : $"Props {param}";
+                    csParam = $"Props {paramName2}";
                 }
 
                 sb.AppendLine($"Func<Props, UINode> {name} = Hooks.UseStable<Func<Props, UINode>>(() => ({csParam}) => {{");
@@ -417,40 +430,38 @@ namespace Paper.CSX
         }
 
         /// <summary>Returns (funcStart, bodyOpenBrace, bodyCloseBrace, name, param, genericType?) for each top-level function.
-        /// Supports <c>function Badge&lt;BadgeProps&gt;(props)</c> — genericType is the type between &lt; &gt;.</summary>
+        /// Supports:
+        ///   <c>UINode&lt;BadgeProps&gt; Badge()</c>  — return-type generic (TSX-style); genericType = "BadgeProps"
+        ///   <c>UINode Badge&lt;BadgeProps&gt;(…)</c> — method-level generic (legacy); same effect
+        /// param is the full parameter list (e.g. "" or "BadgeProps props").</summary>
         private static List<(int start, int bodyStart, int bodyEnd, string name, string param, string? genericType)> FindTopLevelFunctions(string source)
         {
             var results = new List<(int, int, int, string, string, string?)>();
+            // Match either:
+            //   UINode<T> Name(          — TSX-style: generic on return type
+            //   UINode Name<T>(          — legacy: generic on method name
+            //   UINode Name(             — no generic
+            var declRegex = new Regex(@"\bUINode(?:<([^>]*)>)?\s+(\w+)\s*(?:<([^>]*)>)?\s*\(");
             int i = 0;
             while (i < source.Length)
             {
-                var idx = source.IndexOf("function ", i, StringComparison.Ordinal);
-                if (idx < 0) break;
-                var nameStart = idx + "function ".Length;
-                var parenOpen = source.IndexOf('(', nameStart);
-                if (parenOpen < 0) break;
+                var m = declRegex.Match(source, i);
+                if (!m.Success) break;
 
-                // Extract name and optional generic: "Badge<BadgeProps>" → name="Badge", generic="BadgeProps"
-                var rawName = source.Substring(nameStart, parenOpen - nameStart).Trim();
-                string name;
-                string? genericType = null;
-                var angleOpen = rawName.IndexOf('<');
-                if (angleOpen >= 0)
-                {
-                    var angleClose = rawName.IndexOf('>', angleOpen);
-                    if (angleClose > angleOpen)
-                    {
-                        name = rawName.Substring(0, angleOpen).Trim();
-                        genericType = rawName.Substring(angleOpen + 1, angleClose - angleOpen - 1).Trim();
-                    }
-                    else { name = rawName; }
-                }
-                else { name = rawName; }
+                int idx = m.Index;
+                // Group 1 = return-type generic (UINode<T>), group 3 = method-level generic (Name<T>)
+                // Prefer return-type generic; fall back to method-level generic.
+                string? genericType = m.Groups[1].Success ? m.Groups[1].Value.Trim()
+                                    : m.Groups[3].Success ? m.Groups[3].Value.Trim()
+                                    : null;
+                string name = m.Groups[2].Value;
 
-                if (!Regex.IsMatch(name, @"^\w+$")) { i = idx + 1; continue; }
-                var parenClose = source.IndexOf(')', parenOpen);
-                if (parenClose < 0) break;
+                // Find the matching closing paren for the parameter list
+                int parenOpen = m.Index + m.Length - 1; // position of the '('
+                int parenClose = FindMatchingParen(source, parenOpen);
+                if (parenClose < 0) { i = idx + 1; continue; }
                 var param = source.Substring(parenOpen + 1, parenClose - parenOpen - 1).Trim();
+
                 var braceOpen = source.IndexOf('{', parenClose);
                 if (braceOpen < 0) break;
                 var braceClose = FindMatchingBrace(source, braceOpen);
@@ -458,6 +469,24 @@ namespace Paper.CSX
                 i = braceClose + 1;
             }
             return results;
+        }
+
+        /// <summary>Finds the position of the closing parenthesis matching the opening paren at <paramref name="openPos"/>.</summary>
+        private static int FindMatchingParen(string s, int openPos)
+        {
+            int depth = 1;
+            int i = openPos + 1;
+            while (i < s.Length && depth > 0)
+            {
+                char c = s[i];
+                if (c == '\\') { i += 2; continue; }
+                if (c == '"') { i++; while (i < s.Length && s[i] != '"') { if (s[i] == '\\') i++; i++; } }
+                else if (c == '\''){ i++; while (i < s.Length && s[i] != '\'') { if (s[i] == '\\') i++; i++; } }
+                else if (c == '(') depth++;
+                else if (c == ')') depth--;
+                i++;
+            }
+            return i - 1;
         }
 
         /// <summary>
@@ -516,32 +545,60 @@ namespace Paper.CSX
             var sb = new StringBuilder();
             var classes = new StringBuilder();
             int pos = 0;
-            var classRegex = new Regex(@"(?<!\w)class\s+(\w+)");
+            // Match 'class Name' OR 'record Name' (but not 'record' inside a longer word)
+            var classRegex = new Regex(@"(?<!\w)(class|record)\s+(\w+)");
 
             while (pos < source.Length)
             {
                 var m = classRegex.Match(source, pos);
                 if (!m.Success) { sb.Append(source[pos..]); break; }
 
-                // Find the opening brace of the class body
+                string keyword = m.Groups[1].Value;
+                string typeName = m.Groups[2].Value;
+
+                // For positional records — `record Name(...);` — there is no brace body.
+                // Detect by checking whether the next non-whitespace char after the match
+                // is '(' (param list) and whether there's no '{' before the terminating ';'.
+                if (keyword == "record")
+                {
+                    int afterMatch = m.Index + m.Length;
+                    // Skip optional generic params and primary constructor up to ';' or '{'
+                    int nextBrace = source.IndexOf('{', afterMatch);
+                    int nextSemi  = source.IndexOf(';', afterMatch);
+                    bool isPositional = nextSemi >= 0 && (nextBrace < 0 || nextSemi < nextBrace);
+
+                    if (isPositional)
+                    {
+                        // Keep everything before the record declaration
+                        sb.Append(source[pos..m.Index]);
+                        // Hoist the one-liner record verbatim (including the ';')
+                        var recordDecl = source[m.Index..(nextSemi + 1)];
+                        classes.Append(recordDecl).Append('\n');
+                        classNames.Add(typeName);
+                        pos = nextSemi + 1;
+                        continue;
+                    }
+                }
+
+                // Find the opening brace of the class/record body
                 int openBrace = source.IndexOf('{', m.Index + m.Length);
                 if (openBrace < 0) { sb.Append(source[pos..]); break; }
 
-                // Keep everything before this class
+                // Keep everything before this class/record
                 sb.Append(source[pos..m.Index]);
 
-                // Extract class body using brace matching
+                // Extract body using brace matching
                 int closePos = FindMatchingBrace(source, openBrace);
                 var classBody = source[(openBrace + 1)..closePos];
 
-                // Compile JSX inside the class body
-                var compiledBody = CompileJsxInClassBody(classBody);
+                // Compile JSX inside the body (only relevant for class components)
+                var compiledBody = keyword == "class" ? CompileJsxInClassBody(classBody) : classBody;
 
-                // Reconstruct the class declaration (from "class" keyword through the opening brace)
+                // Reconstruct the declaration
                 var classDecl = source[m.Index..openBrace];
                 classes.Append(classDecl).Append("{\n").Append(compiledBody).Append("\n}\n\n");
 
-                classNames.Add(m.Groups[1].Value);
+                classNames.Add(typeName);
                 pos = closePos + 1;
             }
 
@@ -599,7 +656,11 @@ namespace Paper.CSX
                 string processed = Preprocess(csxContent);
                 var ast = new CSXElementParser(processed).ParseFirstElement();
                 var names = _currentClassNames;
-                return new CSXCodeGenerator().Generate(ast, names?.Count > 0 ? names : null);
+                var propsTypes = _componentPropsTypes;
+                return new CSXCodeGenerator().Generate(
+                    ast,
+                    names?.Count > 0 ? names : null,
+                    propsTypes?.Count > 0 ? propsTypes : null);
             }
             catch (Exception ex)
             {

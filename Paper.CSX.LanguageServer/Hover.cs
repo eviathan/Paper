@@ -21,6 +21,29 @@ namespace Paper.CSX.LanguageServer
             ["RadioOption"] = "**RadioOption** — option inside a RadioGroup. Set `value`.",
             ["Fragment"] = "**Fragment** — groups children without adding a DOM node.",
             ["Viewport"] = "**Viewport** — full-screen root container.",
+            ["Modal"] = "**Modal** — overlay dialog. Use `open` + `onClose` to control visibility.",
+            ["Select"] = "**Select** — dropdown selector. Bind with `value` + `onChange={(v) => ...}`.",
+            ["Slider"] = "**Slider** — range input. Bind with `value` + `onChange={(v) => ...}`. Set `min`, `max`, `step`.",
+            ["Tabs"] = "**Tabs** — tabbed container. Bind with `activeTab` + `onTabChange={(t) => ...}`.",
+            ["Tooltip"] = "**Tooltip** — floating label on hover. Set `content` for the tooltip text.",
+            ["Popover"] = "**Popover** — floating panel anchored to a trigger. Use `open` + `onClose`.",
+            ["Toast"] = "**Toast** — transient notification. Set `message`, `variant` (`info`|`success`|`error`|`warning`).",
+            ["List"] = "**List** — virtual-scrolling list for large datasets. Set `items`, `itemHeight`, `containerH`, `renderItem`.",
+            ["ContextMenu"] = "**ContextMenu** — right-click context menu. Provide `items` array.",
+            ["NumberInput"] = "**NumberInput** — numeric input with increment/decrement. Bind with `value` + `onChange`.",
+            ["ToastContainer"] = "**ToastContainer** — renders a stack of Toast notifications. Pass `toasts` array.",
+            ["ToastItem"] = "**ToastItem** — individual toast item inside a ToastContainer.",
+            ["Radio"] = "**Radio** — standalone radio button. Bind with `checked` + `onChange`.",
+            ["Switch"] = "**Switch** — toggle switch. Bind with `checked` + `onChange={(v) => ...}`.",
+            ["Progress"] = "**Progress** — progress bar. Set `value` (0–100) and optional `max`.",
+            ["Avatar"] = "**Avatar** — user avatar. Set `src` for image or `initials` for text fallback.",
+            ["Badge"] = "**Badge** — small count/status indicator. Set `count` or `dot`.",
+            ["Card"] = "**Card** — elevated container with default padding and border-radius.",
+            ["Divider"] = "**Divider** — horizontal or vertical separator line.",
+            ["Icon"] = "**Icon** — icon element. Set `name` for the icon identifier.",
+            ["ImageList"] = "**ImageList** — grid of images. Provide `items` with `src`.",
+            ["ListItem"] = "**ListItem** — single row inside a List or plain container.",
+            ["Accordion"] = "**Accordion** — collapsible section. Set `title` + `expanded` + `onToggle`.",
         };
 
         private static readonly Dictionary<string, string> HookDocs = new(StringComparer.Ordinal)
@@ -104,27 +127,54 @@ namespace Paper.CSX.LanguageServer
         {
             if (string.IsNullOrEmpty(src)) return null;
 
-            var word = ExtractWord(src, line, ch);
-            if (string.IsNullOrEmpty(word)) return null;
+            // Roslyn hover works for any cursor position — identifiers, keywords (string/int),
+            // punctuation ([, ], (, )), operator tokens, etc. — via syntax-tree walking.
+            // Don't filter by word first: that would skip [] collection expressions, new(), etc.
+            var roslynHover = RoslynHover.GetHover(src, line, ch);
+            if (roslynHover != null) return roslynHover;
 
-            // Element name hover
+            // Paper-specific fallback (ElementDocs, HookDocs, CssPropDocs) only applies to named
+            // words in the JSX area. Extract the word now that Roslyn had its chance.
+            var word = ExtractWord(src, line, ch);
+
+            // Paper-specific docs (ElementDocs, HookDocs, CssPropDocs) are only relevant in the
+            // JSX area (the return expression). In the C# preamble, names like "List", "Box", etc.
+            // are C# identifiers — showing Paper element docs there is wrong and confusing.
+            // If the position is before the JSX return statement, return null and show nothing.
+            if (!IsInJsxArea(src, line))
+                return null;
+
+            // Fallback docs for JSX area (element names, hooks, CSS props)
             if (ElementDocs.TryGetValue(word, out var elemDoc))
                 return MkHover(elemDoc);
 
-            // Hook name hover (UseState / useState both match)
             var hookKey = char.ToUpper(word[0]) + word[1..];
             if (HookDocs.TryGetValue(hookKey, out var hookDoc))
                 return MkHover(hookDoc);
 
-            // CSS property hover (camelCase or kebab-case)
             if (CssPropDocs.TryGetValue(word, out var cssDoc))
                 return MkHover($"**{word}** — {cssDoc}");
 
-            // Roslyn semantic hover — resolve type/symbol for any C# identifier
-            var roslynHover = RoslynHover.GetHover(src, word, line, ch);
-            if (roslynHover != null) return roslynHover;
-
             return null;
+        }
+
+        /// <summary>
+        /// Returns true if <paramref name="line"/> is at or after the JSX return statement.
+        /// Paper-specific hover docs (element names, hooks, CSS props) should only appear there.
+        /// </summary>
+        private static bool IsInJsxArea(string src, int line)
+        {
+            var lines = src.Split('\n');
+            for (int i = 0; i < lines.Length; i++)
+            {
+                var t = lines[i].TrimStart();
+                if (t.StartsWith("return (", StringComparison.Ordinal) ||
+                    t.StartsWith("return (<", StringComparison.Ordinal) ||
+                    t.StartsWith("return <",  StringComparison.Ordinal))
+                    return line >= i;
+            }
+            // No explicit return — treat everything as JSX (simple/pure-JSX files)
+            return true;
         }
 
         private static string ExtractWord(string src, int line, int ch)
@@ -132,9 +182,14 @@ namespace Paper.CSX.LanguageServer
             var lines = src.Split('\n');
             if (line >= lines.Length) return "";
             var lineText = lines[line];
-            if (ch > lineText.Length) ch = lineText.Length;
+            if (ch >= lineText.Length) ch = lineText.Length - 1;
+            if (ch < 0) return "";
 
-            // Expand left and right from cursor over word characters (allow kebab-case)
+            // Only extract a word when the cursor is on a word character.
+            // For punctuation (<, >, ;, =, etc.) return empty so we don't misidentify
+            // the adjacent identifier as the hover target.
+            if (!IsWordChar(lineText[ch])) return "";
+
             int start = ch, end = ch;
             while (start > 0 && IsWordChar(lineText[start - 1])) start--;
             while (end < lineText.Length && IsWordChar(lineText[end])) end++;

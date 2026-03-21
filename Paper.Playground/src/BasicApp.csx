@@ -1,4 +1,4 @@
-function BasicApp() {
+UINode BasicApp() {
   return (
     <Box style={{
       display: "flex",

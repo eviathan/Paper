@@ -11,6 +11,64 @@ namespace Paper.CSX.LanguageServer
     /// </summary>
     internal static class RoslynRename
     {
+        /// <summary>
+        /// Returns the range of the identifier under the cursor that can be renamed,
+        /// or null if there is no renameable symbol at that position.
+        /// The inline rename UI shows the current name pre-populated inside that range.
+        /// </summary>
+        public static object? PrepareRename(string csxSrc, int csxLine, int csxCol)
+        {
+            try
+            {
+                var (compilation, tree, generatedSrc) = RoslynHover.GetOrBuildCompilation(csxSrc);
+                var model = compilation.GetSemanticModel(tree);
+
+                int offset = CsxPositionMapper.ToGeneratedOffset(csxSrc, generatedSrc, csxLine, csxCol);
+                if (offset < 0) return null;
+
+                var token = tree.GetRoot().FindToken(offset);
+                if (!token.IsKind(SyntaxKind.IdentifierToken)) return null;
+
+                var symbol = model.GetSymbolInfo(token.Parent!).Symbol
+                          ?? model.GetDeclaredSymbol(token.Parent!);
+                if (symbol == null) return null;
+
+                // Return the range of the token in CSX coordinates so the editor highlights it
+                var lineSpan = tree.GetLineSpan(token.Span);
+                int genLine  = lineSpan.StartLinePosition.Line;
+                int genCol   = lineSpan.StartLinePosition.Character;
+                int genEndCol = lineSpan.EndLinePosition.Character;
+
+                int genPreambleStart = RoslynSemanticTokens.FindGenPreambleStart(generatedSrc);
+                int csxPreambleStart = CsxPositionMapper.FindPreambleStartLine(csxSrc);
+                var csxLines         = csxSrc.Split('\n');
+
+                if (genLine < genPreambleStart) return null;
+
+                int mappedCsxLine = (genLine - genPreambleStart) + csxPreambleStart;
+                if (mappedCsxLine < 0 || mappedCsxLine >= csxLines.Length) return null;
+
+                string origLine = csxLines[mappedCsxLine];
+                int leadingWs   = CsxPositionMapper.CountLeadingWhitespace(origLine);
+                int csxStart    = Math.Max(0, genCol    - CsxPositionMapper.PreambleColOffset) + leadingWs;
+                int csxEnd      = Math.Max(0, genEndCol - CsxPositionMapper.PreambleColOffset) + leadingWs;
+
+                return new
+                {
+                    range = new
+                    {
+                        start = new { line = mappedCsxLine, character = csxStart },
+                        end   = new { line = mappedCsxLine, character = csxEnd   },
+                    },
+                    placeholder = symbol.Name,
+                };
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
         public static object? GetRename(string csxSrc, string csxUri, int csxLine, int csxCol, string newName)
         {
             try

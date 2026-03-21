@@ -376,6 +376,14 @@ namespace Paper.Core.VirtualDom
             new(component, props ?? Props.Empty, key);
 
         /// <summary>
+        /// Render a functional component with strongly-typed props.
+        /// The typed props object is serialised to a Props bag so the component can deserialise
+        /// it with the injected <c>var myProps = __props.As&lt;TProps&gt;();</c> binding.
+        /// </summary>
+        public static UINode Component<TProps>(Func<Props, UINode> component, TProps typedProps, string? key = null) where TProps : class =>
+            new(component, Props.From(typedProps), key);
+
+        /// <summary>
         /// Render a class component.
         /// </summary>
         public static UINode Component<TComponent>(Props? props = null, string? key = null)

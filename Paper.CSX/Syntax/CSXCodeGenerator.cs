@@ -11,11 +11,21 @@ namespace Paper.CSX.Syntax
         [System.ThreadStatic]
         private static IReadOnlySet<string>? _classNames;
 
-        public string Generate(CSXElement root, IReadOnlySet<string>? classComponentNames = null)
+        // Maps functional component name → typed props type name, e.g. "Badge" → "BadgeProps".
+        // When set, GenerateCustom emits UI.Component(Badge, new BadgeProps(Label: "hi"))
+        // giving Roslyn full intellisense and nullable validation at the call site.
+        [System.ThreadStatic]
+        private static IReadOnlyDictionary<string, string>? _propsTypes;
+
+        public string Generate(
+            CSXElement root,
+            IReadOnlySet<string>? classComponentNames = null,
+            IReadOnlyDictionary<string, string>? componentPropsTypes = null)
         {
             _classNames = classComponentNames;
+            _propsTypes = componentPropsTypes;
             try { return GenerateElement(root, 1); }
-            finally { _classNames = null; }
+            finally { _classNames = null; _propsTypes = null; }
         }
 
         private static string GenerateElement(CSXElement element, int indent = 0)
@@ -637,19 +647,71 @@ namespace Paper.CSX.Syntax
 
         private static string GenerateCustom(CSXElement el, int indent = 0)
         {
-            var props = BuildProps(el);
             string? key = GetKey(el);
 
             bool isClass = _classNames?.Contains(el.Name) == true;
             if (isClass)
             {
+                var props = BuildProps(el);
                 return key != null
                     ? $"UI.Component<{el.Name}>({props}, {key})"
                     : $"UI.Component<{el.Name}>({props})";
             }
+
+            // If the component has a known typed props record, emit a strongly-typed constructor call.
+            // This gives Roslyn intellisense and nullable validation at the call site:
+            //   UI.Component(Badge, new BadgeProps(Label: "hi", Count: 3))
+            if (_propsTypes != null && _propsTypes.TryGetValue(el.Name, out var propsType))
+                return GenerateTypedCustom(el, propsType, key);
+
+            var defaultProps = BuildProps(el);
             return key != null
-                ? $"UI.Component({el.Name}, {props}, {key})"
-                : $"UI.Component({el.Name}, {props})";
+                ? $"UI.Component({el.Name}, {defaultProps}, {key})"
+                : $"UI.Component({el.Name}, {defaultProps})";
+        }
+
+        /// <summary>
+        /// Emits <c>UI.Component(Name, new PropsType(Arg1: val1, Arg2: val2))</c> for components
+        /// whose props record is known. JSX attributes map to record constructor named arguments
+        /// with the first letter capitalised (camelCase → PascalCase).
+        /// The <c>key</c> attribute is extracted and passed as the separate <c>key</c> parameter.
+        /// JSX children, if any, are emitted as <c>Children: new UINode[]{ … }</c>.
+        /// </summary>
+        private static string GenerateTypedCustom(CSXElement el, string propsType, string? key)
+        {
+            var args = new List<string>();
+
+            foreach (var a in el.Attributes)
+            {
+                if (a.Name == "key") continue; // handled as separate UI.Component param
+
+                // camelCase → PascalCase for the record constructor named argument
+                var paramName = a.Name.Length > 0
+                    ? char.ToUpperInvariant(a.Name[0]) + a.Name[1..]
+                    : a.Name;
+
+                string val = a.Value switch
+                {
+                    CSXStringValue sv     => Quote(sv.Value),
+                    CSXExpressionValue ev => ev.Code,
+                    CSXBareValue bv       => bv.Value is "true" or "false" ? bv.Value : Quote(bv.Value),
+                    _                     => "null",
+                };
+
+                args.Add($"{paramName}: {val}");
+            }
+
+            // JSX children → Children: new UINode[]{ … }
+            var childNodes = GenerateChildrenArray(el);
+            if (childNodes.Count > 0)
+                args.Add($"Children: new UINode[]{{ {string.Join(", ", childNodes)} }}");
+
+            var ctorArgs = string.Join(", ", args);
+            var typedProps = $"new {propsType}({ctorArgs})";
+
+            return key != null
+                ? $"UI.Component({el.Name}, {typedProps}, {key})"
+                : $"UI.Component({el.Name}, {typedProps})";
         }
 
         private static string GenerateCheckbox(CSXElement el)

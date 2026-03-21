@@ -122,7 +122,7 @@ public sealed class CsxParserTests
     public void Extract_SingleFunction_PreambleAndJsx()
     {
         var src = """
-            function App() {
+            UINode App(Props props) {
               var count = 0;
               return (
                 <Box />
@@ -141,7 +141,7 @@ public sealed class CsxParserTests
     {
         var src = """
             @import "tokens.cscc"
-            function App() {
+            UINode App(Props props) {
               return (<Box />);
             }
             """;
@@ -156,11 +156,11 @@ public sealed class CsxParserTests
     public void Extract_MultipleHelperFunctions_AllConverted()
     {
         var src = """
-            function Badge(props) {
+            UINode Badge(Props props) {
               return (<Box />);
             }
 
-            function App() {
+            UINode App(Props props) {
               return (<Box />);
             }
             """;
@@ -179,7 +179,7 @@ public sealed class CsxParserTests
         // React-style const [...] = useState() is NOT preprocessed in the preamble.
         // CSX files should use C# syntax: var (count, setCount, _) = Hooks.UseState(0);
         var src = """
-            function App() {
+            UINode App(Props props) {
               var (count, setCount, _) = Hooks.UseState(0);
               return (<Box />);
             }
@@ -197,7 +197,7 @@ public sealed class CsxParserTests
     {
         // CSX preamble uses C# syntax directly — $"..." string interpolation is preserved verbatim.
         var src = """
-            function App() {
+            UINode App(Props props) {
               var msg = $"Hello {name}";
               return (<Text>{msg}</Text>);
             }
@@ -210,23 +210,132 @@ public sealed class CsxParserTests
     }
 
     [Fact]
-    public void Extract_TypedProps_GeneratesPropBindings()
+    public void Extract_NoParams_EntryComponent_Works()
     {
+        // UINode App() with no params — no prop bindings injected, preamble is just the body
         var src = """
-            function Badge({ string label, int count }) {
-              return (<Text>{label}</Text>);
+            UINode App() {
+              var count = 0;
+              return (
+                <Box />
+              );
+            }
+            """;
+
+        var (preamble, jsx, _, _) = CSXCompiler.ExtractPreambleAndJsx(src);
+
+        Assert.Contains("count", preamble);
+        // No Props-related injection
+        Assert.DoesNotContain("As<", preamble);
+        Assert.Contains("<Box", jsx);
+    }
+
+    [Fact]
+    public void Extract_GenericReturnType_EntryComponent_InjectsProps()
+    {
+        // UINode<AppProps> App() — TSX-style generic: props injected automatically as "props"
+        var src = """
+            record AppProps(string Title);
+
+            UINode<AppProps> App() {
+              return (<Text>{props.Title}</Text>);
+            }
+            """;
+
+        var (preamble, _, hoisted, _) = CSXCompiler.ExtractPreambleAndJsx(src);
+
+        Assert.Contains("As<AppProps>", preamble);
+        Assert.Contains("props", preamble);
+        Assert.Contains("AppProps", hoisted);
+    }
+
+    [Fact]
+    public void Extract_GenericReturnType_HelperComponent_InjectsProps()
+    {
+        // UINode<BadgeProps> Badge() — helper with generic return type
+        var src = """
+            record BadgeProps(string Label);
+
+            UINode<BadgeProps> Badge() {
+              return (<Text>{props.Label}</Text>);
             }
 
-            function App() {
+            UINode App() {
+              return (<Badge label="hi" />);
+            }
+            """;
+
+        var (preamble, _, hoisted, _) = CSXCompiler.ExtractPreambleAndJsx(src);
+
+        // Helper wrapped as lambda with As<BadgeProps>() injection
+        Assert.Contains("Func<Props, UINode> Badge", preamble);
+        Assert.Contains("As<BadgeProps>", preamble);
+        Assert.Contains("BadgeProps", hoisted);
+    }
+
+    [Fact]
+    public void Extract_NoParams_HelperComponent_WrappedAsLambda()
+    {
+        // UINode Badge() with no params is wrapped as Func<Props, UINode> with unused __props
+        var src = """
+            UINode Badge() {
+              return (<Box />);
+            }
+
+            UINode App() {
+              return (<Badge />);
+            }
+            """;
+
+        var (preamble, _, _, _) = CSXCompiler.ExtractPreambleAndJsx(src);
+
+        // Helper must be wrapped as a Func<Props, UINode> lambda
+        Assert.Contains("Func<Props, UINode> Badge", preamble);
+    }
+
+    [Fact]
+    public void Extract_RecordDeclaration_Hoisted()
+    {
+        // record BadgeProps(string Label); must be hoisted to file scope (not inside method body)
+        var src = """
+            record BadgeProps(string Label);
+
+            UINode Badge(BadgeProps props) {
+              return (<Text>{props.Label}</Text>);
+            }
+
+            UINode App() {
+              return (<Badge label="hi" />);
+            }
+            """;
+
+        var (preamble, _, hoisted, _) = CSXCompiler.ExtractPreambleAndJsx(src);
+
+        Assert.Contains("BadgeProps", hoisted);
+        // The record *declaration* must not be in the preamble (it would be a compile error inside a method)
+        Assert.DoesNotContain("record BadgeProps", preamble);
+    }
+
+    [Fact]
+    public void Extract_TypedProps_GeneratesPropBindings()
+    {
+        // With C# method syntax, typed props use a record type parameter.
+        // UINode Badge(BadgeProps badgeProps) → var badgeProps = __props.As<BadgeProps>();
+        var src = """
+            UINode Badge(BadgeProps badgeProps) {
+              return (<Text>{badgeProps.Label}</Text>);
+            }
+
+            UINode App(Props props) {
               return (<Badge label="hi" count={3} />);
             }
             """;
 
         var (preamble, _, _, _) = CSXCompiler.ExtractPreambleAndJsx(src);
 
-        // Badge helper should have typed prop extraction
-        Assert.Contains("Get<string>", preamble);
-        Assert.Contains("Get<int>", preamble);
+        // Badge helper should inject a typed record cast
+        Assert.Contains("As<BadgeProps>", preamble);
+        Assert.Contains("badgeProps", preamble);
     }
 
     [Fact]
@@ -237,7 +346,7 @@ public sealed class CsxParserTests
               public override UINode Render() => UI.Box();
             }
 
-            function App() {
+            UINode App(Props props) {
               return (<Box />);
             }
             """;
@@ -268,7 +377,7 @@ public sealed class CsxParserTests
         // console.log in the preamble is NOT replaced — preamble is treated as raw C#.
         // CSX files should use System.Console.WriteLine directly in the preamble.
         var src = """
-            function App() {
+            UINode App(Props props) {
               System.Console.WriteLine("test");
               return (<Box />);
             }
@@ -284,7 +393,7 @@ public sealed class CsxParserTests
     {
         // CSX files use C# destructuring syntax for useState.
         var src = """
-            function App() {
+            UINode App(Props props) {
               var (value, _, _) = Hooks.UseState("hi");
               return (<Box />);
             }
@@ -422,5 +531,87 @@ public sealed class CsxParserTests
         var result = CSXCompiler.Parse("<Popover isOpen={x} placement=\"top\" />");
         Assert.Contains("UI.Popover(", result);
         Assert.Contains("\"top\"", result);
+    }
+
+    // ── Typed component call-site codegen ────────────────────────────────────
+
+    [Fact]
+    public void Extract_TypedComponent_CallSite_EmitsTypedConstructor()
+    {
+        // When Badge has UINode<BadgeProps> Badge(), using <Badge label="hi" /> in a parent
+        // should emit UI.Component(Badge, new BadgeProps(Label: "hi")) — not a PropsBuilder chain.
+        var src = """
+            record BadgeProps(string Label);
+
+            UINode<BadgeProps> Badge() {
+              return (<Box />);
+            }
+
+            UINode App() {
+              return (<Badge label="hi" />);
+            }
+            """;
+
+        var (preamble, jsx, _, _) = CSXCompiler.ExtractPreambleAndJsx(src);
+        var compiled = CSXCompiler.Parse(jsx);
+
+        // Should emit typed constructor, not PropsBuilder
+        Assert.Contains("new BadgeProps(", compiled);
+        Assert.Contains("Label:", compiled);
+        Assert.Contains("\"hi\"", compiled);
+        Assert.DoesNotContain("PropsBuilder", compiled);
+    }
+
+    [Fact]
+    public void Extract_TypedComponent_CallSite_ExpressionValue()
+    {
+        // Attribute with expression value {count} → Count: count in the constructor
+        var src = """
+            record CounterProps(string Label, int Count);
+
+            UINode<CounterProps> Counter() {
+              return (<Box />);
+            }
+
+            UINode App() {
+              var n = 5;
+              return (<Counter label="Score" count={n} />);
+            }
+            """;
+
+        var (preamble, jsx, _, _) = CSXCompiler.ExtractPreambleAndJsx(src);
+        var compiled = CSXCompiler.Parse(jsx);
+
+        Assert.Contains("new CounterProps(", compiled);
+        Assert.Contains("Label:", compiled);
+        Assert.Contains("Count:", compiled);
+        Assert.Contains("\"Score\"", compiled);
+        Assert.Contains("n", compiled);
+    }
+
+    [Fact]
+    public void Extract_TypedComponent_CallSite_NullableOptional_CanOmit()
+    {
+        // A component with nullable/optional props can be called with only required props.
+        // C# will use the record's default values for omitted optional params.
+        var src = """
+            record BadgeProps(string Label, string? Variant = null);
+
+            UINode<BadgeProps> Badge() {
+              return (<Box />);
+            }
+
+            UINode App() {
+              return (<Badge label="Hi" />);
+            }
+            """;
+
+        var (preamble, jsx, _, _) = CSXCompiler.ExtractPreambleAndJsx(src);
+        var compiled = CSXCompiler.Parse(jsx);
+
+        // Only Label is specified — Variant is omitted (uses default null)
+        Assert.Contains("new BadgeProps(", compiled);
+        Assert.Contains("Label:", compiled);
+        Assert.DoesNotContain("Variant:", compiled);
     }
 }

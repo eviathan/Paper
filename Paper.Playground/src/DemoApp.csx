@@ -1,16 +1,18 @@
 // Context that carries accent colour to any descendant without prop drilling
 var AccentContext = PaperContext.Create("#58a6ff");
 
-function ThemedBadge(props) {
+record BadgeProps(string Label);
+
+UINode<BadgeProps> ThemedBadge() {
   var accent = Hooks.UseContext(AccentContext);
   return (
     <Box style={{ background: accent, padding: '4px 10px', borderRadius: 12 }}>
-        <Text style={{ fontSize: 12, color: '#0d1117' }}>{props.Get<string>("label") ?? ""}</Text>
+        <Text style={{ fontSize: 12, color: '#0d1117' }}>{props.Label}</Text>
     </Box>
   );
 }
 
-function DemoApp() {
+UINode DemoApp() {
   var (count, setCount, updateCount) = Hooks.UseState(0);
   var (name, setName, _) = Hooks.UseState("Paper");
   var (clicks, setClicks, updateClicks) = Hooks.UseState(0);
@@ -125,8 +127,8 @@ function DemoApp() {
                 Badge reads accent from context — no props passed
             </Text>
             {AccentContext.Provider(accent,
-                UI.Component(ThemedBadge, new PropsBuilder().Set("label", "Hello Context").Build()),
-                UI.Component(ThemedBadge, new PropsBuilder().Set("label", accent).Build())
+                UI.Component(ThemedBadge, new BadgeProps("Hello Context")),
+                UI.Component(ThemedBadge, new BadgeProps(accent))
             )}
             <Button
                 onClick={() => setUsePurple(!usePurple)}

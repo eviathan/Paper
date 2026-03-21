@@ -8,6 +8,8 @@ using Paper.Core.VirtualDom;
 
 namespace Paper.Generated
 {
+    record BadgeProps(string Label);
+
     public static partial class DemoAppComponent
     {
         public static UINode DemoApp(Props props)
@@ -15,8 +17,9 @@ namespace Paper.Generated
             // Context that carries accent colour to any descendant without prop drilling
             var AccentContext = Hooks.UseStable(() => PaperContext.Create("#58a6ff"));
             Func<Props, UINode> ThemedBadge = Hooks.UseStable<Func<Props, UINode>>(() =>
-                (Props props) =>
+                (Props __props) =>
                 {
+                    var props = __props.As<BadgeProps>();
                     var accent = Hooks.UseContext(AccentContext);
                     return UI.Box(
                         new PropsBuilder()
@@ -44,7 +47,7 @@ namespace Paper.Generated
                                                 ),
                                             }
                                         )
-                                        .Text(props.Get<string>("label") ?? "")
+                                        .Text(props.Label)
                                         .Build()
                                 )
                             )
@@ -600,14 +603,9 @@ namespace Paper.Generated
                                             accent,
                                             UI.Component(
                                                 ThemedBadge,
-                                                new PropsBuilder()
-                                                    .Set("label", "Hello Context")
-                                                    .Build()
+                                                new BadgeProps("Hello Context")
                                             ),
-                                            UI.Component(
-                                                ThemedBadge,
-                                                new PropsBuilder().Set("label", accent).Build()
-                                            )
+                                            UI.Component(ThemedBadge, new BadgeProps(accent))
                                         ),
                                         new UINode(
                                             "button",

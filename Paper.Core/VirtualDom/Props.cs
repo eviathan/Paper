@@ -218,6 +218,19 @@ namespace Paper.Core.VirtualDom
             return instance;
         }
 
+        /// <summary>
+        /// Serialises a strongly-typed record or class into a Props bag.
+        /// Each public readable property on <typeparamref name="T"/> becomes a key in the bag.
+        /// Works best with C# records: <c>record MyProps(string Label, int Count = 0);</c>
+        /// </summary>
+        public static Props From<T>(T obj) where T : class
+        {
+            var data = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+            foreach (var prop in typeof(T).GetProperties(BindingFlags.Public | BindingFlags.Instance).Where(p => p.CanRead))
+                data[prop.Name] = prop.GetValue(obj);
+            return new Props(data);
+        }
+
         // ── Merge ────────────────────────────────────────────────────────────
 
         /// <summary>Returns a new Props with all keys from <paramref name="other"/> merged on top.</summary>

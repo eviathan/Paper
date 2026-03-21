@@ -1,4 +1,4 @@
-function SimpleApp() {
+UINode SimpleApp() {
   return (
     <Box style={{
       display: "flex",

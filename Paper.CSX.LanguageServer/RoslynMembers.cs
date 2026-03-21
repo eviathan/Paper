@@ -15,8 +15,29 @@ namespace Paper.CSX.LanguageServer
             if (_refs != null) return _refs;
             var list = new List<MetadataReference>();
 
-            // Force load Paper assemblies explicitly before scanning AppDomain
-            // This ensures they're available for Roslyn compilation
+            // Load BCL references from the .NET SDK reference pack (not runtime assemblies).
+            // Ref-pack DLLs have XML doc files right beside them, so List<T>, string, etc.
+            // all get full documentation. Runtime assemblies (System.Private.CoreLib) don't
+            // have matching XML files, so GetDocumentationCommentXml() would return empty.
+            var refPackDir = FindNetRefPackDir();
+            if (refPackDir != null)
+            {
+                foreach (var dll in Directory.GetFiles(refPackDir, "*.dll"))
+                {
+                    try
+                    {
+                        var xml = Path.ChangeExtension(dll, ".xml");
+                        DocumentationProvider? docProvider = File.Exists(xml)
+                            ? new XmlDocProvider(xml)
+                            : null;
+                        list.Add(MetadataReference.CreateFromFile(dll,
+                            MetadataReferenceProperties.Assembly, docProvider));
+                    }
+                    catch { /* skip */ }
+                }
+            }
+
+            // Add Paper assemblies on top (these are not in the ref pack)
             var paperAssemblies = new[]
             {
                 typeof(Paper.Core.VirtualDom.UINode).Assembly,
@@ -26,14 +47,18 @@ namespace Paper.CSX.LanguageServer
                 typeof(Paper.CSX.CSXCompiler).Assembly,
             };
 
-            foreach (var asm in paperAssemblies.Concat(AppDomain.CurrentDomain.GetAssemblies()).DistinctBy(a => a.Location))
+            var seenNames = new HashSet<string>(
+                list.Select(r => Path.GetFileNameWithoutExtension(r.Display ?? "")),
+                StringComparer.OrdinalIgnoreCase);
+
+            foreach (var asm in paperAssemblies.DistinctBy(a => a.Location))
             {
-                if (asm.IsDynamic) continue;
-                if (string.IsNullOrWhiteSpace(asm.Location)) continue;
+                if (asm.IsDynamic || string.IsNullOrWhiteSpace(asm.Location)) continue;
+                if (!seenNames.Add(Path.GetFileNameWithoutExtension(asm.Location))) continue;
                 try
                 {
-                    var xmlPath = FindXmlDoc(asm.Location);
-                    DocumentationProvider? docProvider = xmlPath != null
+                    var xmlPath = Path.ChangeExtension(asm.Location, ".xml");
+                    DocumentationProvider? docProvider = File.Exists(xmlPath)
                         ? new XmlDocProvider(xmlPath)
                         : null;
                     list.Add(MetadataReference.CreateFromFile(asm.Location,
@@ -41,8 +66,43 @@ namespace Paper.CSX.LanguageServer
                 }
                 catch { /* skip */ }
             }
+
             _refs = [.. list];
             return _refs;
+        }
+
+        /// <summary>
+        /// Finds the .NET SDK reference-assembly directory for the currently running TFM.
+        /// E.g. /usr/local/share/dotnet/packs/Microsoft.NETCore.App.Ref/10.0.x/ref/net10.0/
+        /// </summary>
+        private static string? FindNetRefPackDir()
+        {
+            try
+            {
+                var runtimeDir = System.Runtime.InteropServices.RuntimeEnvironment
+                    .GetRuntimeDirectory()
+                    .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                var dotnetRoot = Path.GetDirectoryName(
+                    Path.GetDirectoryName(Path.GetDirectoryName(runtimeDir)));
+                if (dotnetRoot == null) return null;
+
+                var refBaseDir = Path.Combine(dotnetRoot, "packs", "Microsoft.NETCore.App.Ref");
+                if (!Directory.Exists(refBaseDir)) return null;
+
+                // Pick the newest version
+                foreach (var verDir in Directory.GetDirectories(refBaseDir).OrderByDescending(d => d))
+                {
+                    var refDir = Path.Combine(verDir, "ref");
+                    if (!Directory.Exists(refDir)) continue;
+                    // Pick the TFM directory whose name matches the running version (net10.0, net9.0, …)
+                    var tfmDirs = Directory.GetDirectories(refDir).OrderByDescending(d => d);
+                    foreach (var tfmDir in tfmDirs)
+                        if (Directory.GetFiles(tfmDir, "*.dll").Length > 0)
+                            return tfmDir;
+                }
+            }
+            catch { /* best effort */ }
+            return null;
         }
 
         /// <summary>

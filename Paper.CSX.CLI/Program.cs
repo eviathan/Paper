@@ -137,7 +137,7 @@ namespace Paper.CSX.CLI
             var componentName = char.ToUpper(fileName[0]) + fileName.Substring(1) + "Component";
             var methodName = char.ToUpper(fileName[0]) + fileName.Substring(1);
 
-            var (preamble, jsxContent, _, _) = CSXCompiler.ExtractPreambleAndJsx(content);
+            var (preamble, jsxContent, hoistedClasses, _) = CSXCompiler.ExtractPreambleAndJsx(content);
             var parsedBody = string.IsNullOrWhiteSpace(jsxContent) ? "UI.Fragment()" : CSXCompiler.Parse(jsxContent);
 
             string ns = "Paper.Generated";
@@ -166,6 +166,12 @@ namespace Paper.CSX.CLI
             sb.AppendLine($"namespace {ns}");
             sb.AppendLine("{");
             sb.AppendLine();
+            if (!string.IsNullOrWhiteSpace(hoistedClasses))
+            {
+                foreach (var line in hoistedClasses.Split(new[] { '\r', '\n' }, StringSplitOptions.None))
+                    sb.AppendLine(string.IsNullOrWhiteSpace(line) ? "" : "    " + line.Trim());
+                sb.AppendLine();
+            }
             sb.AppendLine($"    public static partial class {componentName}");
             sb.AppendLine("    {");
             sb.AppendLine($"        public static UINode {methodName}(Props props)");

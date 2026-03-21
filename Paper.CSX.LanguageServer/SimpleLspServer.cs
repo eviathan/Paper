@@ -15,6 +15,9 @@ namespace Paper.CSX.LanguageServer
         // Debounce diagnostics: cancel previous run when text changes
         private readonly Dictionary<string, CancellationTokenSource> _diagCts = new(StringComparer.Ordinal);
 
+        // Debounce generated-file writes so rapid typing doesn't hammer disk I/O
+        private readonly Dictionary<string, CancellationTokenSource> _genCts = new(StringComparer.Ordinal);
+
         private static void Log(string msg)
         {
             Console.Error.WriteLine($"[Paper] {msg}");
@@ -78,7 +81,7 @@ namespace Paper.CSX.LanguageServer
                                 documentSymbolProvider = true,
                                 foldingRangeProvider   = true,
                                 inlayHintProvider      = true,
-                                renameProvider         = true,
+                                renameProvider         = new { prepareProvider = true },
                                 documentFormattingProvider = true,
                             }
                         });
@@ -106,6 +109,7 @@ namespace Paper.CSX.LanguageServer
                             // doesn't have to wait for a cold build (which can take 5-10 seconds).
                             _ = Task.Run(() => { try { RoslynHover.GetOrBuildCompilation(text); } catch { } });
                             ScheduleDiagnostics(uri, text);
+                            ScheduleGeneratedFileWrite(uri, text);
                             break;
                         }
 
@@ -119,6 +123,7 @@ namespace Paper.CSX.LanguageServer
                             _docs[uri] = text;
                             Log($"Document changed: {Path.GetFileName(uri)} ({text.Length} chars)");
                             ScheduleDiagnostics(uri, text);
+                            ScheduleGeneratedFileWrite(uri, text);
                             break;
                         }
 
@@ -243,6 +248,20 @@ namespace Paper.CSX.LanguageServer
                             break;
                         }
 
+                    case "textDocument/prepareRename":
+                        {
+                            var parameters = message.RootElement.GetProperty("params");
+                            var uri        = parameters.GetProperty("textDocument").GetProperty("uri").GetString() ?? "";
+                            var position   = parameters.GetProperty("position");
+                            int line       = position.GetProperty("line").GetInt32();
+                            int character  = position.GetProperty("character").GetInt32();
+
+                            _docs.TryGetValue(uri, out var src);
+                            var range = RoslynRename.PrepareRename(src ?? "", line, character);
+                            await ReplyAsync(id, range);
+                            break;
+                        }
+
                     case "textDocument/rename":
                         {
                             var parameters = message.RootElement.GetProperty("params");
@@ -288,6 +307,11 @@ namespace Paper.CSX.LanguageServer
                                 cts.Cancel();
                                 _diagCts.Remove(uri);
                             }
+                            if (_genCts.TryGetValue(uri, out var genCts))
+                            {
+                                genCts.Cancel();
+                                _genCts.Remove(uri);
+                            }
                             break;
                         }
                 }
@@ -313,6 +337,41 @@ namespace Paper.CSX.LanguageServer
             
             Log($"Scheduling diagnostics for: {Path.GetFileName(uri)}");
             _ = RunDiagnosticsAsync(uri, text, cts.Token);
+        }
+
+        private void ScheduleGeneratedFileWrite(string uri, string text)
+        {
+            if (_genCts.TryGetValue(uri, out var old))
+                old.Cancel();
+
+            var cts = new CancellationTokenSource();
+            _genCts[uri] = cts;
+            _ = RunGeneratedFileWriteAsync(uri, text, cts.Token);
+        }
+
+        private static async Task RunGeneratedFileWriteAsync(string uri, string text, CancellationToken token)
+        {
+            // Slightly longer debounce than diagnostics so both don't race on disk
+            try { await Task.Delay(600, token); }
+            catch (OperationCanceledException) { return; }
+
+            try
+            {
+                var localPath  = new Uri(uri).LocalPath;
+                var outputPath = Path.ChangeExtension(localPath, ".generated.cs");
+                var content    = LsGeneratedFile.BuildContent(text, localPath);
+                if (string.IsNullOrEmpty(content)) return;        // parse error — don't overwrite
+
+                if (!token.IsCancellationRequested)
+                    await File.WriteAllTextAsync(outputPath, content, token);
+
+                Log($"Generated file written: {Path.GetFileName(outputPath)}");
+            }
+            catch (OperationCanceledException) { /* superseded by a newer change */ }
+            catch (Exception ex)
+            {
+                Log($"Failed to write generated file for {Path.GetFileName(uri)}: {ex.Message}");
+            }
         }
 
         private async Task RunDiagnosticsAsync(string uri, string text, CancellationToken token)

@@ -6,9 +6,6 @@ namespace Paper.CSX.LanguageServer
 {
     internal static class RoslynDiagnostics
     {
-        // Number of lines before the preamble in the generated C# source template
-        // (8 usings + blank + class + { + method sig + { = 13 lines, preamble starts at line 13)
-        private const int PreambleLineOffset = 13;
         private const int PreambleColOffset = 8;  // 2 × 4-space indent inside the method
 
         public static IEnumerable<object> Compile(string csxSrc)
@@ -19,8 +16,17 @@ namespace Paper.CSX.LanguageServer
                 var csxLines = csxSrc.Split('\n');
                 int importLines = csxLines.TakeWhile(l => l.TrimStart().StartsWith("@import")).Count();
 
-                var (preamble, jsxRaw, _, _) = CSXCompiler.ExtractPreambleAndJsx(csxSrc);
+                var (preamble, jsxRaw, hoistedClasses, _) = CSXCompiler.ExtractPreambleAndJsx(csxSrc);
                 if (string.IsNullOrWhiteSpace(preamble)) return [];
+
+                // Hoist namespace `using` directives to file scope (they can't live inside a method body)
+                var preambleLines = preamble.Split('\n');
+                var extraUsings = preambleLines
+                    .Where(l => { var t = l.Trim(); return t.StartsWith("using ") && t.EndsWith(";"); })
+                    .Select(l => l.Trim()).Distinct().ToList();
+                preamble = string.Join('\n', preambleLines
+                    .Where(l => { var t = l.Trim(); return !(t.StartsWith("using ") && t.EndsWith(";")); }));
+                string extraUsingsBlock = extraUsings.Count > 0 ? string.Join("\n", extraUsings) + "\n" : "";
 
                 // Use a placeholder return so we can compile even with JSX present
                 string returnExpr;
@@ -29,6 +35,13 @@ namespace Paper.CSX.LanguageServer
 
                 var indented = string.Join("\n        ", preamble.Split('\n').Select(l => l.Trim()));
                 var methodBody = indented + "\n        return " + returnExpr + ";";
+
+                // Fixed header lines: 8 base usings + blank = 9
+                const int fixedHeaderLines = 9;
+                int extraUsingLines = extraUsings.Count;
+                int hoistedLines = string.IsNullOrEmpty(hoistedClasses) ? 0 : hoistedClasses.Split('\n').Length;
+                // class decl + { + method sig + { = 4 more lines
+                int preambleLineOffset = fixedHeaderLines + extraUsingLines + hoistedLines + 4;
 
                 var source = $$"""
 using System;
@@ -39,8 +52,7 @@ using Paper.Core.Styles;
 using Paper.Core.Hooks;
 using Paper.Core.Context;
 using Paper.Core.Components;
-
-public static class _LsDiag_
+{{extraUsingsBlock}}{{hoistedClasses}}public static class _LsDiag_
 {
     public static UINode Render(Props props)
     {
@@ -77,10 +89,10 @@ public static class _LsDiag_
                         int genCol = span.StartLinePosition.Character;
 
                         // Only report errors inside the preamble (not in template wrapper or JSX)
-                        if (genLine < PreambleLineOffset) return null;
-                        if (genLine >= PreambleLineOffset + preambleLineCount) return null;
+                        if (genLine < preambleLineOffset) return null;
+                        if (genLine >= preambleLineOffset + preambleLineCount) return null;
 
-                        int csxLine = genLine - PreambleLineOffset + importLines;
+                        int csxLine = genLine - preambleLineOffset + importLines;
                         int csxCol = Math.Max(0, genCol - PreambleColOffset);
 
                         return (object?)new

@@ -1,6 +1,6 @@
 @import "App.csss"
 
-function App() {
+UINode App() {
   List<string> test = [];
 
   // ── Slider state ─────────────────────────────────────────────────────────
