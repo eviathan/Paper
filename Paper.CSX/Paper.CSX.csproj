@@ -8,6 +8,7 @@
     <IsRoslynComponent>true</IsRoslynComponent>
     <OutputType>Library</OutputType>
     <LangVersion>13</LangVersion>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
     <NoWarn>$(NoWarn);RS1035;RS1041</NoWarn>
   </PropertyGroup>

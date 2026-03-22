@@ -45,8 +45,27 @@ namespace Paper.CSX.LanguageServer
             int preambleStart    = FindPreambleStartLine(csxSrc);
             int genPreambleStart = RoslynSemanticTokens.FindGenPreambleStart(generatedSrc);
 
-            // Position is before the preamble (inside an import or function-decl line) — clamp to start
-            int depth   = csxLine < preambleStart ? 0 : csxLine - preambleStart;
+            if (csxLine < preambleStart)
+            {
+                // For the function-declaration line (UINode App(Props props) {), the token at the
+                // cursor may also appear in the generated method signature line.  Find the word under
+                // the cursor and locate it in the generated signature so Roslyn can resolve it.
+                var csxLines2 = csxSrc.Split('\n');
+                string declLine = csxLine < csxLines2.Length ? csxLines2[csxLine] : "";
+                string word = ExtractWordAt(declLine, csxCol);
+                if (string.IsNullOrEmpty(word)) return -1;
+
+                // The generated signature is 2 lines above the preamble body ({genPreambleStart - 2}).
+                int sigLine = genPreambleStart - 2;
+                if (sigLine < 0) return -1;
+                string genSigLine = GetLine(generatedSrc, sigLine);
+                int wordIdx = genSigLine.IndexOf(word, StringComparison.Ordinal);
+                if (wordIdx < 0) return -1;
+
+                return LineColToOffset(generatedSrc, sigLine, wordIdx);
+            }
+
+            int depth   = csxLine - preambleStart;
             int genLine = genPreambleStart + depth;
 
             // Preamble lines are .Trim()-ed then re-indented with 8 spaces.
@@ -99,6 +118,30 @@ namespace Paper.CSX.LanguageServer
             }
 
             return i;
+        }
+
+        /// <summary>Extracts the identifier/word under column <paramref name="col"/> in <paramref name="line"/>.</summary>
+        private static string ExtractWordAt(string line, int col)
+        {
+            if (col >= line.Length) return "";
+            int start = col;
+            while (start > 0 && (char.IsLetterOrDigit(line[start - 1]) || line[start - 1] == '_')) start--;
+            int end = col;
+            while (end < line.Length && (char.IsLetterOrDigit(line[end]) || line[end] == '_')) end++;
+            return start < end ? line[start..end] : "";
+        }
+
+        /// <summary>Returns the text of 0-indexed <paramref name="lineIndex"/> from <paramref name="src"/>.</summary>
+        private static string GetLine(string src, int lineIndex)
+        {
+            int line = 0, pos = 0;
+            while (pos < src.Length && line < lineIndex)
+            {
+                if (src[pos++] == '\n') line++;
+            }
+            int end = pos;
+            while (end < src.Length && src[end] != '\n') end++;
+            return src[pos..end];
         }
 
         private static int LineColToOffset(string src, int targetLine, int targetCol)
