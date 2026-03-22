@@ -9,13 +9,13 @@ let clientStarting = false;
 
 // ── CSS property data (mirrors LSP for CSSS completions) ─────────────────────
 
-interface CssProp {
+interface CSSSProps {
     name: string;
     detail: string;
     values: string[];
 }
 
-const CSS_PROPS: CssProp[] = [
+const CSSS_PROPS: CSSSProps[] = [
     { name: 'display',             detail: 'How element is rendered',       values: ['flex','block','inline','inline-flex','inline-block','grid','inline-grid','none'] },
     { name: 'flex-direction',      detail: 'Main axis direction',           values: ['row','column','row-reverse','column-reverse'] },
     { name: 'flex-wrap',           detail: 'Allow wrapping',                values: ['nowrap','wrap','wrap-reverse'] },
@@ -407,7 +407,7 @@ class CSSSCompletionProvider implements vscode.CompletionItemProvider {
         // Inside a declaration value (after `:`) — CSS values for the property on this line
         const valueMatch = before.match(/^\s*([\w-]+)\s*:\s*([\w-]*)$/);
         if (valueMatch) {
-            const prop = CSS_PROPS.find((p) => p.name === valueMatch[1]);
+            const prop = CSSS_PROPS.find((p) => p.name === valueMatch[1]);
             if (prop && prop.values.length > 0) {
                 return prop.values.map((v) => {
                     const item = new vscode.CompletionItem(v, vscode.CompletionItemKind.Value);
@@ -459,7 +459,7 @@ class CSSSCompletionProvider implements vscode.CompletionItemProvider {
     }
 
     private cssPropertyCompletions(): vscode.CompletionItem[] {
-        return CSS_PROPS.map((p) => {
+        return CSSS_PROPS.map((p) => {
             const item = new vscode.CompletionItem(p.name, vscode.CompletionItemKind.Property);
             item.detail = p.detail;
             if (p.values.length > 0) {
@@ -497,7 +497,7 @@ class CSSSCompletionProvider implements vscode.CompletionItemProvider {
 
 // ── CSSS hover provider ───────────────────────────────────────────────────────
 
-const CSS_PROP_NAMES = new Set(CSS_PROPS.map(p => p.name));
+const CSS_PROP_NAMES = new Set(CSSS_PROPS.map(p => p.name));
 
 class CSSSHoverProvider implements vscode.HoverProvider {
     provideHover(document: vscode.TextDocument, position: vscode.Position): vscode.Hover | null {
@@ -526,7 +526,7 @@ class CSSSHoverProvider implements vscode.HoverProvider {
         const afterWord  = line.slice(wordRange.end.character);
 
         if (/^\s*$/.test(beforeWord) && /^\s*:/.test(afterWord)) {
-            const prop = CSS_PROPS.find(p => p.name === word);
+            const prop = CSSS_PROPS.find(p => p.name === word);
             if (prop) {
                 const md = new vscode.MarkdownString();
                 md.appendCodeblock(prop.name, 'css');

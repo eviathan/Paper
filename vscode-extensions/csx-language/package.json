@@ -39,6 +39,9 @@
       }
     ],
     "configurationDefaults": {
+      "[csx]": {
+        "editor.inlayHints.enabled": "off"
+      },
       "editor.tokenColorCustomizations": {
         "textMateRules": [
           {

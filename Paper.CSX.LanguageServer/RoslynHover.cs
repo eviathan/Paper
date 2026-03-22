@@ -237,9 +237,9 @@ public static class _LsHover_
             }
 
             var sb = new System.Text.StringBuilder();
-            sb.Append($"({kind}) `{code}`");
+            sb.Append($"```csharp\n({kind}) {code}\n```");
             if (overloads > 0)
-                sb.Append($" (+ {overloads} overload{(overloads > 1 ? "s" : "")})");
+                sb.Append($"\n*(+ {overloads} overload{(overloads > 1 ? "s" : "")})*");
 
             // Render XML documentation: summary, returns, exceptions
             var xml = symbol.GetDocumentationCommentXml();

@@ -5,12 +5,12 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Paper.CSX.LanguageServer
 {
-    internal static class RoslynMembers
+    public static class RoslynMembers
     {
         // Cache the compilation references — expensive to build every keystroke
         private static MetadataReference[]? _refs;
 
-        internal static MetadataReference[] GetRefs()
+        public static MetadataReference[] GetRefs()
         {
             if (_refs != null) return _refs;
             var list = new List<MetadataReference>();

@@ -80,7 +80,7 @@ namespace Paper.CSX.LanguageServer
                                 definitionProvider     = true,
                                 documentSymbolProvider = true,
                                 foldingRangeProvider   = true,
-                                inlayHintProvider      = true,
+                                inlayHintProvider      = false,
                                 renameProvider         = new { prepareProvider = true },
                                 documentFormattingProvider = true,
                             }

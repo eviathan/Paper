@@ -4,20 +4,55 @@ using Microsoft.CodeAnalysis.CSharp;
 
 namespace Paper.CSX.LanguageServer
 {
-    internal static class RoslynDiagnostics
+    public static class RoslynDiagnostics
     {
         private const int PreambleColOffset = 8;  // 2 × 4-space indent inside the method
+
+        // Matches the props-injection line added by ExtractPreambleAndJsx for typed-props components.
+        // e.g. `var props = props.As<AppProps>();`  These lines don't exist in the .csx source.
+        private static readonly System.Text.RegularExpressions.Regex InjectedPropsLine =
+            new System.Text.RegularExpressions.Regex(@"^var \w+ = props\.As<[^>]+>\(\);$",
+                System.Text.RegularExpressions.RegexOptions.Compiled);
+
+        // Matches any line that contains a UINode function declaration.
+        private static readonly System.Text.RegularExpressions.Regex UINodeFuncDecl =
+            new System.Text.RegularExpressions.Regex(@"\bUINode\b",
+                System.Text.RegularExpressions.RegexOptions.Compiled);
 
         public static IEnumerable<object> Compile(string csxSrc)
         {
             try
             {
-                // Count @import lines stripped from CSX so we can adjust line numbers
                 var csxLines = csxSrc.Split('\n');
                 int importLines = csxLines.TakeWhile(l => l.TrimStart().StartsWith("@import")).Count();
 
                 var (preamble, jsxRaw, hoistedClasses, _) = CSXCompiler.ExtractPreambleAndJsx(csxSrc);
                 if (string.IsNullOrWhiteSpace(preamble)) return [];
+
+                // Find where the preamble actually starts in the .csx file.
+                // importLines only covers @import lines; the real preamble comes after blank lines
+                // and the `UINode Foo() {` function declaration.
+                int csxPreambleStartLine = importLines; // safe fallback
+                {
+                    int lastFuncLine = -1;
+                    for (int i = importLines; i < csxLines.Length; i++)
+                        if (UINodeFuncDecl.IsMatch(csxLines[i])) lastFuncLine = i;
+
+                    if (lastFuncLine >= 0)
+                    {
+                        // Opening brace may be on the declaration line or the next line
+                        for (int i = lastFuncLine; i < Math.Min(lastFuncLine + 4, csxLines.Length); i++)
+                        {
+                            if (csxLines[i].Contains('{')) { csxPreambleStartLine = i + 1; break; }
+                        }
+                    }
+                }
+
+                // Count injected lines at the top of the generated preamble that have no
+                // counterpart in the .csx source (e.g. `var props = props.As<AppProps>();`)
+                int injectedPreambleLines = preamble.Split('\n')
+                    .TakeWhile(l => InjectedPropsLine.IsMatch(l.Trim()))
+                    .Count();
 
                 // Hoist namespace `using` directives to file scope (they can't live inside a method body)
                 var preambleLines = preamble.Split('\n');
@@ -36,11 +71,15 @@ namespace Paper.CSX.LanguageServer
                 var indented = string.Join("\n        ", preamble.Split('\n').Select(l => l.Trim()));
                 var methodBody = indented + "\n        return " + returnExpr + ";";
 
-                // Fixed header lines: 8 base usings + blank = 9
-                const int fixedHeaderLines = 9;
+                // Source layout (0-indexed lines):
+                //   0-7   : 8 base `using` statements
+                //   8+    : extraUsingsBlock lines (each extraUsing adds 1 line)
+                //   next  : hoistedClasses lines (count `\n` chars — avoids overcounting trailing newline)
+                //   +4    : `public static class` + `{` + method signature + `{`
+                //   next  : preamble starts here
+                const int fixedHeaderLines = 8; // the 8 base usings only — no implicit blank line
                 int extraUsingLines = extraUsings.Count;
-                int hoistedLines = string.IsNullOrEmpty(hoistedClasses) ? 0 : hoistedClasses.Split('\n').Length;
-                // class decl + { + method sig + { = 4 more lines
+                int hoistedLines = hoistedClasses.Count(c => c == '\n');
                 int preambleLineOffset = fixedHeaderLines + extraUsingLines + hoistedLines + 4;
 
                 var source = $$"""
@@ -80,8 +119,18 @@ using Paper.Core.Components;
                     "CS9176", // 'No target type' for collection expressions (C# 12 feature Roslyn may not know)
                 };
 
+                // Regex to detect errors where the problematic type is an unresolved generic
+                // type parameter ('T', 'T1', 'T2', ...).  These are cascade false-positives:
+                // Roslyn 4.10 sometimes fails to infer T in `var (a, b, _) = UseState<T>(x)`
+                // and then reports downstream errors with bare 'T' rather than the real type.
+                // Real user errors always reference concrete types ('int', 'string', etc.).
+                var unresolvedTypeParam = new System.Text.RegularExpressions.Regex(
+                    @"'T\d*'", System.Text.RegularExpressions.RegexOptions.Compiled);
+
                 return compilation.GetDiagnostics()
-                    .Where(d => d.Severity == DiagnosticSeverity.Error && !suppressedIds.Contains(d.Id))
+                    .Where(d => d.Severity == DiagnosticSeverity.Error
+                             && !suppressedIds.Contains(d.Id)
+                             && !unresolvedTypeParam.IsMatch(d.GetMessage()))
                     .Select(d =>
                     {
                         var span = d.Location.GetLineSpan();
@@ -92,7 +141,9 @@ using Paper.Core.Components;
                         if (genLine < preambleLineOffset) return null;
                         if (genLine >= preambleLineOffset + preambleLineCount) return null;
 
-                        int csxLine = genLine - preambleLineOffset + importLines;
+                        // Map generated-code line back to .csx line.
+                        // Subtract injected lines that have no .csx counterpart.
+                        int csxLine = genLine - preambleLineOffset - injectedPreambleLines + csxPreambleStartLine;
                         int csxCol = Math.Max(0, genCol - PreambleColOffset);
 
                         return (object?)new
