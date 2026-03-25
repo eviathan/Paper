@@ -177,20 +177,6 @@ function ensureCsxLanguageAssociation() {
         if (changed) {
             config.update('files.associations', assoc, vscode.ConfigurationTarget.Workspace);
         }
-        // Also exclude .csx from C# analyzer via OmniSharp settings
-        const csharpExcludes = config.get('csharp.excludeFilesFromRegistration') ?? {};
-        const excludeChanged = [
-            '**/*.csx'
-        ].reduce((acc, pattern) => {
-            if (!csharpExcludes[pattern]) {
-                csharpExcludes[pattern] = true;
-                acc = true;
-            }
-            return acc;
-        }, false);
-        if (excludeChanged) {
-            config.update('csharp.excludeFilesFromRegistration', csharpExcludes, vscode.ConfigurationTarget.Workspace);
-        }
     }
     catch { /* best effort */ }
 }
@@ -202,14 +188,29 @@ function activate(context) {
     ensureCsxLanguageAssociation();
     // Start LSP lazily for CSX files
     const isCsxFile = (doc) => doc.uri.scheme === 'file' && doc.uri.fsPath.endsWith('.csx');
+    // Pre-open the .generated.cs file so the C# language server has it analysed
+    // before the first hover request arrives. Without this, executeHoverProvider
+    // returns empty because Roslyn hasn't had time to process the file.
+    const preOpenGenerated = (csxPath) => {
+        const genPath = csxPath.replace(/\.csx$/, '.generated.cs');
+        if (fs.existsSync(genPath)) {
+            vscode.workspace.openTextDocument(vscode.Uri.file(genPath)).then(undefined, () => { });
+        }
+    };
     context.subscriptions.push(vscode.workspace.onDidOpenTextDocument((doc) => {
-        if (isCsxFile(doc) && !client && !clientStarting) {
-            tryStartLanguageServer(context, doc.uri.fsPath);
+        if (isCsxFile(doc)) {
+            preOpenGenerated(doc.uri.fsPath);
+            if (!client && !clientStarting) {
+                tryStartLanguageServer(context, doc.uri.fsPath);
+            }
         }
     }));
     const openCSX = vscode.workspace.textDocuments.find(isCsxFile);
-    if (openCSX && !client && !clientStarting) {
-        tryStartLanguageServer(context, openCSX.uri.fsPath);
+    if (openCSX) {
+        preOpenGenerated(openCSX.uri.fsPath);
+        if (!client && !clientStarting) {
+            tryStartLanguageServer(context, openCSX.uri.fsPath);
+        }
     }
     // ── CSSS completions (in-process, no separate server needed) ─────────────
     context.subscriptions.push(vscode.languages.registerCompletionItemProvider({ scheme: 'file', language: 'csss' }, new CSSSCompletionProvider(), '$', '.', '#', ':', ' ', '\n'));
@@ -220,8 +221,16 @@ function activate(context) {
             return new CSXCompletionProvider().provideCompletionItems(document, position);
         }
     }, '<'));
-    // CSX hover is handled entirely by the LSP server (Hover.cs / RoslynHover.cs).
-    // No separate registerHoverProvider here — that would cause duplicate hover popups.
+    // ── CSX hover: delegate to C# extension via .generated.cs ────────────────
+    // Registered as a direct provider (not middleware) so it works even before
+    // the LSP client has fully connected. Returns null when the generated file
+    // isn't ready; VS Code then shows nothing for that position.
+    // The LSP middleware suppresses the in-process Roslyn hover to avoid duplicates.
+    context.subscriptions.push(vscode.languages.registerHoverProvider({ scheme: 'file', language: 'csx' }, {
+        async provideHover(document, position) {
+            return delegateHoverToGenerated(document, position);
+        }
+    }));
     // ── CSSS hover ────────────────────────────────────────────────────────────
     context.subscriptions.push(vscode.languages.registerHoverProvider({ scheme: 'file', language: 'csss' }, new CSSSHoverProvider()));
     // ── CSSS go-to-definition (for $variables) ────────────────────────────────
@@ -644,6 +653,134 @@ function formatCsss(text, tabSize, insertSpaces) {
     }
     return out.join('\n');
 }
+// ── Hover delegation to .generated.cs ────────────────────────────────────────
+/**
+ * Delegates a CSX hover request to the corresponding .generated.cs file so the
+ * C# extension provides the hover (with full docs, semantic colours, etc.)
+ * instead of our hand-rolled Roslyn implementation.
+ */
+async function delegateHoverToGenerated(document, position) {
+    try {
+        const generatedPath = document.uri.fsPath.replace(/\.csx$/, '.generated.cs');
+        if (!fs.existsSync(generatedPath)) {
+            console.error('[CSX Hover] generated file not found:', generatedPath);
+            return null;
+        }
+        const csxLines = document.getText().split('\n');
+        const genLines = fs.readFileSync(generatedPath, 'utf8').split('\n');
+        const mappedPos = mapCsxToGeneratedPosition(csxLines, genLines, position);
+        if (!mappedPos) {
+            console.error('[CSX Hover] no mapped position for csx line', position.line);
+            return null;
+        }
+        console.error(`[CSX Hover] csx(${position.line},${position.character}) -> gen(${mappedPos.line},${mappedPos.character}) "${genLines[mappedPos.line]?.trim().slice(0, 60)}"`);
+        const generatedUri = vscode.Uri.file(generatedPath);
+        const hovers = await vscode.commands.executeCommand('vscode.executeHoverProvider', generatedUri, mappedPos);
+        console.error(`[CSX Hover] got ${hovers?.length ?? 'null'} hovers`);
+        return hovers?.[0] ?? null;
+    }
+    catch (e) {
+        console.error('[CSX Hover] error:', e);
+        return null;
+    }
+}
+/** Extracts the identifier word that contains column {@link col} in {@link line}. */
+function getWordAt(line, col) {
+    if (col >= line.length)
+        return '';
+    let start = col;
+    while (start > 0 && /\w/.test(line[start - 1]))
+        start--;
+    let end = col;
+    while (end < line.length && /\w/.test(line[end]))
+        end++;
+    return start < end ? line.slice(start, end) : '';
+}
+/**
+ * Maps a position in the CSX source to the equivalent position in the generated C# file.
+ *
+ * The generated file preserves blank lines 1:1 with the CSX preamble body so that
+ * generatedPreambleLine = csxLine + (genPreambleStart - csxPreambleStart).
+ * For the function-declaration line, we word-match against the generated method signature.
+ */
+function mapCsxToGeneratedPosition(csxLines, genLines, position) {
+    // Find the UINode function declaration line and preamble start in the CSX file
+    let csxFuncDeclLine = -1;
+    let csxPreambleStart = -1;
+    for (let i = 0; i < csxLines.length; i++) {
+        if (/^UINode[\w<>]*\s+\w/.test(csxLines[i].trim())) {
+            csxFuncDeclLine = i;
+            csxPreambleStart = i + 1;
+            break;
+        }
+    }
+    // Find the generated method signature line and preamble start
+    let genMethodSigLine = -1;
+    let genPreambleStart = -1;
+    for (let i = 0; i < genLines.length; i++) {
+        if (/public static UINode \w+\(Props props\)/.test(genLines[i])) {
+            genMethodSigLine = i;
+            for (let j = i + 1; j < Math.min(i + 3, genLines.length); j++) {
+                if (genLines[j].trim() === '{') {
+                    genPreambleStart = j + 1;
+                    break;
+                }
+            }
+            break;
+        }
+    }
+    if (csxPreambleStart < 0 || genPreambleStart < 0)
+        return null;
+    // Skip injected lines at the top of the generated preamble (e.g. `var props = props.As<T>();`)
+    // that have no counterpart in the CSX source.
+    let injectedLines = 0;
+    while (genPreambleStart + injectedLines < genLines.length &&
+        /^\s+var \w+ = props\.As<[^>]+>\(\);/.test(genLines[genPreambleStart + injectedLines])) {
+        injectedLines++;
+    }
+    const genBodyStart = genPreambleStart + injectedLines;
+    const line = position.line;
+    if (line === csxFuncDeclLine) {
+        // Map words on the declaration line to the generated method signature by token matching
+        if (genMethodSigLine < 0)
+            return null;
+        const word = getWordAt(csxLines[line], position.character);
+        if (!word)
+            return null;
+        const idx = genLines[genMethodSigLine].indexOf(word);
+        if (idx < 0)
+            return null;
+        return new vscode.Position(genMethodSigLine, idx);
+    }
+    if (line < csxPreambleStart)
+        return null; // @import lines, blank lines before function
+    const csxLineText = csxLines[line] ?? '';
+    // Blank lines have no tokens to hover over
+    if (csxLineText.trim() === '')
+        return null;
+    // Count non-blank CSX preamble lines that appear before the target line.
+    // Using non-blank counting makes mapping resilient to blank lines being stripped:
+    // the CLI writes .generated.cs with StringSplitOptions.RemoveEmptyEntries but
+    // LsGeneratedFile.BuildContent preserves them — either way this works.
+    let csxNonBlank = 0;
+    for (let i = csxPreambleStart; i < line; i++) {
+        if (csxLines[i].trim() !== '')
+            csxNonBlank++;
+    }
+    // Find the csxNonBlank-th non-blank line in the generated method body
+    let genSeen = 0;
+    for (let i = genBodyStart; i < genLines.length; i++) {
+        if (genLines[i].trim() === '')
+            continue;
+        if (genSeen === csxNonBlank) {
+            const leadingWs = csxLineText.length - csxLineText.trimStart().length;
+            const genCol = Math.max(0, position.character - leadingWs) + 12; // PreambleIndent = 12
+            return new vscode.Position(i, genCol);
+        }
+        genSeen++;
+    }
+    return null;
+}
 // ── LSP startup ───────────────────────────────────────────────────────────────
 function tryStartLanguageServer(context, fromFilePath) {
     const lsPath = getCSXLanguageServerPath(fromFilePath);
@@ -659,6 +796,15 @@ function tryStartLanguageServer(context, fromFilePath) {
     const clientOptions = {
         documentSelector: [{ scheme: 'file', language: 'csx' }],
         synchronize: { fileEvents: vscode.workspace.createFileSystemWatcher('**/*.csx') },
+        middleware: {
+            // Suppress in-process Roslyn hover — the direct registerHoverProvider above
+            // delegates to the C# extension on the .generated.cs file instead.
+            // Returning null here prevents the LSP server from also showing hover,
+            // which would create a duplicate popup alongside the C# extension hover.
+            async provideHover(_document, _position, _token, _next) {
+                return null;
+            },
+        },
     };
     client = new node_1.LanguageClient('paperCSXLanguageServer', 'Paper CSX Language Server', serverOptions, clientOptions);
     context.subscriptions.push(client);

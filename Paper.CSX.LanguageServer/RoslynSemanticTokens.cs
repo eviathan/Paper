@@ -320,7 +320,7 @@ namespace Paper.CSX.LanguageServer
             var lines = generatedSrc.Split('\n');
             for (int i = 0; i < lines.Length; i++)
             {
-                if (lines[i].TrimStart().StartsWith("public static UINode Render("))
+                if (lines[i].TrimStart().StartsWith("public static UINode "))
                 {
                     for (int j = i + 1; j < lines.Length; j++)
                         if (lines[j].Trim() == "{") return j + 1;

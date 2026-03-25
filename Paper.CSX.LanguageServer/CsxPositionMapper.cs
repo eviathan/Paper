@@ -13,11 +13,14 @@ namespace Paper.CSX.LanguageServer
     ///   9    : {
     ///   10   : public static UINode Render(Props props)
     ///   11   : {
-    ///   12…  : preamble lines (8-space indent, original leading whitespace stripped)
+    ///   12…  : preamble lines (8-space indent in in-memory source, original leading whitespace stripped)
     /// </summary>
     internal static class CsxPositionMapper
     {
-        // Column offset: preamble lines are re-indented with 8 spaces in the generated source.
+        // Column offset: preamble lines are re-indented with 8 spaces in the in-memory generated source
+        // (public static class _LsHover_ { public static UINode Render(Props props) { body).
+        // Note: the on-disk .generated.cs uses 12 spaces (LsGeneratedFile.PreambleIndent); that
+        // mapping is handled separately in the TypeScript extension.
         internal const int PreambleColOffset = 8;
 
         /// <summary>

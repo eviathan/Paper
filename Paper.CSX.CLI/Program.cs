@@ -178,8 +178,10 @@ namespace Paper.CSX.CLI
             sb.AppendLine("        {");
             if (!string.IsNullOrEmpty(preamble))
             {
-                foreach (var line in preamble.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
-                    sb.AppendLine("            " + line.Trim());
+                // StringSplitOptions.None preserves blank lines so each CSX preamble line maps
+                // 1:1 to a generated source line — required for accurate LSP position mapping.
+                foreach (var line in preamble.Split(new[] { '\r', '\n' }, StringSplitOptions.None))
+                    sb.AppendLine(string.IsNullOrWhiteSpace(line) ? "" : "            " + line.Trim());
             }
             sb.AppendLine($"            return {parsedBody};");
             sb.AppendLine("        }");

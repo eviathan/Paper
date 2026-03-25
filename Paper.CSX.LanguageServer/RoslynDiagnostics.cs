@@ -6,7 +6,7 @@ namespace Paper.CSX.LanguageServer
 {
     public static class RoslynDiagnostics
     {
-        private const int PreambleColOffset = 8;  // 2 × 4-space indent inside the method
+        private const int PreambleColOffset = 8;  // 2 × 4-space indent inside the in-memory generated method
 
         // Matches the props-injection line added by ExtractPreambleAndJsx for typed-props components.
         // e.g. `var props = props.As<AppProps>();`  These lines don't exist in the .csx source.

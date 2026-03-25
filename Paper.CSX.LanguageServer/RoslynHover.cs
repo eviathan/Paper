@@ -172,8 +172,23 @@ public static class _LsHover_
 
         // ── Symbol formatting ─────────────────────────────────────────────────────
 
+        // Minimal type names (no namespace) — used for local/param/field/property types.
         private static readonly SymbolDisplayFormat _fmt =
             SymbolDisplayFormat.MinimallyQualifiedFormat;
+
+        // Full method signature: return type, containing type, name, type params, parameter names+types.
+        private static readonly SymbolDisplayFormat _methodFmt = new SymbolDisplayFormat(
+            globalNamespaceStyle:   SymbolDisplayGlobalNamespaceStyle.Omitted,
+            typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypes,
+            genericsOptions:        SymbolDisplayGenericsOptions.IncludeTypeParameters,
+            memberOptions:          SymbolDisplayMemberOptions.IncludeParameters
+                                  | SymbolDisplayMemberOptions.IncludeType
+                                  | SymbolDisplayMemberOptions.IncludeContainingType,
+            parameterOptions:       SymbolDisplayParameterOptions.IncludeName
+                                  | SymbolDisplayParameterOptions.IncludeType
+                                  | SymbolDisplayParameterOptions.IncludeDefaultValue,
+            miscellaneousOptions:   SymbolDisplayMiscellaneousOptions.UseSpecialTypes
+                                  | SymbolDisplayMiscellaneousOptions.IncludeNullableReferenceTypeModifier);
 
         // Format for fully-qualified names: System.Collections.Generic.List<T>
         private static readonly SymbolDisplayFormat _fullFmt = new SymbolDisplayFormat(
@@ -195,9 +210,10 @@ public static class _LsHover_
                 IParameterSymbol param =>
                     $"{param.Type.ToDisplayString(_fmt)} {param.Name}",
 
+                // Use _methodFmt so type parameters (<T>), tuple element names, and param names
+                // are all included — e.g. "(T value, Action<T> setState, ...) Hooks.UseState<T>(T initialValue)"
                 IMethodSymbol method =>
-                    $"{method.ReturnType.ToDisplayString(_fmt)} {method.Name}" +
-                    $"({string.Join(", ", method.Parameters.Select(p => p.Type.ToDisplayString(_fmt) + " " + p.Name))})",
+                    method.ToDisplayString(_methodFmt),
 
                 IPropertySymbol prop =>
                     $"{prop.Type.ToDisplayString(_fmt)} {prop.Name}",
