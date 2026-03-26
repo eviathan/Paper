@@ -702,6 +702,7 @@ namespace Paper.Generated
                                             .Text("FontStyle & TextTransform")
                                             .Build()
                                     ),
+                                    new UINode("text", new PropsBuilder().Text("Another").Build()),
                                     UI.Box(
                                         new PropsBuilder()
                                             .ClassName("demo-col-panel")

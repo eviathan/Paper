@@ -159,6 +159,7 @@ UINode App() {
       {/* ── FontStyle & TextTransform ────────────────────────────────────────── */}
       <Box className="section">
         <Text className="section-label">FontStyle & TextTransform</Text>
+        <Text>Another</Text>
         <Box className="demo-col-panel" style={{ gap: 10, padding: 12 }}>
           <Text style={{ color: '#e0e0f0', fontStyle: 'italic' }}>Italic — fontStyle: italic</Text>
           <Text style={{ color: '#e0e0f0', textTransform: 'uppercase' }}>uppercase text</Text>
