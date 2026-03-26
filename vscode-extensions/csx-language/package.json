@@ -120,7 +120,7 @@
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
     "package": "npm run compile && vsce package",
-    "install-local": "npm run compile && cp out/extension.js out/extension.js.map ~/.vscode/extensions/paper.csx-language-1.1.0/out/"
+    "install-local": "npm run compile && cp out/extension.js out/extension.js.map ~/.vscode/extensions/paper.csx-language-1.1.0/out/ && cp syntaxes/csx.tmLanguage.json syntaxes/csss.tmLanguage.json ~/.vscode/extensions/paper.csx-language-1.1.0/syntaxes/"
   },
   "devDependencies": {
     "@types/vscode": "^1.80.0",
