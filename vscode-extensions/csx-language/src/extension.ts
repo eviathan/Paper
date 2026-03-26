@@ -258,16 +258,19 @@ export function activate(context: vscode.ExtensionContext) {
         )
     );
 
-    // ── CSX hover: delegate to C# extension via .generated.cs ────────────────
-    // Registered as a direct provider (not middleware) so it works even before
-    // the LSP client has fully connected. Returns null when the generated file
-    // isn't ready; VS Code then shows nothing for that position.
-    // The LSP middleware suppresses the in-process Roslyn hover to avoid duplicates.
+    // ── CSX hover: element tags get built-in docs; preamble delegates to C# ───
     context.subscriptions.push(
         vscode.languages.registerHoverProvider(
             { scheme: 'file', language: 'csx' },
             {
                 async provideHover(document: vscode.TextDocument, position: vscode.Position) {
+                    // Element tag name hover (<Box, </Box)
+                    const elemHover = csxElementHover(document, position);
+                    if (elemHover) return elemHover;
+                    // Attribute name hover (value=, onChange=, style=, ...)
+                    const attrHover = csxAttrHover(document, position);
+                    if (attrHover) return attrHover;
+                    // Preamble C# code — delegate to C# Dev Kit via the generated file
                     return delegateHoverToGenerated(document, position);
                 }
             }
@@ -792,6 +795,372 @@ function formatCsss(text: string, tabSize: number, insertSpaces: boolean): strin
     return out.join('\n');
 }
 
+// ── CSX element hover ─────────────────────────────────────────────────────────
+
+interface PropDoc { name: string; type: string; desc: string; req?: boolean; }
+interface ElemDoc { desc: string; props: PropDoc[]; }
+
+const COMMON_PROPS: PropDoc[] = [
+    { name: 'style',    type: 'StyleSheet',  desc: 'Inline CSS-like styles' },
+    { name: 'key',      type: 'string',      desc: 'Reconciliation key for keyed lists' },
+    { name: 'onClick',  type: 'Action',      desc: 'Click handler' },
+    { name: 'onPointerDown', type: 'Action<PointerEvent>', desc: 'Pointer-down handler' },
+    { name: 'onPointerUp',   type: 'Action<PointerEvent>', desc: 'Pointer-up handler' },
+];
+
+const ELEMENT_DOCS: Record<string, ElemDoc> = {
+    Box: {
+        desc: 'Generic container element (like an HTML `div`). Supports flex/grid layout.',
+        props: [
+            { name: 'children', type: 'UINode[]', desc: 'Child elements' },
+            ...COMMON_PROPS,
+        ],
+    },
+    Text: {
+        desc: 'Renders a text run. Supports inline styling, ellipsis overflow, word-wrap.',
+        props: [
+            { name: 'content', type: 'string', desc: 'Text to display', req: true },
+            ...COMMON_PROPS,
+        ],
+    },
+    Image: {
+        desc: 'Renders an image from a file path.',
+        props: [
+            { name: 'src', type: 'string', desc: 'File path or URL', req: true },
+            ...COMMON_PROPS,
+        ],
+    },
+    Button: {
+        desc: 'Clickable button. Uses `label` for text; supports disabled state.',
+        props: [
+            { name: 'label',    type: 'string', desc: 'Button text', req: true },
+            { name: 'onClick',  type: 'Action', desc: 'Click handler' },
+            { name: 'disabled', type: 'bool',   desc: 'Disable interaction' },
+            { name: 'style',    type: 'StyleSheet', desc: 'Inline styles' },
+            { name: 'key',      type: 'string', desc: 'Reconciliation key' },
+        ],
+    },
+    Input: {
+        desc: 'Single-line text input with optional placeholder, maxLength, and readOnly.',
+        props: [
+            { name: 'value',       type: 'string',          desc: 'Current value', req: true },
+            { name: 'onChange',    type: 'Action<string>',   desc: 'Change handler' },
+            { name: 'placeholder', type: 'string',           desc: 'Placeholder text' },
+            { name: 'maxLength',   type: 'int',              desc: 'Maximum character count' },
+            { name: 'readOnly',    type: 'bool',             desc: 'Disable editing' },
+            { name: 'disabled',    type: 'bool',             desc: 'Disable interaction' },
+            { name: 'inputType',   type: 'string',           desc: '"password" for masked input' },
+            { name: 'style',       type: 'StyleSheet',       desc: 'Inline styles' },
+            { name: 'key',         type: 'string',           desc: 'Reconciliation key' },
+        ],
+    },
+    Textarea: {
+        desc: 'Multiline text input. Supports rows, placeholder, maxLength, readOnly.',
+        props: [
+            { name: 'value',       type: 'string',        desc: 'Current value', req: true },
+            { name: 'onChange',    type: 'Action<string>', desc: 'Change handler' },
+            { name: 'rows',        type: 'int',           desc: 'Visible row count' },
+            { name: 'placeholder', type: 'string',        desc: 'Placeholder text' },
+            { name: 'maxLength',   type: 'int',           desc: 'Max character count' },
+            { name: 'readOnly',    type: 'bool',          desc: 'Disable editing' },
+            { name: 'disabled',    type: 'bool',          desc: 'Disable interaction' },
+            { name: 'style',       type: 'StyleSheet',    desc: 'Inline styles' },
+            { name: 'key',         type: 'string',        desc: 'Reconciliation key' },
+        ],
+    },
+    Checkbox: {
+        desc: 'Checkbox with optional label. Fires `onCheckedChange` on toggle.',
+        props: [
+            { name: 'checked',          type: 'bool',           desc: 'Checked state', req: true },
+            { name: 'onCheckedChange',   type: 'Action<bool>',   desc: 'Toggle handler' },
+            { name: 'label',            type: 'string',         desc: 'Label text' },
+            { name: 'style',            type: 'StyleSheet',     desc: 'Inline styles' },
+            { name: 'key',              type: 'string',         desc: 'Reconciliation key' },
+        ],
+    },
+    Scroll: {
+        desc: 'Scrollable container. Set `overflow: scroll` or `auto` on the style.',
+        props: [
+            { name: 'children', type: 'UINode[]',   desc: 'Scrollable content' },
+            { name: 'style',    type: 'StyleSheet', desc: 'Inline styles (include overflow)' },
+            { name: 'key',      type: 'string',     desc: 'Reconciliation key' },
+        ],
+    },
+    Slider: {
+        desc: 'Horizontal range slider. Scroll wheel adjusts by one step.',
+        props: [
+            { name: 'value',    type: 'float',          desc: 'Current value', req: true },
+            { name: 'min',      type: 'float',          desc: 'Minimum (default 0)' },
+            { name: 'max',      type: 'float',          desc: 'Maximum (default 100)' },
+            { name: 'step',     type: 'float',          desc: 'Step size (default 1)' },
+            { name: 'onChange', type: 'Action<float>',  desc: 'Change handler' },
+            { name: 'style',    type: 'StyleSheet',     desc: 'Inline styles' },
+            { name: 'key',      type: 'string',         desc: 'Reconciliation key' },
+        ],
+    },
+    NumberInput: {
+        desc: 'Numeric input with − / + increment buttons.',
+        props: [
+            { name: 'value',    type: 'float',         desc: 'Current value', req: true },
+            { name: 'min',      type: 'float?',        desc: 'Minimum value' },
+            { name: 'max',      type: 'float?',        desc: 'Maximum value' },
+            { name: 'step',     type: 'float',         desc: 'Step size (default 1)' },
+            { name: 'onChange', type: 'Action<float>', desc: 'Change handler' },
+            { name: 'style',    type: 'StyleSheet',    desc: 'Inline styles' },
+            { name: 'key',      type: 'string',        desc: 'Reconciliation key' },
+        ],
+    },
+    Select: {
+        desc: 'Dropdown select. Options are `(Value, Label)` tuples.',
+        props: [
+            { name: 'options',       type: '(string, string)[]', desc: 'Value/label pairs', req: true },
+            { name: 'selectedValue', type: 'string',             desc: 'Currently selected value' },
+            { name: 'onSelect',      type: 'Action<string>',     desc: 'Selection handler' },
+            { name: 'placeholder',   type: 'string',             desc: 'Placeholder when nothing selected' },
+            { name: 'style',         type: 'StyleSheet',         desc: 'Inline styles' },
+            { name: 'key',           type: 'string',             desc: 'Reconciliation key' },
+        ],
+    },
+    Tabs: {
+        desc: 'Tab strip + panel switching. `panels` children map 1:1 with `tabs`.',
+        props: [
+            { name: 'tabs',        type: '(string Id, string Label)[]', desc: 'Tab definitions', req: true },
+            { name: 'activeTab',   type: 'string',                      desc: 'Active tab id', req: true },
+            { name: 'onTabChange', type: 'Action<string>',              desc: 'Tab change handler' },
+            { name: 'children',    type: 'UINode[]',                    desc: 'Panel nodes (same order as tabs)' },
+            { name: 'style',       type: 'StyleSheet',                  desc: 'Inline styles' },
+            { name: 'key',         type: 'string',                      desc: 'Reconciliation key' },
+        ],
+    },
+    Modal: {
+        desc: 'Full-screen modal overlay. Children are rendered centred when `isOpen` is true.',
+        props: [
+            { name: 'isOpen',   type: 'bool',       desc: 'Show the modal', req: true },
+            { name: 'onClose',  type: 'Action',     desc: 'Called when backdrop clicked' },
+            { name: 'children', type: 'UINode[]',   desc: 'Modal content' },
+            { name: 'style',    type: 'StyleSheet', desc: 'Content panel styles' },
+            { name: 'key',      type: 'string',     desc: 'Reconciliation key' },
+        ],
+    },
+    Tooltip: {
+        desc: 'Tooltip shown on hover. First prop is the tooltip text; children are the trigger.',
+        props: [
+            { name: 'text',     type: 'string',     desc: 'Tooltip text', req: true },
+            { name: 'children', type: 'UINode[]',   desc: 'Trigger element(s)' },
+            { name: 'style',    type: 'StyleSheet', desc: 'Tooltip box styles' },
+            { name: 'key',      type: 'string',     desc: 'Reconciliation key' },
+        ],
+    },
+    Popover: {
+        desc: 'Floating panel anchored to its first child (trigger). Remaining children are content.',
+        props: [
+            { name: 'isOpen',    type: 'bool',       desc: 'Show the popover', req: true },
+            { name: 'onClose',   type: 'Action',     desc: 'Close handler' },
+            { name: 'placement', type: 'string',     desc: '"top" | "bottom" | "left" | "right" (default "bottom")' },
+            { name: 'children',  type: 'UINode[]',   desc: 'First child = trigger; rest = content' },
+            { name: 'style',     type: 'StyleSheet', desc: 'Content panel styles' },
+            { name: 'key',       type: 'string',     desc: 'Reconciliation key' },
+        ],
+    },
+    ToastContainer: {
+        desc: 'Renders all active toasts in the top-right corner.',
+        props: [
+            { name: 'toasts',    type: 'ToastEntry[]',  desc: 'Active toast entries', req: true },
+            { name: 'onDismiss', type: 'Action<string>', desc: 'Dismiss handler (receives toast id)' },
+            { name: 'key',       type: 'string',         desc: 'Reconciliation key' },
+        ],
+    },
+    RadioGroup: {
+        desc: 'Column of radio button options. Options are `(Value, Label)` tuples.',
+        props: [
+            { name: 'options',       type: '(string, string)[]', desc: 'Value/label pairs', req: true },
+            { name: 'selectedValue', type: 'string',             desc: 'Currently selected value' },
+            { name: 'onSelect',      type: 'Action<string>',     desc: 'Selection handler' },
+            { name: 'style',         type: 'StyleSheet',         desc: 'Inline styles' },
+            { name: 'key',           type: 'string',             desc: 'Reconciliation key' },
+        ],
+    },
+    Table: {
+        desc: 'Table container (block display). Children should be `TableRow` elements.',
+        props: [
+            { name: 'children', type: 'UINode[]',   desc: 'TableRow children' },
+            { name: 'style',    type: 'StyleSheet', desc: 'Inline styles' },
+            { name: 'key',      type: 'string',     desc: 'Reconciliation key' },
+        ],
+    },
+    TableRow: {
+        desc: 'Table row (flex row). Children should be `TableCell` elements.',
+        props: [
+            { name: 'children', type: 'UINode[]',   desc: 'TableCell children' },
+            { name: 'style',    type: 'StyleSheet', desc: 'Inline styles' },
+            { name: 'key',      type: 'string',     desc: 'Reconciliation key' },
+        ],
+    },
+    TableCell: {
+        desc: 'Table cell (block). Contains arbitrary children.',
+        props: [
+            { name: 'children', type: 'UINode[]',   desc: 'Cell content' },
+            { name: 'style',    type: 'StyleSheet', desc: 'Inline styles' },
+            { name: 'key',      type: 'string',     desc: 'Reconciliation key' },
+        ],
+    },
+    Fragment: {
+        desc: 'Renders children inline with no wrapper box.',
+        props: [
+            { name: 'children', type: 'UINode[]', desc: 'Child elements' },
+            { name: 'key',      type: 'string',   desc: 'Reconciliation key' },
+        ],
+    },
+    Portal: {
+        desc: 'Renders children into a separate overlay layer, above the main scene.',
+        props: [
+            { name: 'children', type: 'UINode[]', desc: 'Overlay content' },
+            { name: 'key',      type: 'string',   desc: 'Reconciliation key' },
+        ],
+    },
+    Viewport: {
+        desc: 'Renders an OpenGL texture as a panel (e.g. a game-view framebuffer).',
+        props: [
+            { name: 'textureHandle', type: 'uint',       desc: 'OpenGL texture handle', req: true },
+            { name: 'style',         type: 'StyleSheet', desc: 'Inline styles' },
+            { name: 'key',           type: 'string',     desc: 'Reconciliation key' },
+        ],
+    },
+    ContextMenu: {
+        desc: 'Right-click context menu floating at (x, y) in window pixels.',
+        props: [
+            { name: 'isOpen',  type: 'bool',                          desc: 'Show the menu', req: true },
+            { name: 'x',       type: 'float',                         desc: 'X position in window pixels', req: true },
+            { name: 'y',       type: 'float',                         desc: 'Y position in window pixels', req: true },
+            { name: 'items',   type: '(string Label, Action? OnSelect)[]', desc: 'Menu items', req: true },
+            { name: 'onClose', type: 'Action',                        desc: 'Called after selection or backdrop click' },
+            { name: 'key',     type: 'string',                        desc: 'Reconciliation key' },
+        ],
+    },
+    List: {
+        desc: 'Virtualised scrollable list for large datasets. Only renders visible items.',
+        props: [
+            { name: 'items',       type: 'IReadOnlyList<T>', desc: 'Data items', req: true },
+            { name: 'itemHeight',  type: 'float',            desc: 'Fixed row height in pixels', req: true },
+            { name: 'containerH',  type: 'float',            desc: 'Visible container height', req: true },
+            { name: 'renderItem',  type: 'Func<T, int, UINode>', desc: 'Row renderer; defaults to Text(item.ToString())' },
+            { name: 'overscan',    type: 'int',              desc: 'Extra rows to render above/below (default 2)' },
+            { name: 'style',       type: 'StyleSheet',       desc: 'Inline styles' },
+            { name: 'key',         type: 'string',           desc: 'Reconciliation key' },
+        ],
+    },
+    Icon: {
+        desc: 'SVG icon by name. Size defaults to current font-size.',
+        props: [
+            { name: 'name',  type: 'string',     desc: 'Icon name', req: true },
+            { name: 'size',  type: 'float',      desc: 'Size in pixels' },
+            { name: 'color', type: 'PaperColour', desc: 'Icon colour' },
+            { name: 'style', type: 'StyleSheet', desc: 'Inline styles' },
+            { name: 'key',   type: 'string',     desc: 'Reconciliation key' },
+        ],
+    },
+};
+
+/**
+ * Returns a hover for a CSX element tag name (`<Box`, `</Box`, `<Input />`).
+ * Returns null if the cursor is not on a known element tag.
+ */
+function csxElementHover(
+    document: vscode.TextDocument,
+    position: vscode.Position
+): vscode.Hover | null {
+    const lineText = document.lineAt(position).text;
+    const word = getWordAt(lineText, position.character);
+    if (!word || !/^[A-Z]/.test(word)) return null;
+
+    // Verify the word is preceded by '<' or '</'
+    const wordStart = lineText.indexOf(word, Math.max(0, position.character - word.length));
+    if (wordStart < 1) return null;
+    const before = lineText.slice(0, wordStart).trimEnd();
+    if (!before.endsWith('<') && !before.endsWith('</')) return null;
+
+    const doc = ELEMENT_DOCS[word];
+    if (!doc) {
+        // Unknown element — could be a user CSX component; return a minimal hover
+        const md = new vscode.MarkdownString();
+        md.appendMarkdown(`**\`<${word}>\`** — CSX component`);
+        return new vscode.Hover(md);
+    }
+
+    return elementDocHover(word, doc);
+}
+
+/**
+ * Returns a hover for a JSX attribute name (e.g. `value`, `onChange`, `style`).
+ * Scans backward to find the enclosing element, then looks up the prop in its docs.
+ */
+function csxAttrHover(
+    document: vscode.TextDocument,
+    position: vscode.Position
+): vscode.Hover | null {
+    const lineText = document.lineAt(position).text;
+    const word = getWordAt(lineText, position.character);
+    // Attribute names are camelCase (start lowercase)
+    if (!word || /^[A-Z]/.test(word)) return null;
+
+    // Reject if cursor is inside a `{...}` expression on this line
+    const beforeCursor = lineText.slice(0, position.character);
+    let braces = 0;
+    for (const ch of beforeCursor) {
+        if (ch === '{') braces++;
+        else if (ch === '}') braces--;
+    }
+    if (braces > 0) return null;
+
+    // Must be in attribute position: word followed by `=`, `/>`, `>`, or whitespace
+    const afterWord = lineText.slice(position.character + (word.length - (position.character - lineText.lastIndexOf(word.charAt(0), position.character))));
+    const wordEnd = lineText.indexOf(word, Math.max(0, position.character - word.length)) + word.length;
+    const tail = lineText.slice(wordEnd);
+    if (!/^\s*(=|\/>|>|\s|$)/.test(tail)) return null;
+
+    // Scan backward to find the containing element name
+    const elementName = findContainingElement(document, position);
+    if (!elementName) return null;
+
+    const elemDoc = ELEMENT_DOCS[elementName];
+    const prop = elemDoc?.props.find(p => p.name === word)
+        ?? COMMON_PROPS.find(p => p.name === word);
+    if (!prop) return null;
+
+    const md = new vscode.MarkdownString();
+    md.isTrusted = true;
+    md.appendMarkdown(`**\`${word}\`** — \`<${elementName}>\` prop\n\n\`${prop.type}\` — ${prop.desc}`);
+    if (prop.req) md.appendMarkdown(' *(required)*');
+    return new vscode.Hover(md);
+}
+
+/** Scans backward from position to find the nearest enclosing `<ElementName`. */
+function findContainingElement(document: vscode.TextDocument, position: vscode.Position): string | null {
+    for (let i = position.line; i >= Math.max(0, position.line - 15); i--) {
+        const text = document.lineAt(i).text;
+        const m = text.match(/<([A-Z]\w*)/);
+        if (m) return m[1];
+        // A standalone `>` on a preceding line means we've passed a closing tag
+        if (i < position.line && /^\s*>/.test(text)) break;
+    }
+    return null;
+}
+
+function elementDocHover(name: string, doc: ElemDoc): vscode.Hover {
+    const md = new vscode.MarkdownString();
+    md.isTrusted = true;
+    md.appendMarkdown(`**\`<${name}>\`**\n\n${doc.desc}\n\n`);
+    if (doc.props.length > 0) {
+        md.appendMarkdown('**Props:**\n\n');
+        md.appendMarkdown('| Prop | Type | |\n|---|---|---|\n');
+        for (const p of doc.props) {
+            const req = p.req ? ' *(required)*' : '';
+            md.appendMarkdown(`| \`${p.name}\` | \`${p.type}\` | ${p.desc}${req} |\n`);
+        }
+    }
+    return new vscode.Hover(md);
+}
+
 // ── Hover delegation to .generated.cs ────────────────────────────────────────
 
 /**
@@ -806,29 +1175,13 @@ async function delegateHoverToGenerated(
     try {
         const generatedPath = document.uri.fsPath.replace(/\.csx$/, '.generated.cs');
 
-        // Ask the LSP server for the clean generated content (no CSharpier reformatting).
-        // This ensures position mapping is always correct even after CLI regeneration.
-        let genContent: string | null = null;
-        if (client) {
-            try {
-                const resp = await client.sendRequest<{ content: string | null }>('$/paper/generateContent', {
-                    uri: document.uri.toString()
-                });
-                genContent = resp?.content ?? null;
-            } catch { /* LSP not ready */ }
+        // CLI and LSP now both write the same clean format (no CSharpier), so whatever
+        // is on disk is correct for position mapping. No need to write to disk here.
+        if (!fs.existsSync(generatedPath)) {
+            console.error('[CSX Hover] generated file not found:', generatedPath);
+            return null;
         }
-
-        // Fall back to reading the file from disk if LSP not available
-        if (!genContent) {
-            if (!fs.existsSync(generatedPath)) {
-                console.error('[CSX Hover] generated file not found:', generatedPath);
-                return null;
-            }
-            genContent = fs.readFileSync(generatedPath, 'utf8');
-        } else {
-            // Write the clean content to disk so executeHoverProvider maps against the right positions
-            fs.writeFileSync(generatedPath, genContent, 'utf8');
-        }
+        const genContent = fs.readFileSync(generatedPath, 'utf8');
 
         const csxLines  = document.getText().split('\n');
         const genLines  = genContent.split('\n');
@@ -927,9 +1280,7 @@ function mapCsxToGeneratedPosition(
     // Blank lines have no tokens to hover over
     if (csxLineText.trim() === '') return null;
 
-    // Compute the base indent of the CSX preamble (smallest leading whitespace of any
-    // non-blank preamble line). Relative indentation is preserved in the generated file so
-    // the column formula is: genCol = (csxCol - csxBaseIndent) + PreambleIndent (12).
+    // Compute base indent of CSX preamble for column remapping
     let csxBaseIndent = Infinity;
     for (let i = csxPreambleStart; i < csxLines.length; i++) {
         const t = csxLines[i];
@@ -939,24 +1290,26 @@ function mapCsxToGeneratedPosition(
     }
     if (!isFinite(csxBaseIndent)) csxBaseIndent = 0;
 
-    // Count non-blank CSX preamble lines before the target line (resilient to blank-line
-    // stripping in the generated file).
-    let csxNonBlank = 0;
-    for (let i = csxPreambleStart; i < line; i++) {
-        if (csxLines[i].trim() !== '') csxNonBlank++;
-    }
+    // Use prefix matching to find the corresponding generated line.
+    // CSharpier always preserves the first line of each statement, so matching on the
+    // first N chars of the trimmed CSX line works whether or not CSharpier has reformatted
+    // the file. The bidirectional check handles cases where CSharpier shortened the line
+    // (e.g. `void F() { body; }` → `void F()`).
+    const csxTrimmed = csxLineText.trim();
+    const prefixLen = Math.min(25, csxTrimmed.length);
+    const csxPrefix = csxTrimmed.slice(0, prefixLen);
 
-    // Find the csxNonBlank-th non-blank line in the generated method body
-    let genSeen = 0;
     for (let i = genBodyStart; i < genLines.length; i++) {
-        if (genLines[i].trim() === '') continue;
-        if (genSeen === csxNonBlank) {
-            // genCol: strip CSX base indent, add 12-space generated indent.
-            // Works for both base-indent lines and continuation lines (which have extra indent).
+        const genTrimmed = genLines[i].trim();
+        if (genTrimmed === '') continue;
+        const genPrefixLen = Math.min(prefixLen, genTrimmed.length);
+        if (
+            csxPrefix.startsWith(genTrimmed.slice(0, genPrefixLen)) ||
+            genTrimmed.startsWith(csxPrefix.slice(0, Math.min(prefixLen, genPrefixLen)))
+        ) {
             const genCol = Math.max(0, position.character - csxBaseIndent) + 12;
             return new vscode.Position(i, genCol);
         }
-        genSeen++;
     }
 
     return null;
@@ -979,10 +1332,8 @@ function tryStartLanguageServer(context: vscode.ExtensionContext, fromFilePath: 
         documentSelector: [{ scheme: 'file', language: 'csx' }],
         synchronize:      { fileEvents: vscode.workspace.createFileSystemWatcher('**/*.csx') },
         middleware: {
-            // Suppress in-process Roslyn hover — the direct registerHoverProvider above
-            // delegates to the C# extension on the .generated.cs file instead.
-            // Returning null here prevents the LSP server from also showing hover,
-            // which would create a duplicate popup alongside the C# extension hover.
+            // Suppress LSP hover — the registerHoverProvider above delegates to C# Dev Kit
+            // via the generated file. Returning null prevents duplicate hover popups.
             async provideHover(_document, _position, _token, _next) {
                 return null;
             },

@@ -198,12 +198,7 @@ namespace Paper.CSX.CLI
             sb.AppendLine("    }");
             sb.AppendLine("}");
 
-            return FormatWithRoslyn(sb.ToString());
-        }
-
-        static string FormatWithRoslyn(string source)
-        {
-            return CSharpFormatter.FormatAsync(source).GetAwaiter().GetResult().Code;
+            return CSharpFormatter.FormatAsync(sb.ToString()).GetAwaiter().GetResult().Code;
         }
 
         static void ParseCSXFile(FileInfo file, string? projectRoot = null)
