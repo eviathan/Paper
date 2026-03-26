@@ -16,6 +16,7 @@ namespace Paper.Generated
         {
             // Context that carries accent colour to any descendant without prop drilling
             var AccentContext = Hooks.UseStable(() => PaperContext.Create("#58a6ff"));
+
             Func<Props, UINode> ThemedBadge = Hooks.UseStable<Func<Props, UINode>>(() =>
                 (Props __props) =>
                 {
@@ -55,11 +56,13 @@ namespace Paper.Generated
                     );
                 }
             );
+
             var (count, setCount, updateCount) = Hooks.UseState(0);
             var (name, setName, _) = Hooks.UseState("Paper");
             var (clicks, setClicks, updateClicks) = Hooks.UseState(0);
             var (usePurple, setUsePurple, _) = Hooks.UseState(false);
             var accent = usePurple ? "#bc8cff" : "#58a6ff";
+
             // UseReducer demo: todo list
             var (todos, dispatch) = Hooks.UseReducer(
                 (List<string> state, string action) =>

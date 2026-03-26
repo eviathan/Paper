@@ -65,6 +65,15 @@ namespace Paper.CSX.LanguageServer
                 .Where(l => { var t = l.Trim(); return !(t.StartsWith("using ", StringComparison.Ordinal) && t.EndsWith(";")); })
                 .ToArray();
 
+            // Compute the base indent of the CSX preamble (smallest leading whitespace of any
+            // non-blank body line). Relative indentation is preserved by subtracting this and
+            // adding PreambleIndent, so continuation lines in multi-line expressions look correct.
+            int baseIndent = bodyLines
+                .Where(l => !string.IsNullOrWhiteSpace(l))
+                .Select(l => l.Length - l.TrimStart().Length)
+                .DefaultIfEmpty(0)
+                .Min();
+
             var indent = new string(' ', PreambleIndent);
             var sb = new StringBuilder();
             sb.AppendLine("using System.Collections.Generic;");
@@ -95,7 +104,11 @@ namespace Paper.CSX.LanguageServer
                 if (string.IsNullOrWhiteSpace(line))
                     sb.AppendLine();                    // preserve blank lines for accurate position mapping
                 else
-                    sb.AppendLine(indent + line.Trim());
+                {
+                    int leadWs = line.Length - line.TrimStart().Length;
+                    int relativeIndent = Math.Max(0, leadWs - baseIndent);
+                    sb.AppendLine(indent + new string(' ', relativeIndent) + line.Trim());
+                }
             }
             sb.AppendLine($"{indent}return {parsedBody};");
             sb.AppendLine("        }");

@@ -15,73 +15,73 @@ namespace Paper.Generated
         {
             List<string> test = [];
 
-            // ── Slider state ─────────────────────────────────────────────────────────
-            var (volume, setVolume, _) = Hooks.UseState(40f);
-            var (opacity, setOpacity, _) = Hooks.UseState(80f);
-            string volText = ((int)volume).ToString();
-            string opacText = ((int)opacity).ToString() + "%";
+              // ── Slider state ─────────────────────────────────────────────────────────
+              var (volume, setVolume, _) = Hooks.UseState(40f);
+              var (opacity, setOpacity, _) = Hooks.UseState(80f);
+              string volText = ((int)volume).ToString();
+              string opacText = ((int)opacity).ToString() + "%";
 
-            // ── NumberInput state ─────────────────────────────────────────────────────
-            var (qty, setQty, _) = Hooks.UseState(5f);
-            var (price, setPrice, _) = Hooks.UseState(9.99f);
+              // ── NumberInput state ─────────────────────────────────────────────────────
+              var (qty, setQty, _) = Hooks.UseState(5f);
+              var (price, setPrice, _) = Hooks.UseState(9.99f);
 
-            // ── Tabs state ────────────────────────────────────────────────────────────
-            var (activeTab, setActiveTab, _) = Hooks.UseState("overview");
+              // ── Tabs state ────────────────────────────────────────────────────────────
+              var (activeTab, setActiveTab, _) = Hooks.UseState("overview");
 
-            // ── Popover state ─────────────────────────────────────────────────────────
-            var (popOpen, setPopOpen, _) = Hooks.UseState(false);
-            string popBtnLabel = popOpen ? "Close Popover" : "Open Popover";
-            void TogglePop() { setPopOpen(!popOpen); }
+              // ── Popover state ─────────────────────────────────────────────────────────
+              var (popOpen, setPopOpen, _) = Hooks.UseState(false);
+              string popBtnLabel = popOpen ? "Close Popover" : "Open Popover";
+              void TogglePop() { setPopOpen(!popOpen); }
 
-            // ── Toast state ───────────────────────────────────────────────────────────
-            var (toasts, setToasts, updateToasts) = Hooks.UseState(new List<Primitives.ToastEntry> {
-            new Primitives.ToastEntry("t0", "App started successfully!", "success", 4f),
-            new Primitives.ToastEntry("t1", "Welcome to Paper UI.", "info", 6f),
-            });
-            void AddToast(string msg, string variant) {
-            updateToasts(prev => new List<Primitives.ToastEntry>(prev) {
-            new Primitives.ToastEntry("t" + System.Environment.TickCount64.ToString(), msg, variant)
-            });
-            }
-            void DismissToast(string id) {
-            // Use functional update so the timer callback always filters against current state,
-            // not the stale closure captured at first render.
-            updateToasts(prev => prev.Where(t => t.Id != id).ToList());
-            }
+              // ── Toast state ───────────────────────────────────────────────────────────
+              var (toasts, setToasts, updateToasts) = Hooks.UseState(new List<Primitives.ToastEntry> {
+                new Primitives.ToastEntry("t0", "App started successfully!", "success", 4f),
+                new Primitives.ToastEntry("t1", "Welcome to Paper UI.", "info", 6f),
+              });
+              void AddToast(string msg, string variant) {
+                updateToasts(prev => new List<Primitives.ToastEntry>(prev) {
+                  new Primitives.ToastEntry("t" + System.Environment.TickCount64.ToString(), msg, variant)
+                });
+              }
+              void DismissToast(string id) {
+                // Use functional update so the timer callback always filters against current state,
+                // not the stale closure captured at first render.
+                updateToasts(prev => prev.Where(t => t.Id != id).ToList());
+              }
 
-            // ── TextInput state ───────────────────────────────────────────────────────
-            var (inputText, setInputText, _) = Hooks.UseState("Hello Paper!");
-            var (passwordText, setPasswordText, _) = Hooks.UseState("");
+              // ── TextInput state ───────────────────────────────────────────────────────
+              var (inputText, setInputText, _) = Hooks.UseState("Hello Paper!");
+              var (passwordText, setPasswordText, _) = Hooks.UseState("");
 
-            // ── Textarea state ────────────────────────────────────────────────────────
-            var (textareaText, setTextareaText, _) = Hooks.UseState("Multi-line\ntext goes here.\nEdit me!");
+              // ── Textarea state ────────────────────────────────────────────────────────
+              var (textareaText, setTextareaText, _) = Hooks.UseState("Multi-line\ntext goes here.\nEdit me!");
 
-            // ── MarkdownEditor state ──────────────────────────────────────────────────
-            var (mdText, setMdText, _) = Hooks.UseState("# Hello Markdown\n\nThis is **bold**, *italic*, and `inline code`.\n\n> Blockquote here\n\n- Item one\n- Item two\n\n```\ncode block\n```\n\n---\n\nPlain prose paragraph.");
-            var (mdPreview, setMdPreview, _) = Hooks.UseState(false);
-            string editBtnBg = mdPreview ? "#1a1a28" : "#4f46e5";
-            string prevBtnBg = mdPreview ? "#4f46e5" : "#1a1a28";
-            var mdContent = mdPreview
-            ? UI.MarkdownPreview(mdText, new Paper.Core.Styles.StyleSheet { Width = Paper.Core.Styles.Length.Px(480), MinHeight = Paper.Core.Styles.Length.Px(260) })
-            : UI.MarkdownEditor(mdText, setMdText, 12, new Paper.Core.Styles.StyleSheet { Width = Paper.Core.Styles.Length.Px(480) });
+              // ── MarkdownEditor state ──────────────────────────────────────────────────
+              var (mdText, setMdText, _) = Hooks.UseState("# Hello Markdown\n\nThis is **bold**, *italic*, and `inline code`.\n\n> Blockquote here\n\n- Item one\n- Item two\n\n```\ncode block\n```\n\n---\n\nPlain prose paragraph.");
+              var (mdPreview, setMdPreview, _) = Hooks.UseState(false);
+              string editBtnBg = mdPreview ? "#1a1a28" : "#4f46e5";
+              string prevBtnBg = mdPreview ? "#4f46e5" : "#1a1a28";
+              var mdContent = mdPreview
+                ? UI.MarkdownPreview(mdText, new Paper.Core.Styles.StyleSheet { Width = Paper.Core.Styles.Length.Px(480), MinHeight = Paper.Core.Styles.Length.Px(260) })
+                : UI.MarkdownEditor(mdText, setMdText, 12, new Paper.Core.Styles.StyleSheet { Width = Paper.Core.Styles.Length.Px(480) });
 
-            // ── Checkbox state ────────────────────────────────────────────────────────
-            var (checkA, setCheckA, _) = Hooks.UseState(true);
-            var (checkB, setCheckB, _) = Hooks.UseState(false);
-            var (checkC, setCheckC, _) = Hooks.UseState(false);
+              // ── Checkbox state ────────────────────────────────────────────────────────
+              var (checkA, setCheckA, _) = Hooks.UseState(true);
+              var (checkB, setCheckB, _) = Hooks.UseState(false);
+              var (checkC, setCheckC, _) = Hooks.UseState(false);
 
-            // ── Radio state ───────────────────────────────────────────────────────────
-            var (radioVal, setRadioVal, _) = Hooks.UseState("option1");
+              // ── Radio state ───────────────────────────────────────────────────────────
+              var (radioVal, setRadioVal, _) = Hooks.UseState("option1");
 
-            // ── Drag and drop state ───────────────────────────────────────────────────
-            var (draggedItem, setDraggedItem, _) = Hooks.UseState<string?>(null);
-            var (droppedOn, setDroppedOn, _) = Hooks.UseState<string?>(null);
-            string dragStatus = draggedItem != null
-            ? ("Dragging: " + draggedItem)
-            : (droppedOn != null ? ("Last dropped on: " + droppedOn) : "Drag a card onto the target zone");
-            string dropBg = draggedItem != null ? "#1a2a1a" : "#1a1a2a";
-            string dropTextColor = draggedItem != null ? "#22c55e" : "#5a5a7a";
-            string dropText = draggedItem != null ? "Drop here!" : "Target Zone";
+              // ── Drag and drop state ───────────────────────────────────────────────────
+              var (draggedItem, setDraggedItem, _) = Hooks.UseState<string?>(null);
+              var (droppedOn, setDroppedOn, _) = Hooks.UseState<string?>(null);
+              string dragStatus = draggedItem != null
+                ? ("Dragging: " + draggedItem)
+                : (droppedOn != null ? ("Last dropped on: " + droppedOn) : "Drag a card onto the target zone");
+              string dropBg = draggedItem != null ? "#1a2a1a" : "#1a1a2a";
+              string dropTextColor = draggedItem != null ? "#22c55e" : "#5a5a7a";
+              string dropText = draggedItem != null ? "Drop here!" : "Target Zone";
             return UI.Box(
 new PropsBuilder()
 .ClassName("root")

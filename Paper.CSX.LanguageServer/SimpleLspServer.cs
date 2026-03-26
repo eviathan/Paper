@@ -295,6 +295,25 @@ namespace Paper.CSX.LanguageServer
                             break;
                         }
 
+                    case "$/paper/generateContent":
+                        {
+                            // Custom request: returns the clean LSP-generated C# content for a CSX file.
+                            // Used by the extension hover provider so it always maps against the clean
+                            // format (not whatever CSharpier wrote to disk).
+                            var parameters = message.RootElement.GetProperty("params");
+                            var uri = parameters.GetProperty("uri").GetString() ?? "";
+                            _docs.TryGetValue(uri, out var csxSrc);
+                            if (string.IsNullOrEmpty(csxSrc))
+                            {
+                                await ReplyAsync(id, new { content = (string?)null });
+                                break;
+                            }
+                            var filePath = uri.StartsWith("file://") ? new Uri(uri).LocalPath : uri;
+                            var generated = LsGeneratedFile.BuildContent(csxSrc, filePath);
+                            await ReplyAsync(id, new { content = generated });
+                            break;
+                        }
+
                     case "textDocument/didClose":
                         {
                             var uri = message.RootElement

@@ -180,8 +180,18 @@ namespace Paper.CSX.CLI
             {
                 // StringSplitOptions.None preserves blank lines so each CSX preamble line maps
                 // 1:1 to a generated source line — required for accurate LSP position mapping.
-                foreach (var line in preamble.Split(new[] { '\r', '\n' }, StringSplitOptions.None))
-                    sb.AppendLine(string.IsNullOrWhiteSpace(line) ? "" : "            " + line.Trim());
+                var pLines = preamble.Split(new[] { '\r', '\n' }, StringSplitOptions.None);
+                int baseInd = pLines
+                    .Where(l => !string.IsNullOrWhiteSpace(l))
+                    .Select(l => l.Length - l.TrimStart().Length)
+                    .DefaultIfEmpty(0)
+                    .Min();
+                foreach (var line in pLines)
+                {
+                    if (string.IsNullOrWhiteSpace(line)) { sb.AppendLine(); continue; }
+                    int rel = Math.Max(0, (line.Length - line.TrimStart().Length) - baseInd);
+                    sb.AppendLine("            " + new string(' ', rel) + line.Trim());
+                }
             }
             sb.AppendLine($"            return {parsedBody};");
             sb.AppendLine("        }");

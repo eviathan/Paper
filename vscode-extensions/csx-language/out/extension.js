@@ -662,12 +662,32 @@ function formatCsss(text, tabSize, insertSpaces) {
 async function delegateHoverToGenerated(document, position) {
     try {
         const generatedPath = document.uri.fsPath.replace(/\.csx$/, '.generated.cs');
-        if (!fs.existsSync(generatedPath)) {
-            console.error('[CSX Hover] generated file not found:', generatedPath);
-            return null;
+        // Ask the LSP server for the clean generated content (no CSharpier reformatting).
+        // This ensures position mapping is always correct even after CLI regeneration.
+        let genContent = null;
+        if (client) {
+            try {
+                const resp = await client.sendRequest('$/paper/generateContent', {
+                    uri: document.uri.toString()
+                });
+                genContent = resp?.content ?? null;
+            }
+            catch { /* LSP not ready */ }
+        }
+        // Fall back to reading the file from disk if LSP not available
+        if (!genContent) {
+            if (!fs.existsSync(generatedPath)) {
+                console.error('[CSX Hover] generated file not found:', generatedPath);
+                return null;
+            }
+            genContent = fs.readFileSync(generatedPath, 'utf8');
+        }
+        else {
+            // Write the clean content to disk so executeHoverProvider maps against the right positions
+            fs.writeFileSync(generatedPath, genContent, 'utf8');
         }
         const csxLines = document.getText().split('\n');
-        const genLines = fs.readFileSync(generatedPath, 'utf8').split('\n');
+        const genLines = genContent.split('\n');
         const mappedPos = mapCsxToGeneratedPosition(csxLines, genLines, position);
         if (!mappedPos) {
             console.error('[CSX Hover] no mapped position for csx line', position.line);
@@ -758,10 +778,22 @@ function mapCsxToGeneratedPosition(csxLines, genLines, position) {
     // Blank lines have no tokens to hover over
     if (csxLineText.trim() === '')
         return null;
-    // Count non-blank CSX preamble lines that appear before the target line.
-    // Using non-blank counting makes mapping resilient to blank lines being stripped:
-    // the CLI writes .generated.cs with StringSplitOptions.RemoveEmptyEntries but
-    // LsGeneratedFile.BuildContent preserves them — either way this works.
+    // Compute the base indent of the CSX preamble (smallest leading whitespace of any
+    // non-blank preamble line). Relative indentation is preserved in the generated file so
+    // the column formula is: genCol = (csxCol - csxBaseIndent) + PreambleIndent (12).
+    let csxBaseIndent = Infinity;
+    for (let i = csxPreambleStart; i < csxLines.length; i++) {
+        const t = csxLines[i];
+        if (t.trim() === '')
+            continue;
+        const ws = t.length - t.trimStart().length;
+        if (ws < csxBaseIndent)
+            csxBaseIndent = ws;
+    }
+    if (!isFinite(csxBaseIndent))
+        csxBaseIndent = 0;
+    // Count non-blank CSX preamble lines before the target line (resilient to blank-line
+    // stripping in the generated file).
     let csxNonBlank = 0;
     for (let i = csxPreambleStart; i < line; i++) {
         if (csxLines[i].trim() !== '')
@@ -773,8 +805,9 @@ function mapCsxToGeneratedPosition(csxLines, genLines, position) {
         if (genLines[i].trim() === '')
             continue;
         if (genSeen === csxNonBlank) {
-            const leadingWs = csxLineText.length - csxLineText.trimStart().length;
-            const genCol = Math.max(0, position.character - leadingWs) + 12; // PreambleIndent = 12
+            // genCol: strip CSX base indent, add 12-space generated indent.
+            // Works for both base-indent lines and continuation lines (which have extra indent).
+            const genCol = Math.max(0, position.character - csxBaseIndent) + 12;
             return new vscode.Position(i, genCol);
         }
         genSeen++;
