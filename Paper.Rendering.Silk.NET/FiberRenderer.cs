@@ -723,7 +723,7 @@ namespace Paper.Rendering.Silk.NET
                         _mdCache[path] = mdCached;
                     }
 
-                    var (mdBatch, mdScale) = _fonts!.Get(fontPx, fam, wt, fs);
+                    var (mdBatch, mdScale) = _fonts!.Get(fontPx * DpiScale, fam, wt, fs);
                     var (padTop2, _, padBottom2, _) = BoxModel.PaddingPixels(style, lb.Width, lb.Height);
                     float contentH2 = textH - padTop2 - padBottom2;
                     float baselineBase = contentH2 >= atlasLineH * 1.4f
@@ -747,7 +747,7 @@ namespace Paper.Rendering.Silk.NET
                         float ry = (rowBaseline - scrollY) * ScaleY;
                         foreach (var ms in mdCached.RowSegments[row])
                             mdBatch.Add(ms.Text.AsSpan(), (xOrigin + ms.XOffset - scrollX) * ScaleX, ry,
-                                ms.R, ms.G, ms.B, ms.A * opacity, mdScale * DpiScale);
+                                ms.R, ms.G, ms.B, ms.A * opacity, mdScale);
                         if (isFocusedInput)
                             DrawCaretForLine(seg.Text, lineStart, lineEnd, lb, lineBox, style, col, opacity, scrollX, scrollY);
                     }
@@ -1277,7 +1277,10 @@ namespace Paper.Rendering.Silk.NET
                     _ => label,
                 };
 
-            var (batch, batchScale) = _fonts.Get(fontPx, fam, weight, fontStyle);
+            // Select the atlas at physical pixel size so glyphs are rasterized at native
+            // Retina resolution (no upscaling). atlasLineH stays in logical pixels for
+            // layout/baseline calculations which are done in logical space.
+            var (batch, batchScale) = _fonts.Get(fontPx * DpiScale, fam, weight, fontStyle);
             float atlasLineH = _fonts.LineHeight(fontPx, fam, weight, fontStyle);
 
             // Synthetic italic: apply shear when the style requests italic but the resolved batch
@@ -1358,7 +1361,7 @@ namespace Paper.Rendering.Silk.NET
                     {
                         float lx = (xOrigin - scrollX) * ScaleX;
                         float ly = (wrapBaseline - scrollY) * ScaleY;
-                        batch.Add(string.Join(' ', lineWords).AsSpan(), lx, ly, col.R, col.G, col.B, col.A * opacity, batchScale * DpiScale);
+                        batch.Add(string.Join(' ', lineWords).AsSpan(), lx, ly, col.R, col.G, col.B, col.A * opacity, batchScale);
                         wrapBaseline += lineSpacing;
                         lineWords.Clear();
                         lineW = 0;
@@ -1370,7 +1373,7 @@ namespace Paper.Rendering.Silk.NET
                 {
                     float lx = (xOrigin - scrollX) * ScaleX;
                     float ly = (wrapBaseline - scrollY) * ScaleY;
-                    batch.Add(string.Join(' ', lineWords).AsSpan(), lx, ly, col.R, col.G, col.B, col.A * opacity, batchScale * DpiScale);
+                    batch.Add(string.Join(' ', lineWords).AsSpan(), lx, ly, col.R, col.G, col.B, col.A * opacity, batchScale);
                 }
                 return;
             }
@@ -1402,7 +1405,7 @@ namespace Paper.Rendering.Silk.NET
 
             float x = (xLayout - scrollX) * ScaleX;
             float y = (baseline - scrollY) * ScaleY;
-            batch.Add(drawSpan, x, y, col.R, col.G, col.B, col.A * opacity, batchScale * DpiScale);
+            batch.Add(drawSpan, x, y, col.R, col.G, col.B, col.A * opacity, batchScale);
         }
     }
 }
