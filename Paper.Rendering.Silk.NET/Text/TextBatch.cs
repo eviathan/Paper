@@ -132,8 +132,12 @@ namespace Paper.Rendering.Silk.NET.Text
                 if (!_atlas.TryGetGlyph(c, out var m)) continue;
                 if (_count >= MaxGlyphs) Flush(0, 0);
 
-                float gx = penX + m.BearingX * scale;
-                float gy = y    - m.BearingY * scale;   // top-left of glyph bitmap
+                // Round draw position to integer pixels so each glyph bitmap lands on a whole
+                // texel boundary. This prevents linear-filter bleed that causes uneven stroke
+                // weights and the appearance of horizontal stretching. The pen advance stays
+                // as a float so character spacing accumulates correctly.
+                float gx = MathF.Round(penX + m.BearingX * scale);
+                float gy = MathF.Round(y    - m.BearingY * scale);   // top-left of glyph bitmap
 
                 int i = _count * FloatsPerGlyph;
                 _instanceData[i++] = gx;

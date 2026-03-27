@@ -747,7 +747,7 @@ namespace Paper.Rendering.Silk.NET
                         float ry = (rowBaseline - scrollY) * ScaleY;
                         foreach (var ms in mdCached.RowSegments[row])
                             mdBatch.Add(ms.Text.AsSpan(), (xOrigin + ms.XOffset - scrollX) * ScaleX, ry,
-                                ms.R, ms.G, ms.B, ms.A * opacity, mdScale);
+                                ms.R, ms.G, ms.B, ms.A * opacity, mdScale * DpiScale);
                         if (isFocusedInput)
                             DrawCaretForLine(seg.Text, lineStart, lineEnd, lb, lineBox, style, col, opacity, scrollX, scrollY);
                     }
@@ -1073,7 +1073,12 @@ namespace Paper.Rendering.Silk.NET
             float thumbH = Math.Max(thumbW * 2f, trackH * thumbRatio);
             float scrollRatio = maxScroll > 0f ? Math.Clamp(scrollY / maxScroll, 0f, 1f) : 0f;
             float thumbY = trackY + scrollRatio * (trackH - thumbH);
-            RenderedScrollbars[path] = new ScrollbarHit(trackX, trackY, trackH, thumbY, thumbH, maxScroll, maxScrollX);
+            // Store geometry in logical pixels so PaperSurface hit-testing and scroll clamping
+            // (which operate in logical/CSS pixel space) remain correct on HiDPI displays.
+            float dpi = DpiScale > 0f ? DpiScale : 1f;
+            RenderedScrollbars[path] = new ScrollbarHit(trackX / dpi, trackY / dpi, trackH / dpi,
+                                                        thumbY / dpi, thumbH / dpi,
+                                                        maxScroll / dpi, maxScrollX / dpi);
         }
 
         /// <summary>Word-wrap a single line of text to fit within maxWidth (layout pixels at fontPx). Returns sub-lines with char offsets.</summary>
@@ -1353,7 +1358,7 @@ namespace Paper.Rendering.Silk.NET
                     {
                         float lx = (xOrigin - scrollX) * ScaleX;
                         float ly = (wrapBaseline - scrollY) * ScaleY;
-                        batch.Add(string.Join(' ', lineWords).AsSpan(), lx, ly, col.R, col.G, col.B, col.A * opacity, batchScale);
+                        batch.Add(string.Join(' ', lineWords).AsSpan(), lx, ly, col.R, col.G, col.B, col.A * opacity, batchScale * DpiScale);
                         wrapBaseline += lineSpacing;
                         lineWords.Clear();
                         lineW = 0;
@@ -1365,7 +1370,7 @@ namespace Paper.Rendering.Silk.NET
                 {
                     float lx = (xOrigin - scrollX) * ScaleX;
                     float ly = (wrapBaseline - scrollY) * ScaleY;
-                    batch.Add(string.Join(' ', lineWords).AsSpan(), lx, ly, col.R, col.G, col.B, col.A * opacity, batchScale);
+                    batch.Add(string.Join(' ', lineWords).AsSpan(), lx, ly, col.R, col.G, col.B, col.A * opacity, batchScale * DpiScale);
                 }
                 return;
             }
@@ -1397,7 +1402,7 @@ namespace Paper.Rendering.Silk.NET
 
             float x = (xLayout - scrollX) * ScaleX;
             float y = (baseline - scrollY) * ScaleY;
-            batch.Add(drawSpan, x, y, col.R, col.G, col.B, col.A * opacity, batchScale);
+            batch.Add(drawSpan, x, y, col.R, col.G, col.B, col.A * opacity, batchScale * DpiScale);
         }
     }
 }

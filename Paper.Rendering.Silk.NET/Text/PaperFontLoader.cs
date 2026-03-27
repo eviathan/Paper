@@ -213,10 +213,12 @@ namespace Paper.Rendering.Silk.NET.Text
                     PixelFormat.Red, PixelType.UnsignedByte, ptr);
             }
 
+            // Linear min-filter for downscaling (batchScale < 1); Nearest mag-filter for
+            // upscaling so glyph edges stay sharp instead of blurring outward.
             gl.TexParameter(TextureTarget.Texture2D,
                 TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
             gl.TexParameter(TextureTarget.Texture2D,
-                TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
+                TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
             gl.TexParameter(TextureTarget.Texture2D,
                 TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
             gl.TexParameter(TextureTarget.Texture2D,

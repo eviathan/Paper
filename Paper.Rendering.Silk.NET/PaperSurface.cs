@@ -1481,13 +1481,9 @@ private int GetCaretIndexFromX(Fiber fiber, float lx, float ly, float scrollX = 
             return null;
         }
 
-        /// <summary>Convert input position (window coords) to layout space (framebuffer pixels).</summary>
-        private (float x, float y) ToLayoutCoords(Vector2 position)
-        {
-            if (_width > 0 && _height > 0 && _lastFbWidth > 0 && _lastFbHeight > 0)
-                return (position.X * _lastFbWidth / _width, position.Y * _lastFbHeight / _height);
-            return (position.X, position.Y);
-        }
+        /// <summary>Convert input position (window coords) to layout space (logical pixels).</summary>
+        private static (float x, float y) ToLayoutCoords(Vector2 position)
+            => (position.X, position.Y);
 
         private static List<Fiber> PathToRoot(Fiber target)
         {
@@ -1761,8 +1757,8 @@ private int GetCaretIndexFromX(Fiber fiber, float lx, float ly, float scrollX = 
             var fbSize = _window!.FramebufferSize;
             _lastFbWidth = fbSize.X;
             _lastFbHeight = fbSize.Y;
-            int layoutWidth = fbSize.X;
-            int layoutHeight = fbSize.Y;
+            int layoutWidth = _width;
+            int layoutHeight = _height;
 
             if (_layout == null || _measurer == null) return;
 
@@ -1827,6 +1823,8 @@ private int GetCaretIndexFromX(Fiber fiber, float lx, float ly, float scrollX = 
             var renderer = _renderer!;
             renderer.SetScreenSize(fbSize.X, fbSize.Y);
             renderer.DpiScale = _width > 0 ? fbSize.X / (float)_width : 1f;
+            renderer.ScaleX   = renderer.DpiScale;
+            renderer.ScaleY   = renderer.DpiScale;
             renderer.FocusedInputPath = _focused != null && IsTextInput(_focused.Type as string) ? GetPathString(_focused) : _focusedPath;
             renderer.FocusedInputText = _inputText;
             renderer.FocusedInputType = _focused?.Props?.InputType;
