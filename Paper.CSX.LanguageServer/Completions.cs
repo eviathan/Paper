@@ -22,46 +22,46 @@ namespace Paper.CSX.LanguageServer
 
         // ── Props that apply to every element ─────────────────────────────────────
 
-        private static readonly (string name, string insert, string detail, int kind)[] UniversalProps =
+        private static readonly (string name, string insert, string detail, CompletionItemKind kind)[] UniversalProps =
         [
-            ("style",           "style={{$0}}",                        "Inline StyleSheet",         10),
-            ("hoverStyle",      "hoverStyle={{$0}}",                   "StyleSheet on hover",       10),
-            ("activeStyle",     "activeStyle={{$0}}",                  "StyleSheet on active",      10),
-            ("focusStyle",      "focusStyle={{$0}}",                   "StyleSheet on focus",       10),
-            ("className",       "className=\"$0\"",                    "CSS class names",           10),
-            ("id",              "id=\"$0\"",                           "Element ID",                10),
-            ("key",             "key=\"$0\"",                          "Reconciler key",            10),
-            ("onClick",         "onClick={() => {$0}}",                "Click handler",              2),
-            ("onDoubleClick",   "onDoubleClick={() => {$0}}",          "Double-click handler",       2),
-            ("onMouseEnter",    "onMouseEnter={() => {$0}}",           "Mouse enter handler",        2),
-            ("onMouseLeave",    "onMouseLeave={() => {$0}}",           "Mouse leave handler",        2),
-            ("onMouseDown",     "onMouseDown={() => {$0}}",            "Mouse down handler",         2),
-            ("onMouseUp",       "onMouseUp={() => {$0}}",              "Mouse up handler",           2),
-            ("onFocus",         "onFocus={() => {$0}}",                "Focus handler",              2),
-            ("onBlur",          "onBlur={() => {$0}}",                 "Blur handler",               2),
-            ("onPointerDown",   "onPointerDown={(e) => {$0}}",         "Pointer down handler",       2),
-            ("onPointerUp",     "onPointerUp={(e) => {$0}}",           "Pointer up handler",         2),
-            ("onPointerMove",   "onPointerMove={(e) => {$0}}",         "Pointer move handler",       2),
-            ("onPointerEnter",  "onPointerEnter={(e) => {$0}}",        "Pointer enter handler",      2),
-            ("onPointerLeave",  "onPointerLeave={(e) => {$0}}",        "Pointer leave handler",      2),
-            ("onWheel",         "onWheel={(e) => {$0}}",               "Wheel handler",              2),
-            ("onKeyDown",       "onKeyDown={(k) => {$0}}",             "Key down (string key name)", 2),
-            ("onKeyUp",         "onKeyUp={(k) => {$0}}",               "Key up (string key name)",   2),
-            ("onKeyDownEvent",  "onKeyDownEvent={(e) => {$0}}",        "Key down (KeyEvent)",        2),
-            ("onKeyUpEvent",    "onKeyUpEvent={(e) => {$0}}",          "Key up (KeyEvent)",          2),
-            ("onKeyChar",       "onKeyChar={(e) => {$0}}",             "Key char event",             2),
+            ("style",           "style={{$0}}",                        "Inline StyleSheet",         CompletionItemKind.Property),
+            ("hoverStyle",      "hoverStyle={{$0}}",                   "StyleSheet on hover",       CompletionItemKind.Property),
+            ("activeStyle",     "activeStyle={{$0}}",                  "StyleSheet on active",      CompletionItemKind.Property),
+            ("focusStyle",      "focusStyle={{$0}}",                   "StyleSheet on focus",       CompletionItemKind.Property),
+            ("className",       "className=\"$0\"",                    "CSS class names",           CompletionItemKind.Property),
+            ("id",              "id=\"$0\"",                           "Element ID",                CompletionItemKind.Property),
+            ("key",             "key=\"$0\"",                          "Reconciler key",            CompletionItemKind.Property),
+            ("onClick",         "onClick={() => {$0}}",                "Click handler",             CompletionItemKind.Method),
+            ("onDoubleClick",   "onDoubleClick={() => {$0}}",          "Double-click handler",      CompletionItemKind.Method),
+            ("onMouseEnter",    "onMouseEnter={() => {$0}}",           "Mouse enter handler",       CompletionItemKind.Method),
+            ("onMouseLeave",    "onMouseLeave={() => {$0}}",           "Mouse leave handler",       CompletionItemKind.Method),
+            ("onMouseDown",     "onMouseDown={() => {$0}}",            "Mouse down handler",        CompletionItemKind.Method),
+            ("onMouseUp",       "onMouseUp={() => {$0}}",              "Mouse up handler",          CompletionItemKind.Method),
+            ("onFocus",         "onFocus={() => {$0}}",                "Focus handler",             CompletionItemKind.Method),
+            ("onBlur",          "onBlur={() => {$0}}",                 "Blur handler",              CompletionItemKind.Method),
+            ("onPointerDown",   "onPointerDown={(e) => {$0}}",         "Pointer down handler",      CompletionItemKind.Method),
+            ("onPointerUp",     "onPointerUp={(e) => {$0}}",           "Pointer up handler",        CompletionItemKind.Method),
+            ("onPointerMove",   "onPointerMove={(e) => {$0}}",         "Pointer move handler",      CompletionItemKind.Method),
+            ("onPointerEnter",  "onPointerEnter={(e) => {$0}}",        "Pointer enter handler",     CompletionItemKind.Method),
+            ("onPointerLeave",  "onPointerLeave={(e) => {$0}}",        "Pointer leave handler",     CompletionItemKind.Method),
+            ("onWheel",         "onWheel={(e) => {$0}}",               "Wheel handler",             CompletionItemKind.Method),
+            ("onKeyDown",       "onKeyDown={(k) => {$0}}",             "Key down (string key name)",CompletionItemKind.Method),
+            ("onKeyUp",         "onKeyUp={(k) => {$0}}",               "Key up (string key name)",  CompletionItemKind.Method),
+            ("onKeyDownEvent",  "onKeyDownEvent={(e) => {$0}}",        "Key down (KeyEvent)",       CompletionItemKind.Method),
+            ("onKeyUpEvent",    "onKeyUpEvent={(e) => {$0}}",          "Key up (KeyEvent)",         CompletionItemKind.Method),
+            ("onKeyChar",       "onKeyChar={(e) => {$0}}",             "Key char event",            CompletionItemKind.Method),
         ];
 
         // ── Element-specific props ─────────────────────────────────────────────────
 
-        private static readonly Dictionary<string, (string name, string insert, string detail, int kind)[]> ElementProps = new()
+        private static readonly Dictionary<string, (string name, string insert, string detail, CompletionItemKind kind)[]> ElementProps = new()
         {
-            ["Input"] = [("value", "value={$0}", "Bound text value", 10), ("onChange", "onChange={(v) => {$0}}", "Change handler", 2)],
-            ["Textarea"] = [("value", "value={$0}", "Bound text value", 10), ("onChange", "onChange={(v) => {$0}}", "Change handler", 2), ("rows", "rows={$0}", "Number of rows", 10)],
-            ["Image"] = [("src", "src=\"$0\"", "Image path or URL", 10)],
-            ["Checkbox"] = [("checked", "checked={$0}", "Checked state", 10), ("onCheckedChange", "onCheckedChange={(v) => {$0}}", "Check state change", 2)],
-            ["RadioGroup"] = [("selectedValue", "selectedValue={$0}", "Selected option value", 10), ("onSelect", "onSelect={(v) => {$0}}", "Selection handler", 2)],
-            ["RadioOption"] = [("value", "value=\"$0\"", "Option value", 10)],
+            ["Input"]      = [("value",         "value={$0}",                "Bound text value",       CompletionItemKind.Property), ("onChange",        "onChange={(v) => {$0}}",        "Change handler",      CompletionItemKind.Method)],
+            ["Textarea"]   = [("value",         "value={$0}",                "Bound text value",       CompletionItemKind.Property), ("onChange",        "onChange={(v) => {$0}}",        "Change handler",      CompletionItemKind.Method), ("rows", "rows={$0}", "Number of rows", CompletionItemKind.Property)],
+            ["Image"]      = [("src",           "src=\"$0\"",                "Image path or URL",      CompletionItemKind.Property)],
+            ["Checkbox"]   = [("checked",       "checked={$0}",              "Checked state",          CompletionItemKind.Property), ("onCheckedChange", "onCheckedChange={(v) => {$0}}", "Check state change",  CompletionItemKind.Method)],
+            ["RadioGroup"] = [("selectedValue", "selectedValue={$0}",        "Selected option value",  CompletionItemKind.Property), ("onSelect",        "onSelect={(v) => {$0}}",        "Selection handler",   CompletionItemKind.Method)],
+            ["RadioOption"]= [("value",         "value=\"$0\"",              "Option value",           CompletionItemKind.Property)],
         };
 
         // ── CSS properties ────────────────────────────────────────────────────────
@@ -170,16 +170,16 @@ namespace Paper.CSX.LanguageServer
 
         // ── Hooks / C# snippets ───────────────────────────────────────────────────
 
-        private static readonly (string label, string insert, string detail, int kind)[] CSharpSnippets =
+        private static readonly (string label, string insert, string detail, CompletionItemKind kind)[] CSharpSnippets =
         [
-            ("useState",    "var ($1, set$2, update$2) = Hooks.UseState($0);",           "State hook",           15),
-            ("useEffect",   "Hooks.UseEffect(() => {\n    $0\n}, [$1]);",               "Effect hook",          15),
-            ("useRef",      "var $1 = Hooks.UseRef($0);",                               "Ref hook",             15),
-            ("useReducer",  "var ($1, dispatch) = Hooks.UseReducer($2, $0);",           "Reducer hook",         15),
-            ("useContext",  "var $1 = Hooks.UseContext($0);",                            "Context hook",         15),
-            ("useCallback", "var $1 = Hooks.UseCallback(() => {\n    $0\n}, [$2]);",    "Callback hook",        15),
-            ("UI.Map",      "UI.Map($1, x => x.$2, x => (\n    $0\n))",                "Map list to nodes",    15),
-            ("UI.When",     "UI.When($1, $0)",                                           "Conditional node",     15),
+            ("useState",    "var ($1, set$2, update$2) = Hooks.UseState($0);",           "State hook",        CompletionItemKind.Snippet),
+            ("useEffect",   "Hooks.UseEffect(() => {\n    $0\n}, [$1]);",               "Effect hook",       CompletionItemKind.Snippet),
+            ("useRef",      "var $1 = Hooks.UseRef($0);",                               "Ref hook",          CompletionItemKind.Snippet),
+            ("useReducer",  "var ($1, dispatch) = Hooks.UseReducer($2, $0);",           "Reducer hook",      CompletionItemKind.Snippet),
+            ("useContext",  "var $1 = Hooks.UseContext($0);",                            "Context hook",      CompletionItemKind.Snippet),
+            ("useCallback", "var $1 = Hooks.UseCallback(() => {\n    $0\n}, [$2]);",    "Callback hook",     CompletionItemKind.Snippet),
+            ("UI.Map",      "UI.Map($1, x => x.$2, x => (\n    $0\n))",                "Map list to nodes", CompletionItemKind.Snippet),
+            ("UI.When",     "UI.When($1, $0)",                                           "Conditional node",  CompletionItemKind.Snippet),
         ];
 
         // ─────────────────────────────────────────────────────────────────────────
@@ -329,7 +329,7 @@ namespace Paper.CSX.LanguageServer
         // ─── Completion builders ──────────────────────────────────────────────────
 
         private static object[] BuildTagCompletions() =>
-            Elements.Select(e => Item(e, e, $"<{e}> element", 7)).ToArray();
+            Elements.Select(e => Item(e, e, $"<{e}> element", CompletionItemKind.Class)).ToArray();
 
         private static readonly HashSet<string> _intrinsics = new(StringComparer.Ordinal)
         {
@@ -384,7 +384,7 @@ namespace Paper.CSX.LanguageServer
                         var name = p[(sp + 1)..].Trim();
                         var camel = char.ToLower(name[0]) + name[1..];
                         if (Regex.IsMatch(name, @"^\w+$"))
-                            items.Add(Item(camel, camel + "={${1}}", $"({type}) {name}", 5));
+                            items.Add(Item(camel, camel + "={${1}}", $"({type}) {name}", CompletionItemKind.Field));
                     }
                     if (items.Count > 0) return [.. items];
                 }
@@ -419,7 +419,7 @@ namespace Paper.CSX.LanguageServer
                     var typeName = member.Type.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
                     var isOptional = defaultsByName.TryGetValue(member.Name, out var hasDefault) && hasDefault;
                     var detail = isOptional ? $"({typeName}) — optional" : $"({typeName})";
-                    propItems.Add(Item(camelName, camelName + "={${1}}", detail, 5));
+                    propItems.Add(Item(camelName, camelName + "={${1}}", detail, CompletionItemKind.Field));
                 }
                 return [.. propItems];
             }
@@ -427,21 +427,21 @@ namespace Paper.CSX.LanguageServer
         }
 
         private static object[] BuildStylePropCompletions() =>
-            CssProps.Select(p => Item(p.css, p.css + ": ", p.detail, 10)).ToArray();
+            CssProps.Select(p => Item(p.css, p.css + ": ", p.detail, CompletionItemKind.Property)).ToArray();
 
         private static object[] BuildStyleValueCompletions(string propName)
         {
             if (CssPropValues.TryGetValue(propName, out var vals) && vals.Length > 0)
-                return vals.Select(v => Item(v, $"'{v}'", v, 12)).ToArray();
+                return vals.Select(v => Item(v, $"'{v}'", v, CompletionItemKind.Value)).ToArray();
 
             // Generic fallback: suggest number literals and common units
             return
             [
-                Item("0",    "0",       "Zero",           12),
-                Item("px",   "${1:16}", "Pixel value",    12),
-                Item("em",   "${1:1.5}em", "Em value",   12),
-                Item("%",    "${1:100}%",  "Percent",     12),
-                Item("auto", "'auto'",     "Auto",        12),
+                Item("0",    "0",          "Zero",        CompletionItemKind.Value),
+                Item("px",   "${1:16}",    "Pixel value", CompletionItemKind.Value),
+                Item("em",   "${1:1.5}em", "Em value",   CompletionItemKind.Value),
+                Item("%",    "${1:100}%",  "Percent",    CompletionItemKind.Value),
+                Item("auto", "'auto'",     "Auto",       CompletionItemKind.Value),
             ];
         }
 
@@ -478,7 +478,7 @@ namespace Paper.CSX.LanguageServer
             if (classes.Count == 0)
                 return [];
 
-            return classes.Select(c => Item(c, c, "CSS class", 14)).ToArray();
+            return classes.Select(c => Item(c, c, "CSS class", CompletionItemKind.Keyword)).ToArray();
         }
 
         private static object[] BuildImportPathCompletions(string partial, string docUri)
@@ -510,7 +510,7 @@ namespace Paper.CSX.LanguageServer
                 {
                     var name = Path.GetFileName(dir);
                     if (!name.StartsWith(filePart, StringComparison.OrdinalIgnoreCase)) continue;
-                    items.Add(new { label = name + "/", insertText = name + "/", kind = 19, detail = "directory" });
+                    items.Add(new { label = name + "/", insertText = name + "/", kind = CompletionItemKind.Folder, detail = "directory" });
                 }
 
                 // .csx and .csss files — insertText is just the filename
@@ -522,7 +522,7 @@ namespace Paper.CSX.LanguageServer
                     if (!name.StartsWith(filePart, StringComparison.OrdinalIgnoreCase)) continue;
                     if (Path.GetFullPath(file).Equals(Path.GetFullPath(docPath), StringComparison.OrdinalIgnoreCase)) continue;
                     var ext = name.EndsWith(".csx") ? ".csx component" : ".csss stylesheet";
-                    items.Add(new { label = name, insertText = name, kind = 17, detail = ext });
+                    items.Add(new { label = name, insertText = name, kind = CompletionItemKind.File, detail = ext });
                 }
 
                 return [.. items];
@@ -538,7 +538,7 @@ namespace Paper.CSX.LanguageServer
                 items.Add(SnippetItem(label, insert, detail, kind));
             // Element factory completions for C# code
             foreach (var e in Elements)
-                items.Add(Item($"UI.{e}", $"UI.{e}(", $"Create {e} element", 7));
+                items.Add(Item($"UI.{e}", $"UI.{e}(", $"Create {e} element", CompletionItemKind.Class));
             return [.. items];
         }
 
@@ -607,7 +607,7 @@ namespace Paper.CSX.LanguageServer
 
         // ─── Item helpers ─────────────────────────────────────────────────────────
 
-        private static object Item(string label, string insert, string detail, int kind) => new
+        private static object Item(string label, string insert, string detail, CompletionItemKind kind) => new
         {
             label,
             kind,
@@ -616,7 +616,7 @@ namespace Paper.CSX.LanguageServer
             insertTextFormat = 1, // PlainText
         };
 
-        private static object SnippetItem(string label, string insert, string detail, int kind) => new
+        private static object SnippetItem(string label, string insert, string detail, CompletionItemKind kind) => new
         {
             label,
             kind,
