@@ -769,13 +769,11 @@ namespace Paper.Core.Components
                             Color = new PaperColour(0.7f, 0.7f, 0.8f, 1f),
                             Width = Length.Px(24),
                             Height = Length.Px(24),
-                            Display = Display.Flex,
-                            JustifyContent = JustifyContent.Center,
-                            AlignItems = AlignItems.Center,
                             AlignSelf = AlignSelf.Center,
                             BorderRadius = 4f,
                             MarginLeft = Length.Px(12),
                             Padding = new Thickness(Length.Px(0)),
+                            TextAlign = TextAlign.Center,
                         }
                     )
                 )

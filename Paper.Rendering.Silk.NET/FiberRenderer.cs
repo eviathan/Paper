@@ -1327,10 +1327,10 @@ namespace Paper.Rendering.Silk.NET
             var (padTop, padRight, padBottom, padLeft) = BoxModel.PaddingPixels(style, lb.Width, lb.Height);
 
             // Vertical alignment: centre in content area using raw glyph height; otherwise top-align.
+            // Only skip centering when the box is smaller than the text itself.
             float contentH = lb.Height - padTop - padBottom;
-            float minHeightForCenter = atlasLineH * 1.4f;
             float baseline;
-            if (contentH >= minHeightForCenter)
+            if (contentH >= atlasLineH)
             {
                 float centreY = lb.AbsoluteY + padTop + (contentH - atlasLineH) / 2f;
                 baseline = centreY + (atlasLineH * 0.8f);
