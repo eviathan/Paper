@@ -49,6 +49,7 @@ namespace Paper.Rendering.Silk.NET
         private ILayoutMeasurer? _measurer;
         private IInputContext? _inputContext;
         private Fiber? _hovered;
+        private string? _hoveredPath; // Stable path so we can re-bind _hovered after reconcile replaces the tree.
         private Fiber? _pressed;
         private string? _pressedPath; // Stable path (indices from root) so we match the same control after tree is replaced by a reconcile.
         private Fiber? _focused;
@@ -292,7 +293,15 @@ namespace Paper.Rendering.Silk.NET
             _measurer = new FallbackLayoutMeasurer();
 
             _gl.Enable(EnableCap.Blend);
-            _gl.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
+            // Separate blend factors for RGB vs alpha channel.
+            // RGB: standard straight-alpha blending (SrcAlpha / 1-SrcAlpha).
+            // Alpha: Zero/One — preserve the framebuffer's alpha as-is (always keeps it at 1.0
+            // after the clear). Without this, semi-transparent draws reduce the framebuffer alpha
+            // below 1.0, and macOS Metal composites the window against the desktop background
+            // (typically white), making semi-transparent colours appear lighter than intended.
+            _gl.BlendFuncSeparate(
+                BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha,
+                BlendingFactor.Zero, BlendingFactor.One);
 
             // Load fonts for text rendering (degrades gracefully if not found).
             // Discovers regular + bold variants by checking common naming conventions
@@ -923,6 +932,7 @@ private int GetCaretIndexFromX(Fiber fiber, float lx, float ly, float scrollX = 
                 }
 
                 _hovered = target;
+                _hoveredPath = target != null ? GetPathString(target) : null;
                 ApplyGlfwCursor(target?.ComputedStyle.Cursor ?? Paper.Core.Styles.Cursor.Default);
                 MarkDirty(); // hover state affects :hover styles
             }
@@ -1743,6 +1753,10 @@ private int GetCaretIndexFromX(Fiber fiber, float lx, float ly, float scrollX = 
                 else
                     _focused = null;
             }
+            // Re-bind _hovered to the current tree after reconcile (fiber objects are replaced each reconcile).
+            if (_hoveredPath != null)
+                _hovered = GetFiberByPath(root, _hoveredPath);
+
             // If the style registry changed (CSSS sheet loaded/reloaded, class registered),
             // mark all fibers dirty so stale cached ComputedStyles are recomputed.
             int registryVersion = Styles.Version;
@@ -1993,6 +2007,7 @@ private int GetCaretIndexFromX(Fiber fiber, float lx, float ly, float scrollX = 
                 child = child.Sibling;
             }
         }
+
 
         /// <summary>
         /// Applies computed styles and runs layout for a portal root fiber.

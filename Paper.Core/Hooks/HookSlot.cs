@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Paper.Core.Reconciler;
 
 namespace Paper.Core.Hooks
 {
@@ -10,6 +11,9 @@ namespace Paper.Core.Hooks
     /// </summary>
     internal sealed class HookSlot
     {
+        /// <summary>The fiber that owns this slot; set by HookContext.Next() during rendering.</summary>
+        internal Fiber? OwnerFiber { get; set; }
+
         public object? State { get; set; }
         public object?[] Deps { get; set; } = Array.Empty<object?>();
         public bool HasDeps { get; set; }
@@ -39,6 +43,15 @@ namespace Paper.Core.Hooks
                 _pendingStateUpdaters ??= new List<Func<object?, object?>>();
                 _pendingStateUpdaters.Add(updater);
             }
+            // Mark all ancestors so the reconciler knows to traverse down to this dirty component.
+            var ancestor = OwnerFiber?.Parent;
+            while (ancestor != null)
+            {
+                ancestor.HasDirtyDescendant = true;
+                ancestor = ancestor.Parent;
+            }
+            // Wake the render loop so the reconciler actually runs this frame.
+            RenderScheduler.RequestRender();
         }
 
         /// <summary>Apply all queued state updaters and clear the queue. Call when reading state at start of render.</summary>

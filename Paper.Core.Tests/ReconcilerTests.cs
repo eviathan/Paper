@@ -602,4 +602,40 @@ public sealed class ReconcilerTests
 
         Assert.False(HasTextFiber(rec.Root, "portal-only"));
     }
+
+    [Fact]
+    public void NestedChildState_WithoutParentStateChange_TriggersChildRerender()
+    {
+        // Simulates: App (no state) wraps Child (has state).
+        // When only the child's setState fires, Update(forceReconcile:false) should
+        // still re-render the child — this is the hover-state-not-propagating bug.
+        Action<string>? capturedSet = null;
+
+        UINode Child(Props _)
+        {
+            var (val, setVal, _) = UseState("default");
+            capturedSet = setVal;
+            return UI.Text(val);
+        }
+
+        UINode App(Props _) => UI.Box(UI.Component(Child));
+
+        var reconciler = new R();
+        var appNode = UI.Component(App);
+        reconciler.Mount(appNode);
+
+        // Tree: App → Box → Child (Func) → Text
+        // Verify initial render
+        var textFiber = reconciler.Root!.Child!.Child!.Child!;
+        Assert.Equal("default", textFiber.Props.Text);
+
+        // Simulate OnMouseEnter calling child setState — no parent state change
+        capturedSet!("hovered");
+
+        // Update without forceReconcile, as the real render loop does
+        reconciler.Update(appNode, forceReconcile: false);
+
+        var updatedText = reconciler.Root!.Child!.Child!.Child!;
+        Assert.Equal("hovered", updatedText.Props.Text);
+    }
 }

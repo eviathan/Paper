@@ -72,6 +72,13 @@ namespace Paper.Core.Reconciler
         /// <summary>True when this fiber's state has changed and it needs re-rendering.</summary>
         public bool IsDirty { get; set; } = false;
 
+        /// <summary>
+        /// True when a descendant component has pending state updates.
+        /// Set by the descendant walking up the parent chain via <see cref="HookSlot"/>;
+        /// cleared at the start of each <see cref="Reconcile"/> visit so stale flags don't persist.
+        /// </summary>
+        public bool HasDirtyDescendant { get; set; }
+
         // ── Style cache ───────────────────────────────────────────────────────
 
         /// <summary>

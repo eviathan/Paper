@@ -33,12 +33,12 @@ namespace Paper.Core.Components
         /// </summary>
         public static UINode List(Props p)
         {
-            var items      = p.Get<IReadOnlyList<object>>("items") ?? Array.Empty<object>();
-            float itemH    = p.Get<float?>("itemHeight") ?? 48f;
+            var items = p.Get<IReadOnlyList<object>>("items") ?? Array.Empty<object>();
+            float itemH = p.Get<float?>("itemHeight") ?? 48f;
             float containerH = p.Get<float?>("containerH") ?? 400f;
-            int   overscan = p.Get<int?>("overscan") ?? 3;
-            var   render   = p.Get<Func<object, int, UINode>>("renderItem");
-            var   style    = p.Style;
+            int overscan = p.Get<int?>("overscan") ?? 3;
+            var render = p.Get<Func<object, int, UINode>>("renderItem");
+            var style = p.Style;
 
             var vs = Paper.Core.Hooks.Hooks.UseVirtualScroll<object>(items, itemH, containerH, overscan);
 
@@ -50,9 +50,9 @@ namespace Paper.Core.Components
 
             var containerStyle = new StyleSheet
             {
-                Height   = Length.Px(containerH),
+                Height = Length.Px(containerH),
                 Overflow = Overflow.Hidden,
-                Display  = Display.Block,
+                Display = Display.Block,
             }.Merge(style ?? StyleSheet.Empty);
 
             return UI.Box(
@@ -99,14 +99,14 @@ namespace Paper.Core.Components
 
             var bubbleStyle = new StyleSheet
             {
-                Position   = Position.Absolute,
-                Bottom     = Length.Px(0),    // sits just above the trigger (positive y = up in screen coords)
-                Left       = Length.Px(0),
+                Position = Position.Absolute,
+                Bottom = Length.Px(0),    // sits just above the trigger (positive y = up in screen coords)
+                Left = Length.Px(0),
                 Background = new PaperColour(0.08f, 0.08f, 0.12f, 0.95f),
-                Color      = PaperColour.White,
-                Padding    = new Thickness(Length.Px(4), Length.Px(8)),
+                Color = PaperColour.White,
+                Padding = new Thickness(Length.Px(4), Length.Px(8)),
                 BorderRadius = 4f,
-                ZIndex     = 500,
+                ZIndex = 500,
                 WhiteSpace = WhiteSpace.NoWrap,
                 // Prevent tooltip from capturing pointer events so it doesn't flicker
                 PointerEvents = PointerEvents.None,
@@ -116,7 +116,7 @@ namespace Paper.Core.Components
             var wrapperStyle = new StyleSheet
             {
                 Position = Position.Relative,
-                Display  = Display.InlineFlex,
+                Display = Display.InlineFlex,
             };
 
             var wrapperProps = new PropsBuilder()
@@ -165,27 +165,27 @@ namespace Paper.Core.Components
 
             var backdropStyle = new StyleSheet
             {
-                Position   = Position.Fixed,
-                Top        = Length.Px(0),
-                Left       = Length.Px(0),
-                Width      = Length.Percent(100),
-                Height     = Length.Percent(100),
+                Position = Position.Fixed,
+                Top = Length.Px(0),
+                Left = Length.Px(0),
+                Width = Length.Percent(100),
+                Height = Length.Percent(100),
                 Background = new PaperColour(0f, 0f, 0f, 0.55f),
-                ZIndex     = 1000,
-                Display    = Display.Flex,
+                ZIndex = 1000,
+                Display = Display.Flex,
                 JustifyContent = JustifyContent.Center,
-                AlignItems     = AlignItems.Center,
+                AlignItems = AlignItems.Center,
             };
 
             var defaultPanelStyle = new StyleSheet
             {
-                Background   = new PaperColour(0.13f, 0.13f, 0.18f, 1f),
+                Background = new PaperColour(0.13f, 0.13f, 0.18f, 1f),
                 BorderRadius = 8f,
-                Padding      = new Thickness(Length.Px(24)),
-                MinWidth     = Length.Px(320),
-                MaxWidth     = Length.Px(640),
-                ZIndex       = 1001,
-                Border       = new BorderEdges(new Border(1f, new PaperColour(0.3f, 0.3f, 0.4f, 1f))),
+                Padding = new Thickness(Length.Px(24)),
+                MinWidth = Length.Px(320),
+                MaxWidth = Length.Px(640),
+                ZIndex = 1001,
+                Border = new BorderEdges(new Border(1f, new PaperColour(0.3f, 0.3f, 0.4f, 1f))),
             }.Merge(panelStyle ?? StyleSheet.Empty);
 
             // Clicking the backdrop closes the modal.
@@ -239,11 +239,11 @@ namespace Paper.Core.Components
                 .Style(new StyleSheet
                 {
                     Position = Position.Fixed,
-                    Top      = Length.Px(0),
-                    Left     = Length.Px(0),
-                    Width    = Length.Percent(100),
-                    Height   = Length.Percent(100),
-                    ZIndex   = 999,
+                    Top = Length.Px(0),
+                    Left = Length.Px(0),
+                    Width = Length.Percent(100),
+                    Height = Length.Percent(100),
+                    ZIndex = 999,
                     Background = new PaperColour(0f, 0f, 0f, 0f),
                 })
                 .OnPointerDown(_ => onClose?.Invoke())
@@ -251,27 +251,27 @@ namespace Paper.Core.Components
 
             var menuStyle = new StyleSheet
             {
-                Position   = Position.Fixed,
-                Top        = Length.Px(y),
-                Left       = Length.Px(x),
-                ZIndex     = 1000,
+                Position = Position.Fixed,
+                Top = Length.Px(y),
+                Left = Length.Px(x),
+                ZIndex = 1000,
                 Background = new PaperColour(0.12f, 0.12f, 0.17f, 1f),
                 BorderRadius = 6f,
-                Border     = new BorderEdges(new Border(1f, new PaperColour(0.3f, 0.3f, 0.4f, 1f))),
-                MinWidth   = Length.Px(160),
-                Padding    = new Thickness(Length.Px(4), Length.Px(0)),
-                Display    = Display.Block,
+                Border = new BorderEdges(new Border(1f, new PaperColour(0.3f, 0.3f, 0.4f, 1f))),
+                MinWidth = Length.Px(160),
+                Padding = new Thickness(Length.Px(4), Length.Px(0)),
+                Display = Display.Block,
             };
 
             var itemNodes = items.Select((item, i) =>
             {
                 var itemStyle = new StyleSheet
                 {
-                    Display  = Display.Block,
-                    Width    = Length.Percent(100),
-                    Padding  = new Thickness(Length.Px(4), Length.Px(12)),
-                    Cursor   = Cursor.Pointer,
-                    Color    = PaperColour.White,
+                    Display = Display.Block,
+                    Width = Length.Percent(100),
+                    Padding = new Thickness(Length.Px(4), Length.Px(12)),
+                    Cursor = Cursor.Pointer,
+                    Color = PaperColour.White,
                 };
                 var hoverStyle = new StyleSheet { Background = new PaperColour(0.25f, 0.4f, 0.7f, 1f) };
                 var localItem = item;
@@ -364,12 +364,12 @@ namespace Paper.Core.Components
         /// </summary>
         public static UINode Slider(Props p)
         {
-            float value  = p.Get<float?>("value")    ?? 0f;
-            float min    = p.Get<float?>("min")      ?? 0f;
-            float max    = p.Get<float?>("max")      ?? 100f;
-            float step   = p.Get<float?>("step")     ?? 1f;
+            float value = p.Get<float?>("value") ?? 0f;
+            float min = p.Get<float?>("min") ?? 0f;
+            float max = p.Get<float?>("max") ?? 100f;
+            float step = p.Get<float?>("step") ?? 1f;
             var onChange = p.Get<Action<float>>("onChange");
-            var style    = p.Style ?? StyleSheet.Empty;
+            var style = p.Style ?? StyleSheet.Empty;
 
             // Clamp value
             float clamped = Math.Clamp(value, min, max);
@@ -407,51 +407,51 @@ namespace Paper.Core.Components
             void OnWheel(Paper.Core.Events.PointerEvent e)
             {
                 float delta = e.WheelDeltaY > 0 ? -step : step;
-                float next  = Snap(clamped + delta);
+                float next = Snap(clamped + delta);
                 onChange?.Invoke(next);
             }
 
             var trackStyle = new StyleSheet
             {
-                Display        = Display.Flex,
-                AlignItems     = AlignItems.Center,
-                Height         = Length.Px(24),
-                Position       = Position.Relative,
-                Cursor         = Cursor.Pointer,
-                MinWidth       = Length.Px(80),
+                Display = Display.Flex,
+                AlignItems = AlignItems.Center,
+                Height = Length.Px(24),
+                Position = Position.Relative,
+                Cursor = Cursor.Pointer,
+                MinWidth = Length.Px(80),
             }.Merge(style);
 
             var railStyle = new StyleSheet
             {
-                Width         = Length.Percent(100),
-                Height        = Length.Px(4),
-                Background    = new PaperColour(0.3f, 0.3f, 0.4f, 1f),
-                BorderRadius  = 2f,
-                Position      = Position.Relative,
+                Width = Length.Percent(100),
+                Height = Length.Px(4),
+                Background = new PaperColour(0.3f, 0.3f, 0.4f, 1f),
+                BorderRadius = 2f,
+                Position = Position.Relative,
             };
 
             var fillStyle = new StyleSheet
             {
-                Width         = Length.Percent(fraction * 100f),
-                Height        = Length.Px(4),
-                Background    = new PaperColour(0.35f, 0.6f, 0.95f, 1f),
-                BorderRadius  = 2f,
-                Position      = Position.Absolute,
-                Left          = Length.Px(0),
+                Width = Length.Percent(fraction * 100f),
+                Height = Length.Px(4),
+                Background = new PaperColour(0.35f, 0.6f, 0.95f, 1f),
+                BorderRadius = 2f,
+                Position = Position.Absolute,
+                Left = Length.Px(0),
             };
 
             float thumbOffset = fraction * 100f;
             var thumbStyle = new StyleSheet
             {
-                Width         = Length.Px(16),
-                Height        = Length.Px(16),
-                Background    = new PaperColour(0.35f, 0.6f, 0.95f, 1f),
-                BorderRadius  = 8f,
-                Position      = Position.Absolute,
-                Left          = Length.Percent(thumbOffset),
-                Top           = Length.Px(-6),  // centre 16px thumb in 4px rail: (4-16)/2 = -6
-                TranslateX    = -8f,  // centre thumb on the point
-                Cursor        = Cursor.Pointer,
+                Width = Length.Px(16),
+                Height = Length.Px(16),
+                Background = new PaperColour(0.35f, 0.6f, 0.95f, 1f),
+                BorderRadius = 8f,
+                Position = Position.Absolute,
+                Left = Length.Percent(thumbOffset),
+                Top = Length.Px(-6),  // centre 16px thumb in 4px rail: (4-16)/2 = -6
+                TranslateX = -8f,  // centre thumb on the point
+                Cursor = Cursor.Pointer,
                 PointerEvents = PointerEvents.None,  // clicks fall through to the rail/track
             };
 
@@ -485,12 +485,12 @@ namespace Paper.Core.Components
         /// </summary>
         public static UINode NumberInput(Props p)
         {
-            float value  = p.Get<float?>("value")   ?? 0f;
-            float? min   = p.Get<float?>("min");
-            float? max   = p.Get<float?>("max");
-            float step   = p.Get<float?>("step")    ?? 1f;
+            float value = p.Get<float?>("value") ?? 0f;
+            float? min = p.Get<float?>("min");
+            float? max = p.Get<float?>("max");
+            float step = p.Get<float?>("step") ?? 1f;
             var onChange = p.Get<Action<float>>("onChange");
-            var style    = p.Style ?? StyleSheet.Empty;
+            var style = p.Style ?? StyleSheet.Empty;
 
             float Clamp(float v)
             {
@@ -513,29 +513,29 @@ namespace Paper.Core.Components
 
             var containerStyle = new StyleSheet
             {
-                Display       = Display.Flex,
+                Display = Display.Flex,
                 FlexDirection = FlexDirection.Row,
-                AlignItems    = AlignItems.Center,
+                AlignItems = AlignItems.Center,
             }.Merge(style);
 
             var btnStyle = new StyleSheet
             {
-                Width        = Length.Px(28),
-                Height       = Length.Px(28),
-                Display      = Display.Flex,
+                Width = Length.Px(28),
+                Height = Length.Px(28),
+                Display = Display.Flex,
                 JustifyContent = JustifyContent.Center,
-                AlignItems   = AlignItems.Center,
-                Background   = new PaperColour(0.2f, 0.2f, 0.28f, 1f),
+                AlignItems = AlignItems.Center,
+                Background = new PaperColour(0.2f, 0.2f, 0.28f, 1f),
                 BorderRadius = 4f,
-                Cursor       = Cursor.Pointer,
+                Cursor = Cursor.Pointer,
             };
             var btnHover = new StyleSheet { Background = new PaperColour(0.28f, 0.28f, 0.38f, 1f) };
 
             var inputStyle = new StyleSheet
             {
-                Width        = Length.Px(72),
-                Padding      = new Thickness(Length.Px(4), Length.Px(6)),
-                TextAlign    = TextAlign.Center,
+                Width = Length.Px(72),
+                Padding = new Thickness(Length.Px(4), Length.Px(6)),
+                TextAlign = TextAlign.Center,
             };
 
             return UI.Box(containerStyle,
@@ -557,44 +557,38 @@ namespace Paper.Core.Components
         /// </summary>
         public static UINode Tabs(Props p)
         {
-            var tabs      = p.Get<IReadOnlyList<(string Id, string Label)>>("tabs")
+            var tabs = p.Get<IReadOnlyList<(string Id, string Label)>>("tabs")
                             ?? Array.Empty<(string, string)>();
             var activeTab = p.Get<string>("activeTab") ?? (tabs.Count > 0 ? tabs[0].Id : "");
-            var onChange  = p.Get<Action<string>>("onTabChange");
-            var panels    = p.Children;
-            var style     = p.Style ?? StyleSheet.Empty;
+            var onChange = p.Get<Action<string>>("onTabChange");
+            var panels = p.Children;
+            var style = p.Style ?? StyleSheet.Empty;
 
             var stripStyle = new StyleSheet
             {
-                Display       = Display.Flex,
+                Display = Display.Flex,
                 FlexDirection = FlexDirection.Row,
-                Height        = Length.Px(36),
-                BorderBottom  = new Border(1f, new PaperColour(0.25f, 0.25f, 0.35f, 1f)),
+                Height = Length.Px(36),
+                BorderBottom = new Border(1f, new PaperColour(0.25f, 0.25f, 0.35f, 1f)),
             };
 
+            var hoverStyle = new StyleSheet { Opacity = 0.5f };
             var tabNodes = tabs.Select((tab, i) =>
             {
                 bool active = tab.Id == activeTab;
                 var tabStyle = new StyleSheet
                 {
-                    Padding      = new Thickness(Length.Px(8), Length.Px(16)),
-                    Cursor       = Cursor.Pointer,
-                    Color        = active ? PaperColour.White : new PaperColour(0.6f, 0.6f, 0.7f, 1f),
-                    Background   = active ? new PaperColour(0.15f, 0.15f, 0.22f, 1f) : null,
+                    Padding = new Thickness(Length.Px(8), Length.Px(16)),
+                    Cursor = Cursor.Pointer,
                     BorderBottom = active ? new Border(2f, new PaperColour(0.35f, 0.6f, 0.95f, 1f)) : null,
                     MarginBottom = active ? Length.Px(-1) : null,
-                };
-                var hoverStyle = new StyleSheet
-                {
-                    Color = PaperColour.White,
-                    Background = new PaperColour(0.18f, 0.18f, 0.26f, 1f),
                 };
                 var localTab = tab;
                 return UI.Box(new PropsBuilder()
                     .Style(tabStyle)
                     .Set("hoverStyle", hoverStyle)
                     .OnClick(() => onChange?.Invoke(localTab.Id))
-                    .Children(UI.Text(localTab.Label))
+                    .Children(UI.Text(localTab.Label, style: new StyleSheet { PointerEvents = PointerEvents.None }))
                     .Build(), key: tab.Id);
             }).ToArray();
 
@@ -606,7 +600,7 @@ namespace Paper.Core.Components
 
             var containerStyle = new StyleSheet
             {
-                Display       = Display.Flex,
+                Display = Display.Flex,
                 FlexDirection = FlexDirection.Column,
             }.Merge(style);
 
@@ -628,40 +622,40 @@ namespace Paper.Core.Components
         /// </summary>
         public static UINode Popover(Props p)
         {
-            bool isOpen   = p.Get<bool>("isOpen");
-            var onClose   = p.Get<Action>("onClose");
-            var children  = p.Children;
-            var style     = p.Style ?? StyleSheet.Empty;
+            bool isOpen = p.Get<bool>("isOpen");
+            var onClose = p.Get<Action>("onClose");
+            var children = p.Children;
+            var style = p.Style ?? StyleSheet.Empty;
             var placement = p.Get<string>("placement") ?? "bottom";
 
             // First child = trigger, rest = panel content
-            UINode trigger  = children.Count > 0 ? children[0] : UI.Fragment();
+            UINode trigger = children.Count > 0 ? children[0] : UI.Fragment();
             UINode[] content = children.Count > 1 ? children.Skip(1).ToArray() : Array.Empty<UINode>();
 
             var wrapperStyle = new StyleSheet
             {
                 Position = Position.Relative,
-                Display  = Display.InlineFlex,
+                Display = Display.InlineFlex,
             };
 
             StyleSheet panelPosition = placement switch
             {
-                "top"   => new StyleSheet { Bottom = Length.Percent(100), Left = Length.Px(0) },
+                "top" => new StyleSheet { Bottom = Length.Percent(100), Left = Length.Px(0) },
                 "right" => new StyleSheet { Top = Length.Px(0), Left = Length.Percent(100) },
-                "left"  => new StyleSheet { Top = Length.Px(0), Right = Length.Percent(100) },
-                _       => new StyleSheet { Top = Length.Percent(100), Left = Length.Px(0) },  // bottom
+                "left" => new StyleSheet { Top = Length.Px(0), Right = Length.Percent(100) },
+                _ => new StyleSheet { Top = Length.Percent(100), Left = Length.Px(0) },  // bottom
             };
 
             var panelStyle = new StyleSheet
             {
-                Position      = Position.Absolute,
-                ZIndex        = 200,
-                Background    = new PaperColour(0.12f, 0.12f, 0.17f, 1f),
-                Border        = new BorderEdges(new Border(1f, new PaperColour(0.3f, 0.3f, 0.4f, 1f))),
-                BorderRadius  = 6f,
-                Padding       = new Thickness(Length.Px(8)),
-                MinWidth      = Length.Px(160),
-                Display       = Display.Flex,
+                Position = Position.Absolute,
+                ZIndex = 200,
+                Background = new PaperColour(0.12f, 0.12f, 0.17f, 1f),
+                Border = new BorderEdges(new Border(1f, new PaperColour(0.3f, 0.3f, 0.4f, 1f))),
+                BorderRadius = 6f,
+                Padding = new Thickness(Length.Px(8)),
+                MinWidth = Length.Px(160),
+                Display = Display.Flex,
                 FlexDirection = FlexDirection.Column,
             }.Merge(panelPosition).Merge(style);
 
@@ -672,12 +666,12 @@ namespace Paper.Core.Components
                 var backdrop = UI.Box(new PropsBuilder()
                     .Style(new StyleSheet
                     {
-                        Position   = Position.Fixed,
-                        Top        = Length.Px(0),
-                        Left       = Length.Px(0),
-                        Width      = Length.Percent(100),
-                        Height     = Length.Percent(100),
-                        ZIndex     = 199,
+                        Position = Position.Fixed,
+                        Top = Length.Px(0),
+                        Left = Length.Px(0),
+                        Width = Length.Percent(100),
+                        Height = Length.Percent(100),
+                        ZIndex = 199,
                         Background = new PaperColour(0f, 0f, 0f, 0f),
                     })
                     .OnPointerDown(_ => onClose?.Invoke())
@@ -714,15 +708,15 @@ namespace Paper.Core.Components
         /// <summary>Renders a single toast item. Uses UseStable to schedule auto-dismiss on first render only.</summary>
         public static UINode ToastItem(Props p)
         {
-            var toast     = p.Get<ToastEntry>("toast")!;
+            var toast = p.Get<ToastEntry>("toast")!;
             var onDismiss = p.Get<Action<string>>("onDismiss");
 
             // Schedule auto-dismiss exactly once (UseStable runs the factory only on the first render).
             if (toast.Duration > 0)
             {
-                var capturedId      = toast.Id;
+                var capturedId = toast.Id;
                 var capturedDismiss = onDismiss;
-                float capturedMs    = toast.Duration * 1000f;
+                float capturedMs = toast.Duration * 1000f;
                 Hooks.Hooks.UseStable(() =>
                 {
                     _ = System.Threading.Tasks.Task.Delay((int)capturedMs)
@@ -734,21 +728,21 @@ namespace Paper.Core.Components
             PaperColour accent = toast.Variant switch
             {
                 "success" => new PaperColour(0.1f, 0.55f, 0.2f, 1f),
-                "error"   => new PaperColour(0.7f, 0.15f, 0.15f, 1f),
+                "error" => new PaperColour(0.7f, 0.15f, 0.15f, 1f),
                 "warning" => new PaperColour(0.7f, 0.45f, 0.0f, 1f),
-                _         => new PaperColour(0.15f, 0.35f, 0.65f, 1f),
+                _ => new PaperColour(0.15f, 0.35f, 0.65f, 1f),
             };
 
             var toastStyle = new StyleSheet
             {
-                Display       = Display.Flex,
+                Display = Display.Flex,
                 FlexDirection = FlexDirection.Row,
-                AlignItems    = AlignItems.Stretch,
-                Background    = new PaperColour(0.12f, 0.12f, 0.18f, 0.96f),
-                Border        = new BorderEdges(new Border(1f, accent)),
-                BorderRadius  = 6f,
-                Padding       = new Thickness(Length.Px(10), Length.Px(14)),
-                Width         = Length.Px(340),
+                AlignItems = AlignItems.Stretch,
+                Background = new PaperColour(0.12f, 0.12f, 0.18f, 0.96f),
+                Border = new BorderEdges(new Border(1f, accent)),
+                BorderRadius = 6f,
+                Padding = new Thickness(Length.Px(10), Length.Px(14)),
+                Width = Length.Px(340),
             };
 
             var localId = toast.Id;
@@ -763,17 +757,17 @@ namespace Paper.Core.Components
                         "x",
                         () => onDismiss?.Invoke(localId), new StyleSheet
                         {
-                            Background     = new PaperColour(0f, 0f, 0f, 0.3f),
-                            Color          = new PaperColour(0.7f, 0.7f, 0.8f, 1f),
-                            Width          = Length.Px(24),
-                            Height         = Length.Px(24),
-                            Display        = Display.Flex,
+                            Background = new PaperColour(0f, 0f, 0f, 0.3f),
+                            Color = new PaperColour(0.7f, 0.7f, 0.8f, 1f),
+                            Width = Length.Px(24),
+                            Height = Length.Px(24),
+                            Display = Display.Flex,
                             JustifyContent = JustifyContent.Center,
-                            AlignItems     = AlignItems.Center,
-                            AlignSelf      = AlignSelf.Center,
-                            BorderRadius   = 4f,
-                            MarginLeft     = Length.Px(12),
-                            Padding        = new Thickness(Length.Px(0)),
+                            AlignItems = AlignItems.Center,
+                            AlignSelf = AlignSelf.Center,
+                            BorderRadius = 4f,
+                            MarginLeft = Length.Px(12),
+                            Padding = new Thickness(Length.Px(0)),
                         }
                     )
                 )
@@ -786,7 +780,7 @@ namespace Paper.Core.Components
         /// </summary>
         public static UINode ToastContainer(Props p)
         {
-            var toasts    = p.Get<IReadOnlyList<ToastEntry>>("toasts") ?? Array.Empty<ToastEntry>();
+            var toasts = p.Get<IReadOnlyList<ToastEntry>>("toasts") ?? Array.Empty<ToastEntry>();
             var onDismiss = p.Get<Action<string>>("onDismiss");
 
             if (toasts.Count == 0) return UI.Fragment();
@@ -794,14 +788,14 @@ namespace Paper.Core.Components
             // Fixed width so Right-anchoring positions correctly (right-edge at viewport.right - 16).
             var containerStyle = new StyleSheet
             {
-                Position      = Position.Fixed,
-                Top           = Length.Px(16),
-                Right         = Length.Px(16),
-                Width         = Length.Px(360),
-                Display       = Display.Flex,
+                Position = Position.Fixed,
+                Top = Length.Px(16),
+                Right = Length.Px(16),
+                Width = Length.Px(360),
+                Display = Display.Flex,
                 FlexDirection = FlexDirection.Column,
-                Gap           = Length.Px(6),
-                ZIndex        = 2000,
+                Gap = Length.Px(6),
+                ZIndex = 2000,
             };
 
             var toastNodes = toasts.Select(t =>

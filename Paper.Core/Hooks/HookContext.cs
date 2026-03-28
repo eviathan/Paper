@@ -12,6 +12,9 @@ namespace Paper.Core.Hooks
         [ThreadStatic]
         private static int _index;
 
+        [ThreadStatic]
+        internal static Reconciler.Fiber? CurrentFiber;
+
         /// <summary>Effects collected during the current render pass.</summary>
         [ThreadStatic]
         private static List<(int slot, Func<Action?> effect, object[]? deps)>? _pendingEffects;
@@ -20,15 +23,16 @@ namespace Paper.Core.Hooks
         [ThreadStatic]
         private static List<(int slot, Func<Action?> effect, object[]? deps)>? _pendingLayoutEffects;
 
-        internal static void Begin(List<HookSlot> slots)
+        internal static void Begin(List<HookSlot> slots, Reconciler.Fiber fiber)
         {
             _slots = slots;
             _index = 0;
             _pendingEffects = [];
             _pendingLayoutEffects = [];
+            CurrentFiber = fiber;
         }
 
-        internal static void End() { _slots = null; _index = 0; }
+        internal static void End() { _slots = null; _index = 0; CurrentFiber = null; }
 
         internal static int CurrentIndex => _index;
 
@@ -41,7 +45,9 @@ namespace Paper.Core.Hooks
             while (_slots.Count <= _index)
                 _slots.Add(new HookSlot());
 
-            return _slots[_index++];
+            var slot = _slots[_index++];
+            slot.OwnerFiber = CurrentFiber;
+            return slot;
         }
 
         internal static List<(int slot, Func<Action?> effect, object[]? deps)> PendingEffects =>

@@ -239,7 +239,7 @@ namespace Paper.Core.Reconciler
             }
             instance.Props = props;
 
-            HookContext.Begin(fiber.HookSlots);
+            HookContext.Begin(fiber.HookSlots, fiber);
             try
             {
                 var result = instance.Render();
@@ -255,7 +255,7 @@ namespace Paper.Core.Reconciler
 
         private UINode RenderFunctionComponent(Func<Props, UINode> fn, Props props, Fiber fiber)
         {
-            HookContext.Begin(fiber.HookSlots);
+            HookContext.Begin(fiber.HookSlots, fiber);
             try
             {
                 var result = fn(props);
@@ -274,7 +274,11 @@ namespace Paper.Core.Reconciler
         {
             if (current != null && IsSameType(current, node))
             {
-                if (ShouldSkipReconciliation(current, node, forceReconcile))
+                // Snapshot and clear the dirty-descendant flag before deciding.
+                bool hadDirtyDescendant = current.HasDirtyDescendant;
+                current.HasDirtyDescendant = false;
+
+                if (ShouldSkipReconciliation(current, node, forceReconcile, hadDirtyDescendant))
                 {
                     current.EffectTag = EffectTag.None;
                     current.Parent = parent; // keep Parent in sync when reusing a fiber under a new parent
@@ -295,7 +299,7 @@ namespace Paper.Core.Reconciler
             }
         }
 
-        private bool ShouldSkipReconciliation(Fiber current, UINode node, bool forceReconcile)
+        private bool ShouldSkipReconciliation(Fiber current, UINode node, bool forceReconcile, bool hadDirtyDescendant)
         {
             if (forceReconcile) return false;
 
@@ -307,19 +311,15 @@ namespace Paper.Core.Reconciler
 
             if (current.Type is Func<Props, UINode>)
             {
-                // Re-render if any hook slot has pending state updates for this specific fiber.
-                // This avoids the global stateChanged flag causing all components to re-render
-                // when only one component's state changed.
                 bool hasPendingState = current.HookSlots.Any(s => s.HasPendingUpdaters);
-                if (!hasPendingState && ShallowEqual(current.Props, node.Props))
+                if (!hasPendingState && !hadDirtyDescendant && ShallowEqual(current.Props, node.Props))
                     return true;
                 return false;
             }
 
-            // Intrinsic elements (Box, Text, etc.): skip if props are unchanged.
-            // Children are already flattened into Props so ShallowEqual covers them.
+            // Intrinsic elements (Box, Text, etc.): skip if props are unchanged AND no dirty descendant.
             if (current.Type is string)
-                return ShallowEqual(current.Props, node.Props);
+                return !hadDirtyDescendant && ShallowEqual(current.Props, node.Props);
 
             return false;
         }

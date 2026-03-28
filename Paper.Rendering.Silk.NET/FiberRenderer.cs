@@ -620,6 +620,8 @@ namespace Paper.Rendering.Silk.NET
                 if (isFocusedInput && FocusedInputType == "password")
                     label = new string('●', label.Length);
                 var col = style.Color ?? new PaperColour(1f, 1f, 1f, 1f);
+                if (opacity < 0.99f)
+                    Console.WriteLine($"[OpacityDbg] label={label} opacity={opacity:F3} inherited={inheritedOpacity:F3} own={style.Opacity} path={path}");
 
                 if (fiber.Type is string tta && tta == ElementTypes.Textarea)
                 {
@@ -902,9 +904,7 @@ namespace Paper.Rendering.Silk.NET
 
         private void RenderChildren(Fiber? child, float opacity, string parentPath, float scrollX, float scrollY)
         {
-            int i = 0;
-            for (var c = child; c != null; c = c.Sibling, i++)
-                Render(c, opacity, parentPath, i, scrollX, scrollY);
+            Render(child, opacity, parentPath, 0, scrollX, scrollY);
         }
 
         /// <summary>Render a single fiber (and its subtree) used for z-indexed deferred pass.</summary>
