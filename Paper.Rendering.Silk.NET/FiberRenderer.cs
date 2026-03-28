@@ -254,7 +254,8 @@ namespace Paper.Rendering.Silk.NET
             if ((style.Visibility ?? Visibility.Visible) == Visibility.Hidden ||
                 (style.Display ?? Display.Block) == Display.None)
             {
-                goto siblings;
+                Render(fiber.Sibling, inheritedOpacity, parentPath, indexInParent + 1, scrollX, scrollY);
+                return;
             }
 
             string path = string.IsNullOrEmpty(parentPath) ? indexInParent.ToString() : parentPath + "." + indexInParent;
@@ -263,7 +264,8 @@ namespace Paper.Rendering.Silk.NET
             if (_zIndexed != null && (style.ZIndex ?? 0) > 0)
             {
                 _zIndexed.Add(new ZIndexedFiber(fiber, inheritedOpacity, path, scrollX, scrollY));
-                goto siblings;
+                Render(fiber.Sibling, inheritedOpacity, parentPath, indexInParent + 1, scrollX, scrollY);
+                return;
             }
 
             // ── CSS Transitions: animate background + opacity ─────────────────
@@ -384,9 +386,17 @@ namespace Paper.Rendering.Silk.NET
                         ovfXc is Overflow.Scroll or Overflow.Auto or Overflow.Hidden ||
                         ovfYc is Overflow.Scroll or Overflow.Auto or Overflow.Hidden;
                     if (isClipContainer)
-                        goto siblings;       // safe to skip entire subtree
+                    {
+                        Render(fiber.Sibling, inheritedOpacity, parentPath, indexInParent + 1, scrollX, scrollY);
+                        return;
+                    }
                     else
-                        goto children_section; // recurse: fixed/absolute children may be in view
+                    {
+                        // Non-clip: skip drawing but still recurse — fixed/absolute children may be in view
+                        RenderFiberChildren(fiber, style, dx, dy, dw, dh, lb, opacity, path, scrollX, scrollY, rTL, rTR, rBR, rBL);
+                        Render(fiber.Sibling, inheritedOpacity, parentPath, indexInParent + 1, scrollX, scrollY);
+                        return;
+                    }
                 }
             }
 
@@ -409,7 +419,8 @@ namespace Paper.Rendering.Silk.NET
                 {
                     DrawRect(dx, dy, dw, dh, 0.35f, 0.35f, 0.4f, 1f * opacity, 0, 0, 0, 0, 0, 0);
                 }
-                goto siblings;
+                Render(fiber.Sibling, inheritedOpacity, parentPath, indexInParent + 1, scrollX, scrollY);
+                return;
             }
 
             // ── Checkbox element ──────────────────────────────────────────────
@@ -443,7 +454,8 @@ namespace Paper.Rendering.Silk.NET
                     var col = style.Color ?? new PaperColour(1f, 1f, 1f, 1f);
                     DrawText(labelText, labelBox, style, col, opacity, scrollX, scrollY);
                 }
-                goto siblings;
+                Render(fiber.Sibling, inheritedOpacity, parentPath, indexInParent + 1, scrollX, scrollY);
+                return;
             }
 
             // ── Radio option element ──────────────────────────────────────────
@@ -478,7 +490,8 @@ namespace Paper.Rendering.Silk.NET
                     var col = style.Color ?? new PaperColour(1f, 1f, 1f, 1f);
                     DrawText(roLabel, labelBox, style, col, opacity, scrollX, scrollY);
                 }
-                goto siblings;
+                Render(fiber.Sibling, inheritedOpacity, parentPath, indexInParent + 1, scrollX, scrollY);
+                return;
             }
 
             // ── Viewport element ──────────────────────────────────────────────
@@ -500,7 +513,8 @@ namespace Paper.Rendering.Silk.NET
                         0, 0, 0, 0, 0, (style.BorderRadius ?? 0f) * ScaleX);
                 }
 
-                goto siblings;
+                Render(fiber.Sibling, inheritedOpacity, parentPath, indexInParent + 1, scrollX, scrollY);
+                return;
             }
 
             // ── Box shadow ────────────────────────────────────────────────────
@@ -794,8 +808,16 @@ namespace Paper.Rendering.Silk.NET
                 }
             }
 
-            children_section:
-            // ── Children (with optional overflow clip + scroll offset) ─────────
+            RenderFiberChildren(fiber, style, dx, dy, dw, dh, lb, opacity, path, scrollX, scrollY, rTL, rTR, rBR, rBL);
+            Render(fiber.Sibling, inheritedOpacity, parentPath, indexInParent + 1, scrollX, scrollY);
+        }
+
+        private void RenderFiberChildren(
+            Fiber fiber, StyleSheet style,
+            float dx, float dy, float dw, float dh, LayoutBox lb,
+            float opacity, string path, float scrollX, float scrollY,
+            float rTL, float rTR, float rBR, float rBL)
+        {
             var ovfX = style.OverflowX ?? Overflow.Visible;
             var ovfY = style.OverflowY ?? Overflow.Visible;
             float radius = Math.Max(Math.Max(rTL, rTR), Math.Max(rBR, rBL));
@@ -842,24 +864,22 @@ namespace Paper.Rendering.Silk.NET
                 _fonts?.Flush(_screenW, _screenH);
                 _gl.Disable(EnableCap.ScissorTest);
                 // Draw scrollbar outside scissor so thumb rounded corners are never clipped
+                float rawScrollY = GetScrollOffset != null ? GetScrollOffset(path).scrollY : 0f;
+                float rawScrollX = GetScrollOffset != null ? GetScrollOffset(path).scrollX : 0f;
+                // Include container's trailing padding so max scroll reveals the full padded area
+                var (_, padRightPx, padBottomPx, _) = BoxModel.PaddingPixels(style, lb.Width, lb.Height);
+                float contentH = (ComputeChildrenContentHeight(fiber.Child) + padBottomPx) * ScaleY;
+                float contentW = (ComputeChildrenContentWidth(fiber.Child) + padRightPx) * ScaleX;
+                float sbOpacity = GetScrollbarOpacity != null ? GetScrollbarOpacity(path) : 0f;
+                if (sbOpacity > 0f)
                 {
-                    float rawScrollY = GetScrollOffset != null ? GetScrollOffset(path).scrollY : 0f;
-                    float rawScrollX = GetScrollOffset != null ? GetScrollOffset(path).scrollX : 0f;
-                    // Include container's trailing padding so max scroll reveals the full padded area
-                    var (_, padRightPx, padBottomPx, _) = BoxModel.PaddingPixels(style, lb.Width, lb.Height);
-                    float contentH = (ComputeChildrenContentHeight(fiber.Child) + padBottomPx) * ScaleY;
-                    float contentW = (ComputeChildrenContentWidth(fiber.Child) + padRightPx) * ScaleX;
-                    float sbOpacity = GetScrollbarOpacity != null ? GetScrollbarOpacity(path) : 0f;
-                    if (sbOpacity > 0f)
-                    {
-                        _rects.Flush(_screenW, _screenH);
-                        DrawScrollbar(path, dx, dy, dw, dh, rawScrollY * ScaleY, contentH, rawScrollX * ScaleX, contentW, sbOpacity * opacity);
-                    }
-                    else
-                    {
-                        // Still record geometry (with no visible scrollbar) so clamping works
-                        RecordScrollbarGeometry(path, dx, dy, dw, dh, rawScrollY * ScaleY, contentH, rawScrollX * ScaleX, contentW);
-                    }
+                    _rects.Flush(_screenW, _screenH);
+                    DrawScrollbar(path, dx, dy, dw, dh, rawScrollY * ScaleY, contentH, rawScrollX * ScaleX, contentW, sbOpacity * opacity);
+                }
+                else
+                {
+                    // Still record geometry (with no visible scrollbar) so clamping works
+                    RecordScrollbarGeometry(path, dx, dy, dw, dh, rawScrollY * ScaleY, contentH, rawScrollX * ScaleX, contentW);
                 }
             }
             else if (hiddenClip)
@@ -895,9 +915,6 @@ namespace Paper.Rendering.Silk.NET
             {
                 RenderChildren(fiber.Child, opacity, path, childScrollX, childScrollY);
             }
-
-        siblings:
-            Render(fiber.Sibling, inheritedOpacity, parentPath, indexInParent + 1, scrollX, scrollY);
         }
 
         private void RenderChildren(Fiber? child, float opacity, string parentPath, float scrollX, float scrollY)

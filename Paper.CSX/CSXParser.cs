@@ -1057,6 +1057,18 @@ namespace Paper.CSX
                 return ParseHexColor(trimmedValue);
             }
 
+            bool isFlexWrap = string.Equals(propertyName, "flexWrap", StringComparison.OrdinalIgnoreCase);
+            if (isFlexWrap)
+            {
+                return trimmedValue.ToLower() switch
+                {
+                    "wrap"         => "FlexWrap.Wrap",
+                    "nowrap"       => "FlexWrap.NoWrap",
+                    "wrap-reverse" => "FlexWrap.WrapReverse",
+                    _              => $"\"{trimmedValue}\"",
+                };
+            }
+
             switch (trimmedValue.ToLower())
             {
                 case "auto":
@@ -1073,50 +1085,20 @@ namespace Paper.CSX
                     return "FlexDirection.Column";
                 case "center":
                     if (string.Equals(propertyName, "justifyContent", StringComparison.OrdinalIgnoreCase))
-                    {
                         return "JustifyContent.Center";
-                    }
-                    else if (string.Equals(propertyName, "alignItems", StringComparison.OrdinalIgnoreCase) ||
-                             string.Equals(propertyName, "alignSelf", StringComparison.OrdinalIgnoreCase))
-                    {
-                        return "AlignItems.Center";
-                    }
-                    else if (string.Equals(propertyName, "justifyItems", StringComparison.OrdinalIgnoreCase))
-                    {
+                    if (string.Equals(propertyName, "justifyItems", StringComparison.OrdinalIgnoreCase))
                         return "JustifyItems.Center";
-                    }
                     return "AlignItems.Center";
                 case "stretch":
                     if (string.Equals(propertyName, "justifyContent", StringComparison.OrdinalIgnoreCase))
-                    {
                         return "JustifyContent.Stretch";
-                    }
-                    else if (string.Equals(propertyName, "alignItems", StringComparison.OrdinalIgnoreCase) ||
-                             string.Equals(propertyName, "alignSelf", StringComparison.OrdinalIgnoreCase))
-                    {
-                        return "AlignItems.Stretch";
-                    }
-                    else if (string.Equals(propertyName, "justifyItems", StringComparison.OrdinalIgnoreCase))
-                    {
+                    if (string.Equals(propertyName, "justifyItems", StringComparison.OrdinalIgnoreCase))
                         return "JustifyItems.Stretch";
-                    }
                     return "AlignItems.Stretch";
                 case "100%":
                     return "Length.Percent(100)";
                 case "white":
                     return "new PaperColour(1f, 1f, 1f, 1f)";
-                case "wrap":
-                    if (string.Equals(propertyName, "flexWrap", StringComparison.OrdinalIgnoreCase))
-                        return "FlexWrap.Wrap";
-                    goto default;
-                case "nowrap":
-                    if (string.Equals(propertyName, "flexWrap", StringComparison.OrdinalIgnoreCase))
-                        return "FlexWrap.NoWrap";
-                    goto default;
-                case "wrap-reverse":
-                    if (string.Equals(propertyName, "flexWrap", StringComparison.OrdinalIgnoreCase))
-                        return "FlexWrap.WrapReverse";
-                    goto default;
                 default:
                     if (trimmedValue.Contains("px") || trimmedValue.Contains("em") || trimmedValue.Contains("rem") || trimmedValue.Contains("%"))
                     {
