@@ -189,7 +189,9 @@ namespace Paper.Layout
                     var pad = childStyle.Padding ?? Thickness.Zero;
                     float padW = pad.Left.Resolve(w) + pad.Right.Resolve(w);
                     float padH = pad.Top.Resolve(contentHeight) + pad.Bottom.Resolve(contentHeight);
-                    w = float.IsNaN(rawW) ? Math.Min(contentWidth, tw + padW) : w;
+                    // Inline elements shrink to text width; Block elements fill the container.
+                    bool isInline = (childStyle.Display ?? Display.Block) == Display.Inline;
+                    w = float.IsNaN(rawW) && isInline ? Math.Min(contentWidth, tw + padW) : w;
                     h = th + padH;
                 }
                 // Checkbox / RadioOption: intrinsic height so the 16px visual box isn't clipped.

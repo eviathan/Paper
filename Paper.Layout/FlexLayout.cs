@@ -178,13 +178,13 @@ namespace Paper.Layout
             // Step 3: resolve grows / shrinks
             if (freeSpace > 0.001f)
             {
-                float totalGrow = line.Items.Sum(i => i.Fiber.ComputedStyle.FlexGrow ?? 0f);
+                float totalGrow = line.Items.Sum(i => GetEffectiveFlexGrow(i.Fiber));
                 if (totalGrow > 0)
                 {
                     float perUnit = freeSpace / totalGrow;
                     foreach (var fi in line.Items)
                     {
-                        float grow = fi.Fiber.ComputedStyle.FlexGrow ?? 0f;
+                        float grow = GetEffectiveFlexGrow(fi.Fiber);
                         fi.FinalMain = fi.HypotheticalMain + grow * perUnit;
                     }
                 }
@@ -438,15 +438,35 @@ namespace Paper.Layout
 
         // ── Helpers ───────────────────────────────────────────────────────────
 
+        /// <summary>
+        /// Returns the effective FlexGrow for a fiber, mirroring the component see-through in
+        /// <see cref="GetFlexBasis"/>: if the fiber is a function-component with a single child,
+        /// delegates to that child so that NumberInput/Slider grow values are honoured.
+        /// </summary>
+        private static float GetEffectiveFlexGrow(Fiber item)
+        {
+            float grow = item.ComputedStyle.FlexGrow ?? 0f;
+            if (grow > 0f) return grow;
+            if (item.Type is not string && item.Child != null && item.Child.Sibling == null)
+                return GetEffectiveFlexGrow(item.Child);
+            return grow;
+        }
+
         private static float GetFlexBasis(Fiber item, StyleSheet style, float mainSize, float crossSize, bool isRow, ILayoutMeasurer? measurer)
         {
             // flex-basis takes priority, then width/height, then default to shrink-to-fit
             if (style.FlexBasis != null && !style.FlexBasis.Value.IsAuto)
                 return style.FlexBasis.Value.Resolve(mainSize);
 
-            float? explicit_ = isRow ? style.Width?.Resolve(mainSize) : style.Height?.Resolve(mainSize);
-            if (explicit_.HasValue)
-                return explicit_.Value;
+            // Skip explicit width/height when FlexGrow is set — let grow distribute free space instead.
+            // An explicit 100% width on a growing item (e.g. Input default) would consume all space
+            // and leave nothing for the grow calculation.
+            if ((style.FlexGrow ?? 0f) == 0f)
+            {
+                float? explicit_ = isRow ? style.Width?.Resolve(mainSize) : style.Height?.Resolve(mainSize);
+                if (explicit_.HasValue)
+                    return explicit_.Value;
+            }
             float? minMain = isRow ? style.MinWidth?.Resolve(mainSize) : style.MinHeight?.Resolve(mainSize);
 
             // Textarea / MarkdownEditor in a column parent: measure actual content so the box
@@ -490,6 +510,10 @@ namespace Paper.Layout
 
             if (minMain.HasValue && minMain.Value > 0)
                 return minMain.Value;
+
+            // When flex-grow > 0 and no explicit basis/size, use 0 so the item receives remaining space.
+            if ((style.FlexGrow ?? 0f) > 0)
+                return 0f;
 
             // Fallback: inline style may not have been merged into ComputedStyle (e.g. runtime CSX path)
             var propsStyle = item.Props.Style;
@@ -535,10 +559,6 @@ namespace Paper.Layout
                 return main + (isRow ? bl + br : bt + bb);
             }
 
-            // When flex-grow > 0 and no explicit basis/size, use 0 so the item receives remaining space
-            // (e.g. column with fixed header/footer and flexGrow middle should fill the gap).
-            if ((style.FlexGrow ?? 0f) > 0)
-                return 0f;
 
             // Component fiber see-through: function-component fibers (non-string Type) render to a
             // single child element — delegate so Slider/NumberInput etc. get realistic main sizes.

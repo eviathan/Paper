@@ -516,6 +516,7 @@ namespace Paper.Core.Components
                 Display = Display.Flex,
                 FlexDirection = FlexDirection.Row,
                 AlignItems = AlignItems.Stretch,
+                FlexGrow = 1f,
             }.Merge(style);
 
             var decBtnStyle = new StyleSheet
@@ -544,7 +545,7 @@ namespace Paper.Core.Components
 
             var inputStyle = new StyleSheet
             {
-                Width = Length.Px(72),
+                FlexGrow = 1f,
                 Padding = new Thickness(Length.Px(4), Length.Px(6)),
                 TextAlign = TextAlign.Center,
                 BorderRadius = 0f,
