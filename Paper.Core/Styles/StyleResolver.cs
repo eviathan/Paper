@@ -84,7 +84,7 @@ namespace Paper.Core.Styles
                 ElementTypes.Input => new StyleSheet
                 {
                     Display = Display.Block,
-                    Width = Length.Percent(100),
+                    FlexGrow = 1f,
                     MinHeight = Length.Em(2.2f), // Slightly taller than one line (font-size + padding)
                     Padding = new Thickness(Length.Px(6), Length.Px(10)),
                     Background = new PaperColour(0.10f, 0.10f, 0.14f, 1f),
@@ -134,7 +134,7 @@ namespace Paper.Core.Styles
                 ElementTypes.Textarea => new StyleSheet
                 {
                     Display = Display.Block,
-                    Width = Length.Percent(100),
+                    FlexGrow = 1f,
                     MinHeight = Length.Em(2.2f),
                     Padding = new Thickness(Length.Px(6), Length.Px(10)),
                     Background = new PaperColour(0.10f, 0.10f, 0.14f, 1f),

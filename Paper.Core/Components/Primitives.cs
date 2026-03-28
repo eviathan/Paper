@@ -381,19 +381,11 @@ namespace Paper.Core.Components
                 return Math.Clamp(snapped, min, max);
             }
 
-            // Resolve the track's pixel width from the style so click/drag can compute fractions.
-            // Falls back to 200px if no explicit Px width is set.
-            float trackW = style.Width?.Resolve(0f) is float tw && tw > 1f ? tw : 200f;
-
-            void SeekToLocal(float localX)
+            void OnTrackDown(PointerEvent e)
             {
-                float frac = Math.Clamp(localX / trackW, 0f, 1f);
+                float w = e.TargetWidth > 1f ? e.TargetWidth : (style.Width?.Resolve(0f) is float tw && tw > 1f ? tw : 200f);
+                float frac = Math.Clamp(e.LocalX / w, 0f, 1f);
                 onChange?.Invoke(Snap(min + frac * (max - min)));
-            }
-
-            void OnTrackDown(Paper.Core.Events.PointerEvent e)
-            {
-                SeekToLocal(e.LocalX);
             }
 
             // Button == 0 means this is a captured move (left button held) from PaperSurface,
@@ -401,7 +393,9 @@ namespace Paper.Core.Components
             void OnTrackMove(Paper.Core.Events.PointerEvent e)
             {
                 if (e.Button != 0) return;
-                SeekToLocal(e.LocalX);
+                float w = e.TargetWidth > 1f ? e.TargetWidth : (style.Width?.Resolve(0f) is float tw && tw > 1f ? tw : 200f);
+                float frac = Math.Clamp(e.LocalX / w, 0f, 1f);
+                onChange?.Invoke(Snap(min + frac * (max - min)));
             }
 
             void OnWheel(Paper.Core.Events.PointerEvent e)
@@ -415,6 +409,7 @@ namespace Paper.Core.Components
             {
                 Display = Display.Flex,
                 AlignItems = AlignItems.Center,
+                FlexGrow = 1f,
                 Height = Length.Px(24),
                 Position = Position.Relative,
                 Cursor = Cursor.Pointer,

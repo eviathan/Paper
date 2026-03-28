@@ -1514,6 +1514,8 @@ private int GetCaretIndexFromX(Fiber fiber, float lx, float ly, float scrollX = 
             // Set element-local coordinates relative to the hit-test target.
             e.LocalX = e.X - target.Layout.AbsoluteX;
             e.LocalY = e.Y - target.Layout.AbsoluteY;
+            e.TargetWidth  = target.Layout.Width;
+            e.TargetHeight = target.Layout.Height;
             var path = PathToRoot(target);
 
             // Capture: root -> parent(target)

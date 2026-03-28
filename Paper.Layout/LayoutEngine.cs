@@ -176,7 +176,11 @@ namespace Paper.Layout
                             rawH = rawW / aspect;
                     }
                 }
-                float w = float.IsNaN(rawW) ? contentWidth : rawW;
+                // FlexGrow > 0 in a block parent: fill the container width (mirrors GetFlexBasis behaviour).
+                // This handles component-wrapper fibers whose inner box has FlexGrow=1 but also an
+                // explicit pixel Width merged in from user style (e.g. Slider track).
+                bool childGrowsHoriz = (childStyle.FlexGrow ?? 0f) > 0f;
+                float w = (float.IsNaN(rawW) || childGrowsHoriz) ? contentWidth : rawW;
                 float h = float.IsNaN(rawH) ? 0f          : rawH;
                 // When height is auto, use at least MinHeight so e.g. table rows get a usable height
                 if (h <= 0.0001f && childStyle.MinHeight != null)

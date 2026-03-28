@@ -24,6 +24,11 @@ namespace Paper.Core.Events
         /// <summary>Y coordinate relative to the hit-test target element's AbsoluteY.</summary>
         public float LocalY { get; set; }
 
+        /// <summary>Pixel width of the hit-test target element (from its layout box).</summary>
+        public float TargetWidth { get; set; }
+        /// <summary>Pixel height of the hit-test target element (from its layout box).</summary>
+        public float TargetHeight { get; set; }
+
         public int Button { get; init; } = -1; // 0=left,1=right,2=middle
 
         public float WheelDeltaX { get; init; }
