@@ -307,6 +307,7 @@ namespace Paper.Rendering.Silk.NET
             }
 
             float opacity = inheritedOpacity * ownOpacity;
+            var (rTL, rTR, rBR, rBL) = ResolveCornerRadii(style, ScaleX);
             var lb = fiber.Layout;
             // position:fixed elements live in viewport space — don't offset by accumulated scroll.
             var pos = style.Position ?? Position.Static;
@@ -564,28 +565,27 @@ namespace Paper.Rendering.Silk.NET
             if (background.HasValue && background.Value.A > 0)
             {
                 var colour = background.Value;
-                DrawRect(dx, dy, dw, dh,
+                DrawRectCorners(dx, dy, dw, dh,
                     colour.R, colour.G, colour.B, colour.A * opacity,
-                    0, 0, 0, 0, 0, (style.BorderRadius ?? 0f) * ScaleX, rotation);
+                    0, 0, 0, 0, 0, rTL, rTR, rBR, rBL, rotation);
             }
 
             // ── Border ────────────────────────────────────────────────────────
             if (style.Border != null)
             {
-                float br = (style.BorderRadius ?? 0f) * ScaleX;
                 var edge = style.Border.Top;
                 if (edge.Style != BorderStyle.None && edge.Width > 0)
                 {
                     if (background.HasValue)
-                        DrawRect(dx, dy, dw, dh,
+                        DrawRectCorners(dx, dy, dw, dh,
                             background.Value.R, background.Value.G, background.Value.B, background.Value.A * opacity,
                             edge.Colour.R, edge.Colour.G, edge.Colour.B, edge.Colour.A * opacity,
-                            edge.Width * ScaleX, br, rotation);
+                            edge.Width * ScaleX, rTL, rTR, rBR, rBL, rotation);
                     else
-                        DrawRect(dx, dy, dw, dh,
+                        DrawRectCorners(dx, dy, dw, dh,
                             0, 0, 0, 0,
                             edge.Colour.R, edge.Colour.G, edge.Colour.B, edge.Colour.A * opacity,
-                            edge.Width * ScaleX, br, rotation);
+                            edge.Width * ScaleX, rTL, rTR, rBR, rBL, rotation);
                 }
             }
             // ── Individual border sides ────────────────────────────────────────
@@ -620,8 +620,6 @@ namespace Paper.Rendering.Silk.NET
                 if (isFocusedInput && FocusedInputType == "password")
                     label = new string('●', label.Length);
                 var col = style.Color ?? new PaperColour(1f, 1f, 1f, 1f);
-                if (opacity < 0.99f)
-                    Console.WriteLine($"[OpacityDbg] label={label} opacity={opacity:F3} inherited={inheritedOpacity:F3} own={style.Opacity} path={path}");
 
                 if (fiber.Type is string tta && tta == ElementTypes.Textarea)
                 {
@@ -800,7 +798,7 @@ namespace Paper.Rendering.Silk.NET
             // ── Children (with optional overflow clip + scroll offset) ─────────
             var ovfX = style.OverflowX ?? Overflow.Visible;
             var ovfY = style.OverflowY ?? Overflow.Visible;
-            float radius = (style.BorderRadius ?? 0f) * ScaleX;
+            float radius = Math.Max(Math.Max(rTL, rTR), Math.Max(rBR, rBL));
             // Scissor clip for scroll/auto containers (rect clip is sufficient and cheap).
             bool scrollClip = _gl != null && (ovfY == Overflow.Scroll || ovfY == Overflow.Auto ||
                                               ovfX == Overflow.Scroll || ovfX == Overflow.Auto);
@@ -935,7 +933,7 @@ namespace Paper.Rendering.Silk.NET
             _gl.StencilOp(StencilOp.Keep, StencilOp.Keep, StencilOp.Incr);
             _gl.ColorMask(false, false, false, false);
             // Draw rounded rect shape into stencil only (colour writes off)
-            _rects.Add(dx, dy, dw, dh, 1, 1, 1, 1, 0, 0, 0, 0, 0, radius);
+            _rects.Add(dx, dy, dw, dh, 1, 1, 1, 1, 0, 0, 0, 0, 0, radius, radius, radius, radius);
             _rects.Flush(_screenW, _screenH);
             _gl.ColorMask(true, true, true, true);
             // Only pass where stencil == _stencilDepth (inside all nested clips)
@@ -953,7 +951,7 @@ namespace Paper.Rendering.Silk.NET
             _gl.StencilFunc(StencilFunction.Always, 0, 0xFF);
             _gl.StencilOp(StencilOp.Keep, StencilOp.Keep, StencilOp.Decr);
             _gl.ColorMask(false, false, false, false);
-            _rects.Add(dx, dy, dw, dh, 1, 1, 1, 1, 0, 0, 0, 0, 0, radius);
+            _rects.Add(dx, dy, dw, dh, 1, 1, 1, 1, 0, 0, 0, 0, 0, radius, radius, radius, radius);
             _rects.Flush(_screenW, _screenH);
             _gl.ColorMask(true, true, true, true);
             _stencilDepth--;
@@ -1008,13 +1006,33 @@ namespace Paper.Rendering.Silk.NET
             _viewports.DrawWithUV(drawX, drawY, drawW, drawH, u0, v0, u1, v1, textureHandle, _screenW, _screenH);
         }
 
+        private static (float tl, float tr, float br, float bl) ResolveCornerRadii(StyleSheet style, float scale)
+        {
+            float tl = (style.BorderTopLeftRadius     ?? style.BorderRadius ?? 0f) * scale;
+            float tr = (style.BorderTopRightRadius    ?? style.BorderRadius ?? 0f) * scale;
+            float br = (style.BorderBottomRightRadius ?? style.BorderRadius ?? 0f) * scale;
+            float bl = (style.BorderBottomLeftRadius  ?? style.BorderRadius ?? 0f) * scale;
+            return (tl, tr, br, bl);
+        }
+
         private void DrawRect(
             float x, float y, float w, float h,
             float r, float g, float b, float a,
             float br, float bg, float bb, float ba,
             float borderWidth, float radius, float rotation = 0f)
         {
-            _rects.Add(x, y, w, h, r, g, b, a, br, bg, bb, ba, borderWidth, radius, rotation);
+            _rects.Add(x, y, w, h, r, g, b, a, br, bg, bb, ba, borderWidth, radius, radius, radius, radius, rotation);
+        }
+
+        private void DrawRectCorners(
+            float x, float y, float w, float h,
+            float r, float g, float b, float a,
+            float br, float bg, float bb, float ba,
+            float borderWidth,
+            float radiusTL, float radiusTR, float radiusBR, float radiusBL,
+            float rotation = 0f)
+        {
+            _rects.Add(x, y, w, h, r, g, b, a, br, bg, bb, ba, borderWidth, radiusTL, radiusTR, radiusBR, radiusBL, rotation);
         }
 
         /// <summary>macOS overlay-style scrollbar: semi-transparent thumb only, no track background.</summary>

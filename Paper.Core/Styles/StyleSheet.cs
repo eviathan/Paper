@@ -102,6 +102,10 @@ namespace Paper.Core.Styles
         public Border? BorderBottom { get; init; }
         public Border? BorderLeft { get; init; }
         public float? BorderRadius { get; init; }
+        public float? BorderTopLeftRadius { get; init; }
+        public float? BorderTopRightRadius { get; init; }
+        public float? BorderBottomRightRadius { get; init; }
+        public float? BorderBottomLeftRadius { get; init; }
 
         public BoxShadow[]? BoxShadow { get; init; }
 
@@ -237,6 +241,10 @@ namespace Paper.Core.Styles
             BorderBottom  = other.BorderBottom  ?? BorderBottom,
             BorderLeft    = other.BorderLeft    ?? BorderLeft,
             BorderRadius  = other.BorderRadius  ?? BorderRadius,
+            BorderTopLeftRadius     = other.BorderTopLeftRadius     ?? BorderTopLeftRadius,
+            BorderTopRightRadius    = other.BorderTopRightRadius    ?? BorderTopRightRadius,
+            BorderBottomRightRadius = other.BorderBottomRightRadius ?? BorderBottomRightRadius,
+            BorderBottomLeftRadius  = other.BorderBottomLeftRadius  ?? BorderBottomLeftRadius,
             BoxShadow     = other.BoxShadow     ?? BoxShadow,
             OverflowX     = other.OverflowX     ?? OverflowX,
             OverflowY     = other.OverflowY     ?? OverflowY,

@@ -198,7 +198,11 @@ namespace Paper.CSX
 
             if (double.TryParse(trimmedValue, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double num))
             {
-                if (string.Equals(propertyName, "BorderRadius", StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(propertyName, "BorderRadius", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(propertyName, "BorderTopLeftRadius", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(propertyName, "BorderTopRightRadius", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(propertyName, "BorderBottomRightRadius", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(propertyName, "BorderBottomLeftRadius", StringComparison.OrdinalIgnoreCase))
                     return $"{num}f";
                 if (string.Equals(propertyName, "FlexGrow", StringComparison.OrdinalIgnoreCase) ||
                     string.Equals(propertyName, "FlexShrink", StringComparison.OrdinalIgnoreCase))
@@ -693,7 +697,11 @@ namespace Paper.CSX
 
             if (trimmedValue.EndsWith("px", StringComparison.OrdinalIgnoreCase) && double.TryParse(trimmedValue[..^2], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double px))
             {
-                if (string.Equals(propertyName, "BorderRadius", StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(propertyName, "BorderRadius", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(propertyName, "BorderTopLeftRadius", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(propertyName, "BorderTopRightRadius", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(propertyName, "BorderBottomRightRadius", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(propertyName, "BorderBottomLeftRadius", StringComparison.OrdinalIgnoreCase))
                     return $"{px}f";
                 if (string.Equals(propertyName, "Padding", StringComparison.OrdinalIgnoreCase) ||
                     string.Equals(propertyName, "Margin", StringComparison.OrdinalIgnoreCase))

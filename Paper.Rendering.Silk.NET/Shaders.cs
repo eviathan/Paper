@@ -17,7 +17,7 @@ layout (location = 2) in vec2  iSize;         // width / height in pixels
 layout (location = 3) in vec4  iBgColor;
 layout (location = 4) in vec4  iBorderColor;
 layout (location = 5) in float iBorderWidth;
-layout (location = 6) in float iRadius;
+layout (location = 6) in vec4  iRadii;        // (topLeft, topRight, bottomRight, bottomLeft)
 layout (location = 7) in float iRotation;     // rotation in radians, around rect center
 
 uniform vec2 uResolution;   // (screen_w, screen_h)
@@ -27,7 +27,7 @@ out vec2  vSize;
 out vec4  vBgColor;
 out vec4  vBorderColor;
 out float vBorderWidth;
-out float vRadius;
+out vec4  vRadii;
 
 void main() {
     vFragCoord   = aPos * iSize;
@@ -35,7 +35,7 @@ void main() {
     vBgColor     = iBgColor;
     vBorderColor = iBorderColor;
     vBorderWidth = iBorderWidth;
-    vRadius      = iRadius;
+    vRadii       = iRadii;
 
     vec2 pixelPos = iPos + aPos * iSize;
     if (abs(iRotation) > 0.0001) {
@@ -59,12 +59,12 @@ in vec2  vSize;
 in vec4  vBgColor;
 in vec4  vBorderColor;
 in float vBorderWidth;
-in float vRadius;
+in vec4  vRadii;           // (topLeft, topRight, bottomRight, bottomLeft)
 
 out vec4 FragColor;
 
-// Signed distance to a rounded rectangle centered at the origin.
-// b = half-extents, r = corner radius.
+// Signed distance to a rounded rectangle centered at the origin with per-corner radii.
+// b = half-extents, r = corner radius for this fragment's corner.
 float sdRoundRect(vec2 p, vec2 b, float r) {
     vec2 q = abs(p) - b + r;
     return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r;
@@ -73,9 +73,17 @@ float sdRoundRect(vec2 p, vec2 b, float r) {
 void main() {
     vec2  center     = vSize * 0.5;
     vec2  halfExtent = vSize * 0.5;
-    float radius     = clamp(vRadius, 0.0, min(halfExtent.x, halfExtent.y));
 
-    vec2  p          = vFragCoord - center;
+    vec2  p = vFragCoord - center;
+    // Select corner radius based on which quadrant the fragment is in.
+    // vRadii: (topLeft, topRight, bottomRight, bottomLeft)
+    float r;
+    if (p.x <= 0.0 && p.y <= 0.0)      r = vRadii.x; // top-left
+    else if (p.x > 0.0 && p.y <= 0.0)  r = vRadii.y; // top-right
+    else if (p.x > 0.0 && p.y > 0.0)   r = vRadii.z; // bottom-right
+    else                                r = vRadii.w; // bottom-left
+    float radius     = clamp(r, 0.0, min(halfExtent.x, halfExtent.y));
+
     float outerDist  = sdRoundRect(p, halfExtent, radius);
     float innerDist  = sdRoundRect(p, halfExtent - vBorderWidth, max(0.0, radius - vBorderWidth));
 

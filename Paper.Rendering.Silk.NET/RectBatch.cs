@@ -13,9 +13,9 @@ namespace Paper.Rendering.Silk.NET
     {
         private const int MaxRects = 4096;
 
-        // Instanced layout: 15 floats × 4 = 60 bytes per rect
-        // [pos.xy, size.xy, bg.rgba, border.rgba, borderWidth, radius, rotation]
-        private const int FloatsPerRect = 15;
+        // Instanced layout: 18 floats × 4 = 72 bytes per rect
+        // [pos.xy, size.xy, bg.rgba, border.rgba, borderWidth, radii.xyzw (TL,TR,BR,BL), rotation]
+        private const int FloatsPerRect = 18;
 
         private readonly GL _gl;
         private readonly uint _program;
@@ -70,8 +70,8 @@ namespace Paper.Rendering.Silk.NET
             SetInstanceAttrib(4, 4, stride, ref offset);
             // location=5: borderWidth (float)
             SetInstanceAttrib(5, 1, stride, ref offset);
-            // location=6: radius (float)
-            SetInstanceAttrib(6, 1, stride, ref offset);
+            // location=6: radii (vec4: TL, TR, BR, BL)
+            SetInstanceAttrib(6, 4, stride, ref offset);
             // location=7: rotation (float, radians)
             SetInstanceAttrib(7, 1, stride, ref offset);
 
@@ -91,7 +91,9 @@ namespace Paper.Rendering.Silk.NET
         public void Add(float x, float y, float w, float h,
             float r, float g, float b, float a,
             float br = 0f, float bg_ = 0f, float bb = 0f, float ba = 0f,
-            float borderWidth = 0f, float radius = 0f, float rotation = 0f)
+            float borderWidth = 0f,
+            float radiusTL = 0f, float radiusTR = 0f, float radiusBR = 0f, float radiusBL = 0f,
+            float rotation = 0f)
         {
             if (_count >= MaxRects) Flush(0, 0); // emergency flush
 
@@ -105,7 +107,10 @@ namespace Paper.Rendering.Silk.NET
             _instanceData[i++] = br; _instanceData[i++] = bg_;
             _instanceData[i++] = bb; _instanceData[i++] = ba;
             _instanceData[i++] = borderWidth;
-            _instanceData[i++] = radius;
+            _instanceData[i++] = radiusTL;
+            _instanceData[i++] = radiusTR;
+            _instanceData[i++] = radiusBR;
+            _instanceData[i++] = radiusBL;
             _instanceData[i++] = rotation;
             _count++;
         }

@@ -406,7 +406,7 @@ namespace Paper.Core.Components
 
             void OnWheel(Paper.Core.Events.PointerEvent e)
             {
-                float delta = e.WheelDeltaY > 0 ? -step : step;
+                float delta = e.WheelDeltaY > 0 ? step : -step;
                 float next = Snap(clamped + delta);
                 onChange?.Invoke(next);
             }
@@ -515,18 +515,29 @@ namespace Paper.Core.Components
             {
                 Display = Display.Flex,
                 FlexDirection = FlexDirection.Row,
-                AlignItems = AlignItems.Center,
+                AlignItems = AlignItems.Stretch,
             }.Merge(style);
 
-            var btnStyle = new StyleSheet
+            var decBtnStyle = new StyleSheet
             {
                 Width = Length.Px(28),
-                Height = Length.Px(28),
                 Display = Display.Flex,
                 JustifyContent = JustifyContent.Center,
                 AlignItems = AlignItems.Center,
                 Background = new PaperColour(0.2f, 0.2f, 0.28f, 1f),
-                BorderRadius = 4f,
+                BorderTopLeftRadius = 4f,
+                BorderBottomLeftRadius = 4f,
+                Cursor = Cursor.Pointer,
+            };
+            var incBtnStyle = new StyleSheet
+            {
+                Width = Length.Px(28),
+                Display = Display.Flex,
+                JustifyContent = JustifyContent.Center,
+                AlignItems = AlignItems.Center,
+                Background = new PaperColour(0.2f, 0.2f, 0.28f, 1f),
+                BorderTopRightRadius = 4f,
+                BorderBottomRightRadius = 4f,
                 Cursor = Cursor.Pointer,
             };
             var btnHover = new StyleSheet { Background = new PaperColour(0.28f, 0.28f, 0.38f, 1f) };
@@ -536,12 +547,13 @@ namespace Paper.Core.Components
                 Width = Length.Px(72),
                 Padding = new Thickness(Length.Px(4), Length.Px(6)),
                 TextAlign = TextAlign.Center,
+                BorderRadius = 0f,
             };
 
             return UI.Box(containerStyle,
-                UI.Box(new PropsBuilder().Style(btnStyle).Set("hoverStyle", btnHover).OnClick(Decrement).Children(UI.Text("-")).Build()),
+                UI.Box(new PropsBuilder().Style(decBtnStyle).Set("hoverStyle", btnHover).OnClick(Decrement).Children(UI.Text("-")).Build()),
                 UI.Input(FormatValue(value), OnChange, inputStyle),
-                UI.Box(new PropsBuilder().Style(btnStyle).Set("hoverStyle", btnHover).OnClick(Increment).Children(UI.Text("+")).Build())
+                UI.Box(new PropsBuilder().Style(incBtnStyle).Set("hoverStyle", btnHover).OnClick(Increment).Children(UI.Text("+")).Build())
             );
         }
 
@@ -588,7 +600,7 @@ namespace Paper.Core.Components
                     .Style(tabStyle)
                     .Set("hoverStyle", hoverStyle)
                     .OnClick(() => onChange?.Invoke(localTab.Id))
-                    .Children(UI.Text(localTab.Label, style: new StyleSheet { PointerEvents = PointerEvents.None }))
+                    .Children(UI.Text(localTab.Label, style: new StyleSheet { PointerEvents = PointerEvents.None, Display = Display.Block, TextAlign = TextAlign.Center }))
                     .Build(), key: tab.Id);
             }).ToArray();
 
