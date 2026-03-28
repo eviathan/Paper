@@ -171,6 +171,7 @@ namespace Paper.Core.Styles
         Wait,
         Help,
         None,
+        EwResize,
     }
 
     // ── Visibility / Pointer Events ───────────────────────────────────────────

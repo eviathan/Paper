@@ -499,11 +499,30 @@ namespace Paper.Core.Components
             void Decrement() => onChange?.Invoke(Clamp(value - step));
             void Increment() => onChange?.Invoke(Clamp(value + step));
 
-            void OnChange(string text)
+            // Drag-to-scrub state: tracks where the drag started and what value it started from.
+            var (dragStartX, setDragStartX, _) = Hooks.Hooks.UseState<float?>(null);
+            var (dragStartValue, setDragStartValue, _) = Hooks.Hooks.UseState(value);
+
+            // Pixels of horizontal drag required to change by one step.
+            const float PixelsPerStep = 4f;
+
+            void OnScrubDown(PointerEvent e)
             {
-                if (float.TryParse(text, System.Globalization.NumberStyles.Float,
-                        System.Globalization.CultureInfo.InvariantCulture, out float parsed))
-                    onChange?.Invoke(Clamp(parsed));
+                setDragStartX(e.X);
+                setDragStartValue(value);
+            }
+
+            void OnScrubMove(PointerEvent e)
+            {
+                if (e.Button != 0 || dragStartX == null) return;
+                float delta = e.X - dragStartX.Value;
+                float steps = MathF.Round(delta / PixelsPerStep);
+                onChange?.Invoke(Clamp(dragStartValue + steps * step));
+            }
+
+            void OnScrubUp(PointerEvent e)
+            {
+                setDragStartX(null);
             }
 
             var containerStyle = new StyleSheet
@@ -524,6 +543,7 @@ namespace Paper.Core.Components
                 BorderTopLeftRadius = 4f,
                 BorderBottomLeftRadius = 4f,
                 Cursor = Cursor.Pointer,
+                TextAlign = TextAlign.Center,
             };
             var incBtnStyle = new StyleSheet
             {
@@ -535,20 +555,30 @@ namespace Paper.Core.Components
                 BorderTopRightRadius = 4f,
                 BorderBottomRightRadius = 4f,
                 Cursor = Cursor.Pointer,
+                TextAlign = TextAlign.Center,
             };
             var btnHover = new StyleSheet { Background = new PaperColour(0.28f, 0.28f, 0.38f, 1f) };
 
-            var inputStyle = new StyleSheet
+            var scrubStyle = new StyleSheet
             {
                 FlexGrow = 1f,
+                Display = Display.Flex,
+                AlignItems = AlignItems.Center,
+                JustifyContent = JustifyContent.Center,
+                Background = new PaperColour(0.10f, 0.10f, 0.14f, 1f),
+                Cursor = Cursor.EwResize,
                 Padding = new Thickness(Length.Px(4), Length.Px(6)),
-                TextAlign = TextAlign.Center,
-                BorderRadius = 0f,
             };
 
             return UI.Box(containerStyle,
                 UI.Box(new PropsBuilder().Style(decBtnStyle).Set("hoverStyle", btnHover).OnClick(Decrement).Children(UI.Text("-")).Build()),
-                UI.Input(FormatValue(value), OnChange, inputStyle),
+                UI.Box(new PropsBuilder()
+                    .Style(scrubStyle)
+                    .OnPointerDown(OnScrubDown)
+                    .OnPointerMove(OnScrubMove)
+                    .OnPointerUp(OnScrubUp)
+                    .Children(UI.Text(FormatValue(value), style: new StyleSheet { PointerEvents = PointerEvents.None }))
+                    .Build()),
                 UI.Box(new PropsBuilder().Style(incBtnStyle).Set("hoverStyle", btnHover).OnClick(Increment).Children(UI.Text("+")).Build())
             );
         }

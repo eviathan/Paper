@@ -1301,8 +1301,9 @@ private int GetCaretIndexFromX(Fiber fiber, float lx, float ly, float scrollX = 
                     handled = false;
 
                 // Per-component dirty tracking (from OnChange calls above) handles reconcile.
-                // The 60fps continuous render loop handles visual updates (caret, selection) automatically.
-                if (handled) return;
+                // For pure navigation (no text change), mark dirty so the caret repaints this frame
+                // rather than waiting up to 500ms for the blink timer to fire RequestRender().
+                if (handled) { MarkDirty(); return; }
             }
 
             // Back-compat
@@ -1869,6 +1870,7 @@ private int GetCaretIndexFromX(Fiber fiber, float lx, float ly, float scrollX = 
         private nint _glfwCursorHand;
         private nint _glfwCursorIBeam;
         private nint _glfwCursorCrosshair;
+        private nint _glfwCursorEwResize;
         private Glfw? _glfw;
 
         private unsafe void InitGlfwCursors()
@@ -1881,6 +1883,7 @@ private int GetCaretIndexFromX(Fiber fiber, float lx, float ly, float scrollX = 
                 _glfwCursorHand       = (nint)_glfw.CreateStandardCursor(CursorShape.Hand);
                 _glfwCursorIBeam      = (nint)_glfw.CreateStandardCursor(CursorShape.IBeam);
                 _glfwCursorCrosshair  = (nint)_glfw.CreateStandardCursor(CursorShape.Crosshair);
+                _glfwCursorEwResize   = (nint)_glfw.CreateStandardCursor(CursorShape.HResize);
                 // GLFW has no built-in wait/not-allowed — fall back to arrow for those
             }
             catch { }
@@ -1895,7 +1898,8 @@ private int GetCaretIndexFromX(Fiber fiber, float lx, float ly, float scrollX = 
                 if (_glfwCursorHand      != 0) _glfw.DestroyCursor((global::Silk.NET.GLFW.Cursor*)_glfwCursorHand);
                 if (_glfwCursorIBeam     != 0) _glfw.DestroyCursor((global::Silk.NET.GLFW.Cursor*)_glfwCursorIBeam);
                 if (_glfwCursorCrosshair != 0) _glfw.DestroyCursor((global::Silk.NET.GLFW.Cursor*)_glfwCursorCrosshair);
-                _glfwCursorArrow = _glfwCursorHand = _glfwCursorIBeam = _glfwCursorCrosshair = 0;
+                if (_glfwCursorEwResize  != 0) _glfw.DestroyCursor((global::Silk.NET.GLFW.Cursor*)_glfwCursorEwResize);
+                _glfwCursorArrow = _glfwCursorHand = _glfwCursorIBeam = _glfwCursorCrosshair = _glfwCursorEwResize = 0;
                 _glfw.Dispose();
                 _glfw = null;
             }
@@ -1914,6 +1918,7 @@ private int GetCaretIndexFromX(Fiber fiber, float lx, float ly, float scrollX = 
                     Paper.Core.Styles.Cursor.Pointer    => _glfwCursorHand,
                     Paper.Core.Styles.Cursor.Text       => _glfwCursorIBeam,
                     Paper.Core.Styles.Cursor.Crosshair  => _glfwCursorCrosshair,
+                    Paper.Core.Styles.Cursor.EwResize   => _glfwCursorEwResize,
                     Paper.Core.Styles.Cursor.None       => 0,
                     _                                   => _glfwCursorArrow,
                 };

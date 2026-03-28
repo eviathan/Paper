@@ -1194,9 +1194,12 @@ namespace Paper.Rendering.Silk.NET
             string? fam    = style.FontFamily;
             var weight     = style.FontWeight;
             float textH    = _fonts.LineHeight(fontPx, fam, weight);
-            var (padTop, _, _, padLeft) = BoxModel.PaddingPixels(style, fullLb.Width, fullLb.Height);
+            var (padTop, _, padBottom, padLeft) = BoxModel.PaddingPixels(style, fullLb.Width, fullLb.Height);
             float xLayout  = fullLb.AbsoluteX + padLeft - inputScrollX;
-            float baseline = lineBox.AbsoluteY + padTop + (textH * 0.8f);
+            float contentH = lineBox.Height - padTop - padBottom;
+            float baseline = contentH >= textH
+                ? lineBox.AbsoluteY + padTop + (contentH - textH) / 2f + (textH * 0.8f)
+                : lineBox.AbsoluteY + padTop + (textH * 0.8f);
             float w0 = _fonts.MeasureWidth(line.AsSpan(0, lineSelStart), fontPx, fam, weight);
             float w1 = _fonts.MeasureWidth(line.AsSpan(0, lineSelEnd), fontPx, fam, weight);
             float x0 = (xLayout - scrollX + w0) * ScaleX;
@@ -1215,9 +1218,12 @@ namespace Paper.Rendering.Silk.NET
             string? fam    = style.FontFamily;
             var weight     = style.FontWeight;
             float textH    = _fonts.LineHeight(fontPx, fam, weight);
-            var (padTop, _, _, padLeft) = BoxModel.PaddingPixels(style, fullLb.Width, fullLb.Height);
+            var (padTop, _, padBottom, padLeft) = BoxModel.PaddingPixels(style, fullLb.Width, fullLb.Height);
             float xLayout  = fullLb.AbsoluteX + padLeft - inputScrollX;
-            float baseline = lineBox.AbsoluteY + padTop + (textH * 0.8f);
+            float contentH = lineBox.Height - padTop - padBottom;
+            float baseline = contentH >= textH
+                ? lineBox.AbsoluteY + padTop + (contentH - textH) / 2f + (textH * 0.8f)
+                : lineBox.AbsoluteY + padTop + (textH * 0.8f);
             int   caretOffset = Math.Min(FocusedInputCaret - lineStart, line.Length);
             float caretX   = xLayout + (caretOffset <= 0 ? 0 : _fonts.MeasureWidth(line.AsSpan(0, caretOffset), fontPx, fam, weight));
             DrawCaretAt(caretX, baseline, 1f, textH, col, opacity, scrollX, scrollY);

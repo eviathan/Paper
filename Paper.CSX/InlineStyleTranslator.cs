@@ -570,6 +570,7 @@ namespace Paper.CSX
             "wait" => "Cursor.Wait",
             "help" => "Cursor.Help",
             "none" => "Cursor.None",
+            "ew-resize" => "Cursor.EwResize",
             _ => null,
         };
 
