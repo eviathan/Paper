@@ -299,7 +299,7 @@ namespace Paper.Core.Hooks
             IReadOnlyList<T> items,
             float itemHeight,
             float containerH,
-            int overscan = 3)
+            int overscan = 5)
         {
             // Use UpdateState (not UseRef) so the VirtualList fiber is marked dirty and re-renders
             // when the scroll position changes. UseRef mutation bypasses per-component dirty tracking.

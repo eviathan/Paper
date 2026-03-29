@@ -637,13 +637,7 @@ namespace Paper.Rendering.Silk.NET
 
                 if (fiber.Type is string tta && tta == ElementTypes.Textarea)
                 {
-                    if (_gl != null)
-                    {
-                        _rects.Flush(_screenW, _screenH);
-                        _fonts?.Flush(_screenW, _screenH);
-                        _gl.Enable(EnableCap.ScissorTest);
-                        _gl.Scissor((int)dx, (int)(_screenH - (dy + dh)), (uint)Math.Max(0, (int)dw), (uint)Math.Max(0, (int)dh));
-                    }
+                    if (_gl != null) BeginTextScissor(dx, dy, dw, dh);
                     float fontPx   = SilkTextMeasurer.ResolveFontPx(style);
                     float atlasLineH = _fonts!.LineHeight(fontPx);
                     float textH    = atlasLineH * Math.Max(0.5f, style.LineHeight ?? 1.4f);
@@ -674,22 +668,11 @@ namespace Paper.Rendering.Silk.NET
                         }
                         idx += logLine.Length + 1; // +1 for the newline
                     }
-                    if (_gl != null)
-                    {
-                        _rects.Flush(_screenW, _screenH);
-                        _fonts?.Flush(_screenW, _screenH);
-                        _gl.Disable(EnableCap.ScissorTest);
-                    }
+                    if (_gl != null) EndTextScissor();
                 }
                 else if (fiber.Type is string mde && mde == ElementTypes.MarkdownEditor)
                 {
-                    if (_gl != null)
-                    {
-                        _rects.Flush(_screenW, _screenH);
-                        _fonts?.Flush(_screenW, _screenH);
-                        _gl.Enable(EnableCap.ScissorTest);
-                        _gl.Scissor((int)dx, (int)(_screenH - (dy + dh)), (uint)Math.Max(0, (int)dw), (uint)Math.Max(0, (int)dh));
-                    }
+                    if (_gl != null) BeginTextScissor(dx, dy, dw, dh);
                     var mdTheme      = MarkdownTheme.Dark;
                     float fontPx     = SilkTextMeasurer.ResolveFontPx(style);
                     float atlasLineH = _fonts!.LineHeight(fontPx);
@@ -765,28 +748,13 @@ namespace Paper.Rendering.Silk.NET
                         if (isFocusedInput)
                             DrawCaretForLine(seg.Text, lineStart, lineEnd, lb, lineBox, style, col, opacity, scrollX, scrollY);
                     }
-                    if (_gl != null)
-                    {
-                        _rects.Flush(_screenW, _screenH);
-                        _fonts?.Flush(_screenW, _screenH);
-                        _gl.Disable(EnableCap.ScissorTest);
-                    }
+                    if (_gl != null) EndTextScissor();
                 }
                 else
                 {
                     var singleLine = label ?? "";
                     float inputScrollX = (isFocusedInput && fiber.Type is string inp && inp == ElementTypes.Input) ? FocusedInputScrollX : 0f;
-                    if (_gl != null)
-                    {
-                        _rects.Flush(_screenW, _screenH);
-                        _fonts?.Flush(_screenW, _screenH);
-                        int scX = (int)dx;
-                        int scY = (int)(_screenH - (dy + dh));
-                        int scW = Math.Max(0, (int)dw);
-                        int scH = Math.Max(0, (int)dh);
-                        _gl.Enable(EnableCap.ScissorTest);
-                        _gl.Scissor(scX, scY, (uint)scW, (uint)scH);
-                    }
+                    if (_gl != null) BeginTextScissor(dx, dy, dw, dh);
                     if (isFocusedInput)
                         DrawSelectionForLine(singleLine, 0, singleLine.Length, lb, lb, style, scrollX, scrollY, inputScrollX);
                     if (singleLine.Length > 0)
@@ -799,12 +767,7 @@ namespace Paper.Rendering.Silk.NET
                     }
                     if (isFocusedInput)
                         DrawCaretForLine(singleLine, 0, singleLine.Length, lb, lb, style, col, opacity, scrollX, scrollY, inputScrollX);
-                    if (_gl != null)
-                    {
-                        _rects.Flush(_screenW, _screenH);
-                        _fonts?.Flush(_screenW, _screenH);
-                        _gl.Disable(EnableCap.ScissorTest);
-                    }
+                    if (_gl != null) EndTextScissor();
                 }
             }
 
@@ -844,10 +807,10 @@ namespace Paper.Rendering.Silk.NET
             {
                 _rects.Flush(_screenW, _screenH);
                 _fonts?.Flush(_screenW, _screenH);
-                int x = (int)dx;
-                int y = (int)(_screenH - (dy + dh)); // OpenGL scissor: origin bottom-left
-                int w = Math.Max(0, (int)dw);
-                int h = Math.Max(0, (int)dh);
+                int x = (int)Math.Floor(dx);
+                int y = (int)Math.Floor(_screenH - (dy + dh)); // OpenGL scissor: origin bottom-left
+                int w = Math.Max(0, (int)Math.Ceiling(dx + dw) - x);
+                int h = Math.Max(0, (int)Math.Ceiling(_screenH - dy) - y);
                 _gl!.Enable(EnableCap.ScissorTest);
                 _gl.Scissor(x, y, (uint)w, (uint)h);
                 // Narrow the cull rect to this container's visible screen area so children
@@ -886,10 +849,10 @@ namespace Paper.Rendering.Silk.NET
             {
                 _rects.Flush(_screenW, _screenH);
                 _fonts?.Flush(_screenW, _screenH);
-                int hx = (int)dx;
-                int hy = (int)(_screenH - (dy + dh));
-                int hw = Math.Max(0, (int)dw);
-                int hh = Math.Max(0, (int)dh);
+                int hx = (int)Math.Floor(dx);
+                int hy = (int)Math.Floor(_screenH - (dy + dh));
+                int hw = Math.Max(0, (int)Math.Ceiling(dx + dw) - hx);
+                int hh = Math.Max(0, (int)Math.Ceiling(_screenH - dy) - hy);
                 _gl!.Enable(EnableCap.ScissorTest);
                 _gl.Scissor(hx, hy, (uint)hw, (uint)hh);
                 // Narrow the cull rect to the container bounds so children outside the visible
@@ -926,6 +889,54 @@ namespace Paper.Rendering.Silk.NET
         private void RenderChildren(Fiber? child, float opacity, string parentPath, float scrollX, float scrollY)
         {
             Render(child, opacity, parentPath, 0, scrollX, scrollY);
+        }
+
+        /// <summary>
+        /// Sets a GL scissor for text rendering clipped to the intersection of the element's own bounds
+        /// and the current <see cref="_cullRect"/>. This ensures parent overflow:hidden containers are respected.
+        /// Call <see cref="EndTextScissor"/> after text is drawn.
+        /// </summary>
+        private void BeginTextScissor(float dx, float dy, float dw, float dh)
+        {
+            if (_gl == null) return;
+            _rects.Flush(_screenW, _screenH);
+            _fonts?.Flush(_screenW, _screenH);
+            float left   = Math.Max(dx, _cullRect.X);
+            float top    = Math.Max(dy, _cullRect.Y);
+            float right  = Math.Min(dx + dw, _cullRect.X + _cullRect.W);
+            float bottom = Math.Min(dy + dh, _cullRect.Y + _cullRect.H);
+            int x = (int)Math.Floor(left);
+            int w = Math.Max(0, (int)Math.Ceiling(right) - x);
+            int y = (int)Math.Floor(_screenH - bottom);
+            int h = Math.Max(0, (int)Math.Ceiling(_screenH - top) - y);
+            _gl.Enable(EnableCap.ScissorTest);
+            _gl.Scissor(x, y, (uint)w, (uint)h);
+        }
+
+        /// <summary>
+        /// Ends a text scissor started by <see cref="BeginTextScissor"/>. Restores the scissor to
+        /// <see cref="_cullRect"/> if a parent clip is active; otherwise disables scissor entirely.
+        /// </summary>
+        private void EndTextScissor()
+        {
+            if (_gl == null) return;
+            _rects.Flush(_screenW, _screenH);
+            _fonts?.Flush(_screenW, _screenH);
+            // If _cullRect covers the whole screen no parent clip is active — disable scissor.
+            // Otherwise restore the parent container's scissor so subsequent siblings stay clipped.
+            if (_cullRect.X <= 0 && _cullRect.Y <= 0 && _cullRect.W >= _screenW && _cullRect.H >= _screenH)
+            {
+                _gl.Disable(EnableCap.ScissorTest);
+            }
+            else
+            {
+                int x = (int)Math.Floor(_cullRect.X);
+                int w = Math.Max(0, (int)Math.Ceiling(_cullRect.X + _cullRect.W) - x);
+                int y = (int)Math.Floor(_screenH - (_cullRect.Y + _cullRect.H));
+                int h = Math.Max(0, (int)Math.Ceiling(_screenH - _cullRect.Y) - y);
+                _gl.Enable(EnableCap.ScissorTest);
+                _gl.Scissor(x, y, (uint)w, (uint)h);
+            }
         }
 
         /// <summary>Render a single fiber (and its subtree) used for z-indexed deferred pass.</summary>

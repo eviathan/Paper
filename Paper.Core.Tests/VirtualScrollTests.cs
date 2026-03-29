@@ -33,7 +33,7 @@ public sealed class VirtualScrollTests
     [Fact]
     public void VirtualList_RendersOnlyVisibleItems()
     {
-        // 200px container / 40px items → 5 visible rows. With default overscan=3, up to 11 rows max.
+        // 200px container / 40px items → 5 visible rows. With default overscan=5, up to 15 rows max.
         var rec = new R();
         rec.Mount(UI.List(
             Items100,
@@ -43,7 +43,7 @@ public sealed class VirtualScrollTests
 
         // Count how many Text fibers are rendered
         int textCount = CountFibers(rec.Root, "text");
-        // With overscan=3: start=max(0,0-3)=0, end=min(99,5+3)=8 → 9 items, not all 100
+        // With overscan=5: start=max(0,0-5)=0, end=min(99,5+5)=10 → 11 items, not all 100
         Assert.True(textCount < Items100.Length, $"Expected fewer than {Items100.Length} text nodes, got {textCount}");
         Assert.True(textCount >= 5, $"Expected at least 5 visible rows, got {textCount}");
     }
