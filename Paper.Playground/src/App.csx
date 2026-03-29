@@ -172,14 +172,14 @@ UINode App() {
       <Box className="section">
         <Text className="section-label">AspectRatio</Text>
         <Box className="demo-panel" style={{ gap: 12, padding: 12, alignItems: 'flex-start' }}>
-          <Box style={{ width: 160, aspectRatio: '16/9', background: '#6366f1', borderRadius: 6, alignItems: 'center', justifyContent: 'center' }}>
+          <Box style={{ width: 160, aspectRatio: '16/9', padding: 10, background: '#6366f1', borderRadius: 6, alignItems: 'center', justifyContent: 'center' }}>
             <Text style={{ color: 'white' }}>16:9</Text>
           </Box>
-          <Box style={{ width: 80, aspectRatio: '1/1', background: '#22c55e', borderRadius: 6, alignItems: 'center', justifyContent: 'center' }}>
+          <Box style={{ width: 80, aspectRatio: '1/1', padding: 10, background: '#22c55e', borderRadius: 6, alignItems: 'center', justifyContent: 'center' }}>
             <Text style={{ color: 'white' }}>1:1</Text>
           </Box>
-          <Box style={{ width: 60, aspectRatio: '9/16', background: '#f97316', borderRadius: 6, alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={{ color: 'white', fontSize: 10 }}>9:16</Text>
+          <Box style={{ width: 60, aspectRatio: '9/16', padding: 10, background: '#f97316', borderRadius: 6, alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={{ color: 'white' }}>9:16</Text>
           </Box>
         </Box>
       </Box>
@@ -204,7 +204,7 @@ UINode App() {
           <Box
             onDrop={(e) => { setDroppedOn(draggedItem); setDraggedItem(null); }}
             onDragOver={(e) => {}}
-            style={{ width: 160, height: 64, background: dropBg, border: '2px dashed #3a3a55', borderRadius: 8, alignItems: 'center', justifyContent: 'center' }}
+            style={{ width: 160, height: 64, padding: 12, background: dropBg, border: '2px dashed #3a3a55', borderRadius: 8, alignItems: 'center', justifyContent: 'center' }}
           >
             <Text style={{ color: dropTextColor }}>{dropText}</Text>
           </Box>
