@@ -101,6 +101,7 @@ namespace Paper.Core.Styles
                 {
                     Display = Display.Flex,
                     FlexDirection = FlexDirection.Column,
+                    RowGap = Length.Px(4),
                 },
                 ElementTypes.RadioOption => new StyleSheet
                 {

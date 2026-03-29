@@ -648,6 +648,19 @@ namespace Paper.Layout
             if (effectiveAlign == AlignItems.Stretch)
                 return crossSize;
 
+            // Input / Textarea: always measure font height via a single character so that empty
+            // and non-empty states produce the same cross size (avoids height jump when typing).
+            if (isRow && item.Type is string inputType &&
+                (inputType == ElementTypes.Input || inputType == ElementTypes.Textarea || inputType == ElementTypes.MarkdownEditor) &&
+                measurer != null)
+            {
+                var (_, th) = measurer.MeasureText("A", style, null);
+                var csPad = style.Padding ?? Thickness.Zero;
+                float padH = csPad.Top.Resolve(crossSize) + csPad.Bottom.Resolve(crossSize);
+                var (bt, _, bb, _) = BoxModel.BorderWidths(style);
+                return th + padH + bt + bb;
+            }
+
             // Non-stretch: size to content
             if (measurer != null && item.Props.Text is { Length: > 0 } t)
             {
