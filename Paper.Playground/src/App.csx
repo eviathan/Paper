@@ -61,6 +61,10 @@ UINode App() {
   // ── Radio state ───────────────────────────────────────────────────────────
   var (radioVal, setRadioVal, _) = Hooks.UseState("option1");
 
+  // ── Native file dialog state ──────────────────────────────────────────────
+  var (openedPath, setOpenedPath, _) = Hooks.UseState("(none)");
+  var (savedPath, setSavedPath, _) = Hooks.UseState("(none)");
+
   // ── Drag and drop state ───────────────────────────────────────────────────
   var (draggedItem, setDraggedItem, _) = Hooks.UseState<string?>(null);
   var (droppedOn, setDroppedOn, _) = Hooks.UseState<string?>(null);
@@ -403,6 +407,29 @@ UINode App() {
               <Text style={{ color: '#a0a0b8' }}>{$"Item {n}"}</Text>
             </Box>
         )}
+      </Box>
+
+      {/* ── Native File Dialogs ──────────────────────────────────────────────── */}
+      <Box className="section">
+        <Text className="section-label">Native File Dialogs</Text>
+        <Box className="demo-col-panel" style={{ gap: 12, padding: 12 }}>
+          <Box style={{ display: 'flex', flexDirection: 'row', gap: 8 }}>
+            <Button onClick={() => Paper.Rendering.Silk.NET.NativeFileDialog.OpenFile(path => setOpenedPath(path ?? "(cancelled)"))}>
+              Open File…
+            </Button>
+            <Button onClick={() => Paper.Rendering.Silk.NET.NativeFileDialog.SaveFile(path => setSavedPath(path ?? "(cancelled)"), defaultName: "untitled.txt")}>
+              Save File…
+            </Button>
+          </Box>
+          <Box style={{ display: 'flex', flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+            <Text style={{ color: '#a0a0b8', width: 80 }}>Opened:</Text>
+            <Text style={{ color: '#6366f1' }}>{openedPath}</Text>
+          </Box>
+          <Box style={{ display: 'flex', flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+            <Text style={{ color: '#a0a0b8', width: 80 }}>Saved:</Text>
+            <Text style={{ color: '#6366f1' }}>{savedPath}</Text>
+          </Box>
+        </Box>
       </Box>
 
       <Box style={{ minHeight: 48 }} />

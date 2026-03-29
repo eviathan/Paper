@@ -11,7 +11,9 @@
       "Bash(dotnet script:*)",
       "Bash(head -5 grep -n \"record\\\\|struct\\\\|sealed class\\\\|public.*PaperColour\" /Users/brian/Dev/Frameworks/Paper/Paper.Core/Styles/PaperColour.cs)",
       "Bash(find /Users/brian/Dev/Frameworks/Paper/Paper.Playground -name *.cscc)",
-      "Bash(find /Users/brian/Dev/Frameworks/Paper -name *.ttf -o -name *.otf)"
+      "Bash(find /Users/brian/Dev/Frameworks/Paper -name *.ttf -o -name *.otf)",
+      "Bash(osascript -e 'POSIX path of \\(choose file with prompt \"\"Open File\"\"\\)')",
+      "Bash(echo \"exit: $?\")"
     ]
   }
 }
