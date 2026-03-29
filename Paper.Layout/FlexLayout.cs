@@ -170,9 +170,16 @@ namespace Paper.Layout
                 line.Items.Add(new FlexItem { Fiber = item, HypotheticalMain = base_ });
             }
 
-            // Step 2: compute free space
+            // Step 2: compute free space (margins must be included — they consume main-axis space
+            // before flex grow/shrink distributes the remainder, per CSS flex spec).
             float totalGap = Math.Max(0, items.Count - 1) * gap;
-            float usedMain = line.Items.Sum(i => i.HypotheticalMain) + totalGap;
+            float totalMargins = 0f;
+            foreach (var fi in line.Items)
+            {
+                var (mt, mr, mb, ml) = BoxModel.MarginPixels(fi.Fiber.ComputedStyle, mainSize, crossSize);
+                totalMargins += isRow ? (ml + mr) : (mt + mb);
+            }
+            float usedMain = line.Items.Sum(i => i.HypotheticalMain) + totalGap + totalMargins;
             float freeSpace = mainSize - usedMain;
 
             // Step 3: resolve grows / shrinks
@@ -362,7 +369,13 @@ namespace Paper.Layout
             foreach (var line in lines)
             {
                 float totalGap = Math.Max(0, line.Items.Count - 1) * gap;
-                float usedMain2 = line.Items.Sum(i => i.HypotheticalMain) + totalGap;
+                float lineMargins = 0f;
+                foreach (var lfi in line.Items)
+                {
+                    var (mt, mr, mb, ml) = BoxModel.MarginPixels(lfi.Fiber.ComputedStyle, mainSize, crossSize);
+                    lineMargins += isRow ? (ml + mr) : (mt + mb);
+                }
+                float usedMain2 = line.Items.Sum(i => i.HypotheticalMain) + totalGap + lineMargins;
                 float freeSpace2 = mainSize - usedMain2;
 
                 if (freeSpace2 > 0.001f)
