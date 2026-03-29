@@ -499,30 +499,31 @@ namespace Paper.Core.Components
             void Decrement() => onChange?.Invoke(Clamp(value - step));
             void Increment() => onChange?.Invoke(Clamp(value + step));
 
-            // Drag-to-scrub state: tracks where the drag started and what value it started from.
-            var (dragStartX, setDragStartX, _) = Hooks.Hooks.UseState<float?>(null);
-            var (dragStartValue, setDragStartValue, _) = Hooks.Hooks.UseState(value);
+            // Mutable drag state via UseStable — avoids stale-closure issues that UseState has
+            // (state only updates after re-render, so Move events would always see the initial null).
+            // [0] = drag start X (-1 = not dragging), [1] = value at drag start
+            var drag = Hooks.Hooks.UseStable(() => new float[] { -1f, 0f });
 
             // Pixels of horizontal drag required to change by one step.
             const float PixelsPerStep = 4f;
 
             void OnScrubDown(PointerEvent e)
             {
-                setDragStartX(e.X);
-                setDragStartValue(value);
+                drag[0] = e.X;
+                drag[1] = value;
             }
 
             void OnScrubMove(PointerEvent e)
             {
-                if (e.Button != 0 || dragStartX == null) return;
-                float delta = e.X - dragStartX.Value;
+                if (e.Button != 0 || drag[0] < 0) return;
+                float delta = e.X - drag[0];
                 float steps = MathF.Round(delta / PixelsPerStep);
-                onChange?.Invoke(Clamp(dragStartValue + steps * step));
+                onChange?.Invoke(Clamp(drag[1] + steps * step));
             }
 
             void OnScrubUp(PointerEvent e)
             {
-                setDragStartX(null);
+                drag[0] = -1f;
             }
 
             var containerStyle = new StyleSheet
@@ -531,6 +532,7 @@ namespace Paper.Core.Components
                 FlexDirection = FlexDirection.Row,
                 AlignItems = AlignItems.Stretch,
                 FlexGrow = 1f,
+                MinHeight = Length.Em(2.2f),
             }.Merge(style);
 
             var decBtnStyle = new StyleSheet
@@ -788,12 +790,19 @@ namespace Paper.Core.Components
                 .Style(toastStyle)
                 .Children(
                     UI.Box(
-                        new StyleSheet { Display = Display.Flex, FlexDirection = FlexDirection.Row, AlignItems = AlignItems.Center, FlexGrow = 1 },
+                        new StyleSheet
+                        { 
+                            Display = Display.Flex,
+                            FlexDirection = FlexDirection.Row,
+                            AlignItems = AlignItems.Center,
+                            FlexGrow = 1
+                        },
                         UI.Text(toast.Message)
                     ),
                     UI.Button(
                         "x",
-                        () => onDismiss?.Invoke(localId), new StyleSheet
+                        () => onDismiss?.Invoke(localId), 
+                        new StyleSheet
                         {
                             Background = new PaperColour(0f, 0f, 0f, 0.3f),
                             Color = new PaperColour(0.7f, 0.7f, 0.8f, 1f),
