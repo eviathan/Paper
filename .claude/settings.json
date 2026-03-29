@@ -13,7 +13,13 @@
       "Bash(find /Users/brian/Dev/Frameworks/Paper/Paper.Playground -name *.cscc)",
       "Bash(find /Users/brian/Dev/Frameworks/Paper -name *.ttf -o -name *.otf)",
       "Bash(osascript -e 'POSIX path of \\(choose file with prompt \"\"Open File\"\"\\)')",
-      "Bash(echo \"exit: $?\")"
+      "Bash(echo \"exit: $?\")",
+      "Read(//Users/brian/Dev/Games/Archipelago/**)",
+      "Bash(grep -h \"public static IServiceCollection\" /Users/brian/dev/Games/Archipelago/Archipelago.Engine/Archipelago.Engine.Rendering.Silk.NET/Extensions/*.cs /Users/brian/dev/Games/Archipelago/Archipelago.Engine/Archipelago.Engine.Core/Extensions/*.cs /Users/brian/dev/Games/Archipelago/Archipelago.Engine/Archipelago.Engine.Audio.Silk.NET/Extensions/*.cs /Users/brian/dev/Games/Archipelago/Archipelago.Engine/Archipelago.Engine.Tilemaps/Extensions/*.cs)"
+    ],
+    "additionalDirectories": [
+      "/Users/brian/dev/Games/Archipelago/Archipelago.Engine/Archipelago.Engine.Editor",
+      "/Users/brian/Dev/Games/Archipelago/Archipelago.Engine/Archipelago.Engine.Editor"
     ]
   }
 }
