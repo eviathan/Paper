@@ -9,7 +9,7 @@ class Program
         // Use C#-only UI to verify clicks/state work without CSX. Set to false to use App.csx hot reload.
         var useCSharpOnly = args.Contains("--csharp", StringComparer.OrdinalIgnoreCase);
 
-        var app = new PaperSurface(useCSharpOnly ? "Paper — C# mode (buttons should work)" : "Paper — CSX mode", 800, 600);
+        var app = new PaperSurface("❖ Paper ❖", 800, 600);
         // Minimum size so content can fit or scroll; root has overflow: scroll so smaller windows scroll.
         app.MinimumWindowWidth = 400;
         app.MinimumWindowHeight = 500;

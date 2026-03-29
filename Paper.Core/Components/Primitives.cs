@@ -597,8 +597,7 @@ namespace Paper.Core.Components
         /// </summary>
         public static UINode Tabs(Props p)
         {
-            var tabs = p.Get<IReadOnlyList<(string Id, string Label)>>("tabs")
-                            ?? Array.Empty<(string, string)>();
+            var tabs = p.Get<IReadOnlyList<(string Id, string Label)>>("tabs") ?? Array.Empty<(string, string)>();
             var activeTab = p.Get<string>("activeTab") ?? (tabs.Count > 0 ? tabs[0].Id : "");
             var onChange = p.Get<Action<string>>("onTabChange");
             var panels = p.Children;
@@ -793,7 +792,7 @@ namespace Paper.Core.Components
                 Background = new PaperColour(0.12f, 0.12f, 0.18f, 0.96f),
                 Border = new BorderEdges(new Border(1f, accent)),
                 BorderRadius = 6f,
-                Padding = new Thickness(Length.Px(10), Length.Px(14)),
+                Padding = new Thickness(Length.Px(10), Length.Px(8), Length.Px(10), Length.Px(14)),
                 Width = Length.Px(340),
             };
 
@@ -812,7 +811,7 @@ namespace Paper.Core.Components
                         UI.Text(toast.Message)
                     ),
                     UI.Button(
-                        "x",
+                        "❌",
                         () => onDismiss?.Invoke(localId), 
                         new StyleSheet
                         {

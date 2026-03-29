@@ -550,6 +550,36 @@ namespace Paper.Layout
                 return h;
             }
 
+            var itemFlexDir0 = style.FlexDirection ?? FlexDirection.Row;
+            bool itemIsRow0 = itemFlexDir0 is FlexDirection.Row or FlexDirection.RowReverse;
+            var itemDisplay0 = style.Display ?? Display.Block;
+
+            // Flex-column item in a row parent: intrinsic width = widest child + own horizontal insets.
+            // Without this, MinWidth is returned early and centering is based on the wrong (too-narrow) size.
+            if (isRow && !itemIsRow0 && (itemDisplay0 == Display.Flex || itemDisplay0 == Display.InlineFlex) && item.Child != null)
+            {
+                float maxChildW = 0f;
+                var wch = item.Child;
+                while (wch != null)
+                {
+                    var wcs = wch.ComputedStyle;
+                    var wcPos = wcs.Position ?? Position.Static;
+                    if ((wcs.Display ?? Display.Block) != Display.None && wcPos != Position.Absolute && wcPos != Position.Fixed)
+                    {
+                        float chW = GetFlexBasis(wch, wcs, mainSize, crossSize, isRow: true, measurer);
+                        maxChildW = Math.Max(maxChildW, chW);
+                    }
+                    wch = wch.Sibling;
+                }
+                if (maxChildW > 0)
+                {
+                    float horiz = BoxModel.HorizontalInsets(style, crossSize);
+                    float basis = maxChildW + horiz;
+                    if (minMain.HasValue) basis = Math.Max(basis, minMain.Value);
+                    return basis;
+                }
+            }
+
             if (minMain.HasValue && minMain.Value > 0)
                 return minMain.Value;
 
@@ -613,12 +643,9 @@ namespace Paper.Layout
             // Intrinsic size: when this item is a flex *column* with no explicit main size,
             // use the sum of its flex items' bases + gaps so the parent doesn't shrink it below content.
             // Only for columns so we don't change row children (e.g. flexGrow items that had default 100f width).
-            var itemFlexDir = style.FlexDirection ?? FlexDirection.Row;
-            bool itemIsRow = itemFlexDir is FlexDirection.Row or FlexDirection.RowReverse;
-            var itemDisplay = style.Display ?? Display.Block;
-            if (!itemIsRow && (itemDisplay == Display.Flex || itemDisplay == Display.InlineFlex) && item.Child != null)
+            if (!itemIsRow0 && (itemDisplay0 == Display.Flex || itemDisplay0 == Display.InlineFlex) && item.Child != null)
             {
-                var gapLength = itemIsRow ? style.ColumnGap : style.RowGap;
+                var gapLength = itemIsRow0 ? style.ColumnGap : style.RowGap;
                 if (gapLength == null && style.Gap != null)
                     gapLength = style.Gap;
                 float itemGap = BoxModel.ResolveLength(gapLength, mainSize, 0f);
@@ -632,7 +659,7 @@ namespace Paper.Layout
                     var csPos = cs.Position ?? Position.Static;
                     if (csDisp != Display.None && csPos != Position.Absolute && csPos != Position.Fixed)
                     {
-                        sum += GetFlexBasis(ch, cs, mainSize, crossSize, itemIsRow, measurer);
+                        sum += GetFlexBasis(ch, cs, mainSize, crossSize, itemIsRow0, measurer);
                         n++;
                     }
                     ch = ch.Sibling;
@@ -648,7 +675,7 @@ namespace Paper.Layout
 
             // Flex-row item in a column parent: estimate the row's HEIGHT (its cross-axis) from its
             // tallest child, then add the item's own vertical padding+border.
-            if (!isRow && itemIsRow && (itemDisplay == Display.Flex || itemDisplay == Display.InlineFlex) && item.Child != null)
+            if (!isRow && itemIsRow0 && (itemDisplay0 == Display.Flex || itemDisplay0 == Display.InlineFlex) && item.Child != null)
             {
                 float est = EstimateIntrinsicCross(item, isRow: true, crossSize: crossSize);
                 if (est > 0)
@@ -772,9 +799,16 @@ namespace Paper.Layout
 
             if (item.Child == null) return 0f;
 
-            // Single child: see through (component wrapper fibers)
+            // Own insets (padding + border) that must be added on top of the content estimate.
+            float ownCrossInsets = isRow ? BoxModel.VerticalInsets(s, crossSize) : BoxModel.HorizontalInsets(s, crossSize);
+
+            // Single child: see through (component wrapper fibers), but include own insets so
+            // padded containers (e.g. popover panel) are sized correctly.
             if (item.Child.Sibling == null)
-                return EstimateIntrinsicCross(item.Child, isRow, crossSize);
+            {
+                float childH = EstimateIntrinsicCross(item.Child, isRow, crossSize);
+                return childH > 0 ? childH + ownCrossInsets : 0f;
+            }
 
             // Multiple children: for column-direction containers sum heights (they stack vertically);
             // for row-direction containers take the max (they sit side-by-side).
@@ -794,12 +828,15 @@ namespace Paper.Layout
                 }
                 ch = ch.Sibling;
             }
-            if (containerIsColumn && childCount > 1)
+            if (childCount > 0)
             {
-                var gapLength = s.RowGap ?? s.Gap;
-                float gap = gapLength.HasValue ? gapLength.Value.Resolve(crossSize) : 0f;
-                result += gap * (childCount - 1);
-                result += BoxModel.VerticalInsets(s, crossSize);
+                if (containerIsColumn && childCount > 1)
+                {
+                    var gapLength = s.RowGap ?? s.Gap;
+                    float gap = gapLength.HasValue ? gapLength.Value.Resolve(crossSize) : 0f;
+                    result += gap * (childCount - 1);
+                }
+                result += ownCrossInsets;
             }
             return result;
         }
