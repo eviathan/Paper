@@ -759,22 +759,49 @@ namespace Paper.Layout
                 : (s.MinWidth  is { } mw && !mw.IsAuto ? mw.Resolve(crossSize) : 0f);
             if (minC > 0) return minC;
 
+            // Text/button leaf nodes: estimate height from font size (same logic as GetCrossSize).
+            if (isRow && item.Props.Text is { Length: > 0 })
+            {
+                float fontPx = s.FontSize is { } fs && !fs.IsAuto ? Math.Max(1f, fs.Resolve(0f, 16f)) : 16f;
+                float th = fontPx * (s.LineHeight ?? 1.4f);
+                var hPad = s.Padding ?? Thickness.Zero;
+                float padH = hPad.Top.Resolve(crossSize) + hPad.Bottom.Resolve(crossSize);
+                var (bt, _, bb, _) = BoxModel.BorderWidths(s);
+                return th + padH + bt + bb;
+            }
+
             if (item.Child == null) return 0f;
 
             // Single child: see through (component wrapper fibers)
             if (item.Child.Sibling == null)
                 return EstimateIntrinsicCross(item.Child, isRow, crossSize);
 
-            // Multiple children: return the max across in-flow siblings
-            float maxH = 0f;
+            // Multiple children: for column-direction containers sum heights (they stack vertically);
+            // for row-direction containers take the max (they sit side-by-side).
+            var flexDir = s.FlexDirection ?? FlexDirection.Row;
+            bool containerIsColumn = isRow && (flexDir == FlexDirection.Column || flexDir == FlexDirection.ColumnReverse);
+            float result = 0f;
+            int childCount = 0;
             var ch = item.Child;
             while (ch != null)
             {
-                float h = EstimateIntrinsicCross(ch, isRow, crossSize);
-                if (h > maxH) maxH = h;
+                var chPos = ch.ComputedStyle?.Position ?? Position.Static;
+                if (chPos != Position.Absolute && chPos != Position.Fixed)
+                {
+                    float h = EstimateIntrinsicCross(ch, isRow, crossSize);
+                    result = containerIsColumn ? result + h : Math.Max(result, h);
+                    childCount++;
+                }
                 ch = ch.Sibling;
             }
-            return maxH;
+            if (containerIsColumn && childCount > 1)
+            {
+                var gapLength = s.RowGap ?? s.Gap;
+                float gap = gapLength.HasValue ? gapLength.Value.Resolve(crossSize) : 0f;
+                result += gap * (childCount - 1);
+                result += BoxModel.VerticalInsets(s, crossSize);
+            }
+            return result;
         }
 
         private static float AlignCross(FlexItem fi, StyleSheet containerStyle, float lineCrossSize)

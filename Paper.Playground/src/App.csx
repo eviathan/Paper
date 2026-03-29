@@ -134,7 +134,7 @@ UINode App() {
       <Box className="section">
         <Text className="section-label">Popover</Text>
         <Box className="demo-panel" style={{ padding: 16, minHeight: 140 }}>
-          <Popover isOpen={popOpen} onClose={TogglePop} placement="bottom">
+          <Popover isOpen={popOpen} onClose={TogglePop} placement="center">
             <Button onClick={TogglePop}>{popBtnLabel}</Button>
             <Box style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 8, minWidth: 200 }}>
               <Text style={{ color: '#e0e0f0', fontWeight: '600' }}>Popover Title</Text>

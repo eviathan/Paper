@@ -462,7 +462,7 @@ namespace Paper.Rendering.Silk.NET
             }
 
             var (lx, ly) = ToLayoutCoords(mouse.Position);
-            var target = HitTest(_reconciler.Root, lx, ly, "", 0, 0f, 0f, p => _scrollOffsets.TryGetValue(p, out var v) ? v : (0f, 0f));
+            var target = HitTestAll(lx, ly);
             _pressed = target;
             _pressedPath = target != null ? GetPathString(target) : null;
             if (button == MouseButton.Left) _pointerDownFiber = target;
@@ -546,7 +546,7 @@ namespace Paper.Rendering.Silk.NET
             if (_scrollbarDragPath != null) { _scrollbarDragPath = null; return; }
 
             var (lx, ly) = ToLayoutCoords(mouse.Position);
-            var target = HitTest(_reconciler.Root, lx, ly, "", 0, 0f, 0f, p => _scrollOffsets.TryGetValue(p, out var v) ? v : (0f, 0f));
+            var target = HitTestAll(lx, ly);
 
             // Finish drag-and-drop
             if (button == MouseButton.Left && _dragActive && _dragSource != null)
@@ -913,9 +913,11 @@ private int GetCaretIndexFromX(Fiber fiber, float lx, float ly, float scrollX = 
             }
 
             var (lx, ly) = ToLayoutCoords(position);
-            var target = HitTest(_reconciler.Root, lx, ly, "", 0, 0f, 0f, p => _scrollOffsets.TryGetValue(p, out var v) ? v : (0f, 0f));
+            var target = HitTestAll(lx, ly);
 
-            if (!ReferenceEquals(target, _hovered))
+            // During an active drag don't process hover changes — style recalc on every cell hover
+            // causes full layout passes each frame and makes dragging feel sluggish.
+            if (!_dragActive && !ReferenceEquals(target, _hovered))
             {
                 // Leave old
                 if (_hovered != null)
@@ -935,6 +937,12 @@ private int GetCaretIndexFromX(Fiber fiber, float lx, float ly, float scrollX = 
                 _hoveredPath = target != null ? GetPathString(target) : null;
                 ApplyGlfwCursor(target?.ComputedStyle.Cursor ?? Paper.Core.Styles.Cursor.Default);
                 MarkDirty(); // hover state affects :hover styles
+            }
+            else if (_dragActive)
+            {
+                // Still update cursor and mark dirty for ghost repaint, but skip hover dispatch.
+                ApplyGlfwCursor(target?.ComputedStyle.Cursor ?? Paper.Core.Styles.Cursor.Default);
+                MarkDirty();
             }
 
             // If a button is held, route moves to the originally-pressed fiber so elements
@@ -971,7 +979,9 @@ private int GetCaretIndexFromX(Fiber fiber, float lx, float ly, float scrollX = 
                 {
                     _dragCursorX = lx;
                     _dragCursorY = ly;
-                    DispatchDrag(_dragSource, new DragEvent { Type = DragEventType.Drag, X = lx, Y = ly, Data = _dragData });
+                    // Only dispatch Drag event if source actually has an OnDrag handler (avoids PathToRoot walk every frame).
+                    if (_dragSource!.Props.OnDrag != null)
+                        DispatchDrag(_dragSource, new DragEvent { Type = DragEventType.Drag, X = lx, Y = ly, Data = _dragData });
 
                     if (!ReferenceEquals(target, _dragOver))
                     {
@@ -1019,7 +1029,7 @@ private int GetCaretIndexFromX(Fiber fiber, float lx, float ly, float scrollX = 
             if (_reconciler?.Root == null) return;
 
             var (lx, ly) = ToLayoutCoords(mouse.Position);
-            var target = HitTest(_reconciler.Root, lx, ly, "", 0, 0f, 0f, p => _scrollOffsets.TryGetValue(p, out var v) ? v : (0f, 0f));
+            var target = HitTestAll(lx, ly);
             if (target == null) return;
 
             var evt = new PointerEvent
@@ -1446,6 +1456,24 @@ private int GetCaretIndexFromX(Fiber fiber, float lx, float ly, float scrollX = 
             caret = Math.Clamp(caret, 0, length);
             selStart = Math.Clamp(selStart, 0, length);
             selEnd = Math.Clamp(selEnd, 0, length);
+        }
+
+        /// <summary>
+        /// Hit-test the main tree then portal roots (portals render on top and win).
+        /// </summary>
+        private Fiber? HitTestAll(float x, float y)
+        {
+            Func<string, (float, float)> getScroll = p => _scrollOffsets.TryGetValue(p, out var v) ? v : (0f, 0f);
+            var target = HitTest(_reconciler?.Root, x, y, "", 0, 0f, 0f, getScroll);
+            if (_reconciler?.PortalRoots is { Count: > 0 } portals)
+            {
+                foreach (var portal in portals)
+                {
+                    var hit = HitTest(portal, x, y, "", 0, 0f, 0f, getScroll);
+                    if (hit != null) target = hit;
+                }
+            }
+            return target;
         }
 
         /// <summary>

@@ -678,17 +678,20 @@ namespace Paper.Core.Components
                 Display = Display.InlineFlex,
             };
 
-            StyleSheet panelPosition = placement switch
-            {
-                "top" => new StyleSheet { Bottom = Length.Percent(100), Left = Length.Px(0) },
-                "right" => new StyleSheet { Top = Length.Px(0), Left = Length.Percent(100) },
-                "left" => new StyleSheet { Top = Length.Px(0), Right = Length.Percent(100) },
-                _ => new StyleSheet { Top = Length.Percent(100), Left = Length.Px(0) },  // bottom
-            };
+            bool isCentered = string.Equals(placement, "center", StringComparison.OrdinalIgnoreCase);
+
+            StyleSheet panelPosition = isCentered
+                ? new StyleSheet { Position = Position.Fixed }  // centered via backdrop flex container
+                : placement switch
+                {
+                    "top"   => new StyleSheet { Position = Position.Absolute, Bottom = Length.Percent(100), Left = Length.Px(0) },
+                    "right" => new StyleSheet { Position = Position.Absolute, Top = Length.Px(0), Left = Length.Percent(100) },
+                    "left"  => new StyleSheet { Position = Position.Absolute, Top = Length.Px(0), Right = Length.Percent(100) },
+                    _       => new StyleSheet { Position = Position.Absolute, Top = Length.Percent(100), Left = Length.Px(0) },  // bottom
+                };
 
             var panelStyle = new StyleSheet
             {
-                Position = Position.Absolute,
                 ZIndex = 200,
                 Background = new PaperColour(0.12f, 0.12f, 0.17f, 1f),
                 Border = new BorderEdges(new Border(1f, new PaperColour(0.3f, 0.3f, 0.4f, 1f))),
@@ -697,34 +700,43 @@ namespace Paper.Core.Components
                 MinWidth = Length.Px(160),
                 Display = Display.Flex,
                 FlexDirection = FlexDirection.Column,
-            }.Merge(panelPosition).Merge(style);
+            }.Merge(isCentered ? new StyleSheet() : panelPosition).Merge(style);
 
             var children2 = new List<UINode> { trigger };
             if (isOpen)
             {
-                // Invisible backdrop to capture outside clicks
-                var backdrop = UI.Box(new PropsBuilder()
-                    .Style(new StyleSheet
-                    {
-                        Position = Position.Fixed,
-                        Top = Length.Px(0),
-                        Left = Length.Px(0),
-                        Width = Length.Percent(100),
-                        Height = Length.Percent(100),
-                        ZIndex = 199,
-                        Background = new PaperColour(0f, 0f, 0f, 0f),
-                    })
-                    .OnPointerDown(_ => onClose?.Invoke())
-                    .Build());
+                // Backdrop captures outside clicks and (for centered) centers the panel via flex.
+                var backdropStyle = new StyleSheet
+                {
+                    Position = Position.Fixed,
+                    Top = Length.Px(0),
+                    Left = Length.Px(0),
+                    Width = Length.Percent(100),
+                    Height = Length.Percent(100),
+                    ZIndex = 199,
+                    Background = new PaperColour(0f, 0f, 0f, isCentered ? 0.4f : 0f),
+                    Display = isCentered ? Display.Flex : Display.Block,
+                    AlignItems = isCentered ? AlignItems.Center : (AlignItems?)null,
+                    JustifyContent = isCentered ? JustifyContent.Center : (JustifyContent?)null,
+                };
 
                 var panel = UI.Box(new PropsBuilder()
                     .Style(panelStyle)
-                    .OnPointerClick(e => e.StopPropagation())
+                    .OnPointerDown(e => e.StopPropagation())
                     .Children(content)
                     .Build());
 
-                children2.Add(backdrop);
-                children2.Add(panel);
+                var backdrop = UI.Box(new PropsBuilder()
+                    .Style(backdropStyle)
+                    .OnPointerDown(_ => onClose?.Invoke())
+                    .Children(isCentered ? new[] { panel } : Array.Empty<UINode>())
+                    .Build());
+
+                // For centered mode, render the backdrop via a Portal so it sits above all other
+                // content in both rendering and hit-testing (portals are processed after the main tree).
+                children2.Add(isCentered ? UI.Portal(backdrop) : backdrop);
+                if (!isCentered)
+                    children2.Add(panel);
             }
 
             return UI.Box(new PropsBuilder()
