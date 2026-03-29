@@ -20,6 +20,9 @@ namespace Paper.Core.Hooks
         /// <summary>Total height of all items combined — use as the height of the outer container box.</summary>
         public float TotalHeight { get; }
 
+        /// <summary>Current clamped scroll offset in pixels.</summary>
+        public float ScrollY { get; }
+
         /// <summary>
         /// Wire this to the scroll container's <c>onWheel</c> prop.
         /// It updates the internal scroll position and requests a re-render.
@@ -31,12 +34,14 @@ namespace Paper.Core.Hooks
             float paddingTop,
             float paddingBottom,
             float totalHeight,
+            float scrollY,
             Action<PointerEvent> onWheel)
         {
             VisibleItems   = visibleItems;
             PaddingTop     = paddingTop;
             PaddingBottom  = paddingBottom;
             TotalHeight    = totalHeight;
+            ScrollY        = scrollY;
             OnWheel        = onWheel;
         }
     }

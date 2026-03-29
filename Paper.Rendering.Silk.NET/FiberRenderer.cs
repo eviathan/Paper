@@ -892,10 +892,16 @@ namespace Paper.Rendering.Silk.NET
                 int hh = Math.Max(0, (int)dh);
                 _gl!.Enable(EnableCap.ScissorTest);
                 _gl.Scissor(hx, hy, (uint)hw, (uint)hh);
-                // Do NOT narrow _cullRect here: overflow:hidden may use PaddingTop-based virtual
-                // scrolling where children's AbsoluteY can exceed the container bounds in layout space.
-                // The GL scissor already handles all clipping correctly.
+                // Narrow the cull rect to the container bounds so children outside the visible
+                // area are skipped at the CPU level (GL scissor still clips as a safety net).
+                var prevCullRectH = _cullRect;
+                float hcx0 = Math.Max(_cullRect.X, dx);
+                float hcy0 = Math.Max(_cullRect.Y, dy);
+                float hcx1 = Math.Min(_cullRect.X + _cullRect.W, dx + dw);
+                float hcy1 = Math.Min(_cullRect.Y + _cullRect.H, dy + dh);
+                _cullRect = (hcx0, hcy0, Math.Max(0, hcx1 - hcx0), Math.Max(0, hcy1 - hcy0));
                 RenderChildren(fiber.Child, opacity, path, childScrollX, childScrollY);
+                _cullRect = prevCullRectH;
                 _rects.Flush(_screenW, _screenH);
                 _fonts?.Flush(_screenW, _screenH);
                 _gl.Disable(EnableCap.ScissorTest);

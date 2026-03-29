@@ -259,7 +259,7 @@ namespace Paper.Generated
                                                                                 0.94509804f,
                                                                                 1f
                                                                             ),
-                                                                            Width = Length.Px(36),
+                                                                            MinWidth = Length.Px(42),
                                                                         }
                                                                     )
                                                                     .Text(opacText)

@@ -329,7 +329,7 @@ namespace Paper.Core.Hooks
                 updateScrollY(prev => Math.Clamp(prev - e.WheelDeltaY * ScrollStep, 0f, maxScroll));
             }
 
-            return new VirtualScrollState<T>(visible, paddingTop, paddingBottom, totalHeight, OnWheel);
+            return new VirtualScrollState<T>(visible, paddingTop, paddingBottom, totalHeight, scrollYClamped, OnWheel);
         }
 
         // ── UseKeyboardShortcut ─────────────────────────────────────────────────

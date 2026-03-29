@@ -127,22 +127,18 @@ namespace Paper.Rendering.Silk.NET.Text
 
         private static unsafe PaperFontAtlas LoadSingle(GL gl, FT_FaceRec_* face, int pixelSize, int atlasSize)
         {
-            var atlas      = new PaperFontAtlas(atlasSize, pixelSize);
-            var atlasBytes = new byte[atlasSize * atlasSize];
+            // Discover all codepoints available in this font so that any supported character renders.
+            // This is the same approach as LoadIconSet — no arbitrary ASCII-only restriction.
+            var codepoints = new List<int>();
+            uint glyphIdx = 0;
+            nuint cp = FT_Get_First_Char(face, &glyphIdx);
+            while (glyphIdx != 0)
+            {
+                codepoints.Add((int)(uint)cp);
+                cp = FT_Get_Next_Char(face, (uint)cp, &glyphIdx);
+            }
 
-            FT_Set_Pixel_Sizes(face, 0, (uint)pixelSize);
-
-            int cursorX   = Padding;
-            int cursorY   = Padding;
-            int rowHeight = 0;
-
-            // ASCII printable range: 32 (space) through 127
-            PackGlyphs(face, Enumerable.Range(32, 96), atlasSize, atlasBytes, atlas, ref cursorX, ref cursorY, ref rowHeight);
-
-            atlas.LineHeight = (float)((int)face->size->metrics.height >> 6);
-
-            UploadTexture(gl, atlas, atlasBytes, atlasSize);
-            return atlas;
+            return LoadSingleCodepoints(gl, face, pixelSize, 2048, codepoints);
         }
 
         private static unsafe void PackGlyphs(

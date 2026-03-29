@@ -51,17 +51,19 @@ public sealed class VirtualScrollTests
     [Fact]
     public void VirtualList_TotalHeightMatchesItemCount()
     {
+        // The VirtualScrollState.TotalHeight (100 × 36 = 3600) is reported correctly.
+        // The List component now uses absolute positioning, so there's no spacer box in the tree;
+        // verify via the UseVirtualScroll hook directly.
+        VirtualScrollState<string>? vs = null;
+        UINode Comp(Props _)
+        {
+            vs = UseVirtualScroll<string>(Items100, itemHeight: 36f, containerH: 180f, overscan: 3);
+            return UI.Box();
+        }
         var rec = new R();
-        rec.Mount(UI.List(
-            Items100,
-            itemHeight: 36f,
-            containerH: 180f,
-            renderItem: (item, _) => UI.Text(item)));
-
-        // The spacer Box should have height = 100 * 36 = 3600px.
-        // Walk to find a box with height 3600.
-        bool found = FindFiberWithHeight(rec.Root, 3600f);
-        Assert.True(found, "Expected a spacer box with height = 100 × 36 = 3600px");
+        rec.Mount(UI.Component(Comp));
+        Assert.NotNull(vs);
+        Assert.Equal(100 * 36f, vs!.TotalHeight, 1f);
     }
 
     [Fact]

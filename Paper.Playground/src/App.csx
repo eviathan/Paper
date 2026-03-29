@@ -90,7 +90,7 @@ UINode App() {
           <Box style={{ display: 'flex', flexDirection: 'row', gap: 12, alignItems: 'center' }}>
             <Text style={{ color: '#a0a0b8', width: 64 }}>Opacity</Text>
             <Slider value={opacity} min={0f} max={100f} step={5f} onChange={setOpacity} style={{ width: 200 }} />
-            <Text style={{ color: '#6366f1', width: 36 }}>{opacText}</Text>
+            <Text style={{ color: '#6366f1', minWidth: 42 }}>{opacText}</Text>
           </Box>
         </Box>
       </Box>

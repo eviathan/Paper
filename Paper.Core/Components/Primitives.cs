@@ -53,21 +53,25 @@ namespace Paper.Core.Components
                 Height = Length.Px(containerH),
                 Overflow = Overflow.Hidden,
                 Display = Display.Block,
+                Position = Position.Relative, // needed so absolute-positioned items are contained here
             }.Merge(style ?? StyleSheet.Empty);
+
+            // Items are absolutely positioned so they appear at the top of the viewport regardless
+            // of PaddingTop. Without this, PaddingTop would push items below the clipped area.
+            // Top = PaddingTop - ScrollY places item[start] exactly at the container top when scrolled.
+            var itemsStyle = new StyleSheet
+            {
+                Position = Position.Absolute,
+                Top = Length.Px(vs.PaddingTop - vs.ScrollY),
+                Width = Length.Percent(100),
+                Display = Display.Block,
+            };
 
             return UI.Box(
                 new PropsBuilder()
                     .Style(containerStyle)
                     .Set("onWheel", vs.OnWheel)
-                    .Children(
-                        UI.Box(
-                            new StyleSheet { Height = Length.Px(vs.TotalHeight), Display = Display.Block },
-                            UI.Box(
-                                new StyleSheet { PaddingTop = Length.Px(vs.PaddingTop), Display = Display.Block },
-                                itemNodes
-                            )
-                        )
-                    )
+                    .Children(UI.Box(itemsStyle, itemNodes))
                     .Build()
             );
         }
@@ -398,11 +402,20 @@ namespace Paper.Core.Components
                 onChange?.Invoke(Snap(min + frac * (max - min)));
             }
 
+            // Accumulate continuous wheel delta so that step size doesn't affect scroll speed.
+            // 1 unit of WheelDeltaY = 1% of range, regardless of step. Snapping still applies.
+            var wheelAcc = Hooks.Hooks.UseStable(() => new float[] { clamped });
+            // Sync accumulator when value is changed externally (drag/click).
+            if (Math.Abs(Snap(wheelAcc[0]) - clamped) > 0.001f)
+                wheelAcc[0] = clamped;
+
             void OnWheel(Paper.Core.Events.PointerEvent e)
             {
-                float delta = e.WheelDeltaY > 0 ? step : -step;
-                float next = Snap(clamped + delta);
-                onChange?.Invoke(next);
+                float perUnit = (max - min) / 100f;
+                wheelAcc[0] = Math.Clamp(wheelAcc[0] + e.WheelDeltaY * perUnit, min, max);
+                float next = Snap(wheelAcc[0]);
+                if (next != clamped)
+                    onChange?.Invoke(next);
             }
 
             var trackStyle = new StyleSheet
@@ -811,7 +824,7 @@ namespace Paper.Core.Components
                         UI.Text(toast.Message)
                     ),
                     UI.Button(
-                        "❌",
+                        "×",
                         () => onDismiss?.Invoke(localId), 
                         new StyleSheet
                         {
