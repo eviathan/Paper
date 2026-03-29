@@ -9,7 +9,8 @@
       "Bash(dotnet new:*)",
       "Bash(ls Paper.Rendering.Silk.NET/*.cs)",
       "Bash(dotnet script:*)",
-      "Bash(head -5 grep -n \"record\\\\|struct\\\\|sealed class\\\\|public.*PaperColour\" /Users/brian/Dev/Frameworks/Paper/Paper.Core/Styles/PaperColour.cs)"
+      "Bash(head -5 grep -n \"record\\\\|struct\\\\|sealed class\\\\|public.*PaperColour\" /Users/brian/Dev/Frameworks/Paper/Paper.Core/Styles/PaperColour.cs)",
+      "Bash(find /Users/brian/Dev/Frameworks/Paper/Paper.Playground -name *.cscc)"
     ]
   }
 }

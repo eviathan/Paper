@@ -297,7 +297,7 @@ UINode App() {
       {/* 1. flexGrow (equal vs weighted) */}
       <Box className="section">
         <Text className="section-label">flexGrow (1, 2, 1)</Text>
-        <Box className="demo-panel" style={{ gap: 8, height: 56 }}>
+        <Box className="demo-panel" style={{ gap: 8, padding: 8, height: 72 }}>
           <Box className="demo-item" style={{ flexGrow: 1, background: '#ef4444' }}><Text className="white-text">1</Text></Box>
           <Box className="demo-item" style={{ flexGrow: 2, background: '#f97316' }}><Text className="white-text">2</Text></Box>
           <Box className="demo-item" style={{ flexGrow: 1, background: '#22c55e' }}><Text className="white-text">1</Text></Box>
@@ -307,7 +307,7 @@ UINode App() {
       {/* 2. justifyContent */}
       <Box className="section">
         <Text className="section-label">justifyContent: space-between</Text>
-        <Box className="demo-panel" style={{ justifyContent: 'space-between', gap: 8, height: 48 }}>
+        <Box className="demo-panel" style={{ justifyContent: 'space-between', gap: 8, padding: 8, height: 64 }}>
           <Box style={{ width: 60, minWidth: 60, height: 48, background: '#6366f1' }} />
           <Box style={{ width: 60, minWidth: 60, height: 48, background: '#8b5cf6' }} />
           <Box style={{ width: 60, minWidth: 60, height: 48, background: '#a855f7' }} />
@@ -315,14 +315,14 @@ UINode App() {
       </Box>
       <Box className="section">
         <Text className="section-label">justifyContent: center</Text>
-        <Box className="demo-panel" style={{ justifyContent: 'center', gap: 8, height: 48 }}>
+        <Box className="demo-panel" style={{ justifyContent: 'center', gap: 8, padding: 8, height: 64 }}>
           <Box style={{ width: 60, minWidth: 60, height: 48, background: '#ec4899' }} />
           <Box style={{ width: 60, minWidth: 60, height: 48, background: '#f43f5e' }} />
         </Box>
       </Box>
       <Box className="section">
         <Text className="section-label">justifyContent: space-around</Text>
-        <Box className="demo-panel" style={{ justifyContent: 'space-around', height: 48 }}>
+        <Box className="demo-panel" style={{ justifyContent: 'space-around', padding: 8, height: 64 }}>
           <Box style={{ width: 50, minWidth: 50, height: 48, background: '#14b8a6' }} />
           <Box style={{ width: 50, minWidth: 50, height: 48, background: '#06b6d4' }} />
         </Box>
@@ -331,7 +331,7 @@ UINode App() {
       {/* 3. alignItems + alignSelf */}
       <Box className="section">
         <Text className="section-label">alignItems: stretch (default)</Text>
-        <Box className="demo-panel" style={{ alignItems: 'stretch', gap: 8, height: 64 }}>
+        <Box className="demo-panel" style={{ alignItems: 'stretch', gap: 8, padding: 8, height: 80 }}>
           <Box style={{ width: 40, background: '#eab308' }} />
           <Box style={{ width: 40, background: '#84cc16', alignSelf: 'center', minHeight: 32 }} />
           <Box style={{ width: 40, background: '#65a30d' }} />
@@ -339,7 +339,7 @@ UINode App() {
       </Box>
       <Box className="section">
         <Text className="section-label">alignItems: center + alignSelf: flex-end on middle</Text>
-        <Box className="demo-panel" style={{ alignItems: 'center', gap: 8, height: 64 }}>
+        <Box className="demo-panel" style={{ alignItems: 'center', gap: 8, padding: 8, height: 80 }}>
           <Box style={{ width: 50, height: 40, background: '#0ea5e9' }} />
           <Box style={{ width: 50, height: 24, background: '#38bdf8', alignSelf: 'flex-end' }} />
           <Box style={{ width: 50, height: 40, background: '#0284c7' }} />
@@ -362,7 +362,7 @@ UINode App() {
       {/* 5. row-reverse */}
       <Box className="section">
         <Text className="section-label">flexDirection: row-reverse</Text>
-        <Box className="demo-panel" style={{ flexDirection: 'row-reverse', gap: 8, height: 44 }}>
+        <Box className="demo-panel" style={{ flexDirection: 'row-reverse', gap: 8, padding: 8 }}>
           <Box className="demo-item" style={{ width: 64, background: '#7c3aed' }}><Text className="white-text text-center">A</Text></Box>
           <Box className="demo-item" style={{ width: 64, background: '#6d28d9' }}><Text className="white-text text-center">B</Text></Box>
           <Box className="demo-item" style={{ width: 64, background: '#5b21b6' }}><Text className="white-text text-center">C</Text></Box>

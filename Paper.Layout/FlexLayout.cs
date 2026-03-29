@@ -86,19 +86,48 @@ namespace Paper.Layout
                               mainSize, crossSize, gap, isRow, reversed, measurer, getImageSize);
             }
 
-            // Recompute main size from actual children Layout (e.g. wrap row may have grown)
-            usedMainTotal = 0;
-            for (int i = 0; i < items.Count; i++)
+            // Recompute main size from actual children Layout (e.g. wrap row may have grown).
+            // For wrap containers, use the widest line — not the sum of all items, which would
+            // incorrectly expand the container far beyond its parent width.
+            if (doWrap)
             {
-                var item = items[i];
-                float main = isRow ? item.Layout.Width : item.Layout.Height;
-                float mt = 0, mr = 0, mb = 0, ml = 0;
-                if (item.ComputedStyle != null)
+                // Walk children in layout order, detect line breaks by X position (row) or Y (column),
+                // and compute each line's total main size.
+                float lineStart = isRow ? (items.Count > 0 ? items[0].Layout.X : 0f) : (items.Count > 0 ? items[0].Layout.Y : 0f);
+                float lineMain = 0f;
+                usedMainTotal = 0f;
+                for (int i = 0; i < items.Count; i++)
                 {
-                    (mt, mr, mb, ml) = BoxModel.MarginPixels(item.ComputedStyle, item.Layout.Width, item.Layout.Height);
+                    var item = items[i];
+                    float pos = isRow ? item.Layout.X : item.Layout.Y;
+                    if (i > 0 && pos < (isRow ? items[i - 1].Layout.X : items[i - 1].Layout.Y))
+                    {
+                        // New line detected — commit previous line
+                        usedMainTotal = Math.Max(usedMainTotal, lineMain);
+                        lineMain = 0f;
+                    }
+                    float main = isRow ? item.Layout.Width : item.Layout.Height;
+                    var (mt, mr, mb, ml) = item.ComputedStyle != null
+                        ? BoxModel.MarginPixels(item.ComputedStyle, item.Layout.Width, item.Layout.Height)
+                        : (0f, 0f, 0f, 0f);
+                    float marginMain = isRow ? (ml + mr) : (mt + mb);
+                    lineMain += (lineMain > 0 ? gap : 0) + marginMain + main;
                 }
-                float marginMain = isRow ? (ml + mr) : (mt + mb);
-                usedMainTotal += (i > 0 ? gap : 0) + marginMain + main;
+                usedMainTotal = Math.Max(usedMainTotal, lineMain);
+            }
+            else
+            {
+                usedMainTotal = 0;
+                for (int i = 0; i < items.Count; i++)
+                {
+                    var item = items[i];
+                    float main = isRow ? item.Layout.Width : item.Layout.Height;
+                    float mt = 0, mr = 0, mb = 0, ml = 0;
+                    if (item.ComputedStyle != null)
+                        (mt, mr, mb, ml) = BoxModel.MarginPixels(item.ComputedStyle, item.Layout.Width, item.Layout.Height);
+                    float marginMain = isRow ? (ml + mr) : (mt + mb);
+                    usedMainTotal += (i > 0 ? gap : 0) + marginMain + main;
+                }
             }
 
             // Shrink-to-content: when main/cross size is auto, set container's Layout so the next sibling

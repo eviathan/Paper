@@ -465,7 +465,7 @@ new PropsBuilder()
 .Build()), UI.Box(
 new PropsBuilder()
 .ClassName("demo-panel")
-.Style(new StyleSheet { RowGap = Length.Px(8), ColumnGap = Length.Px(8), Height = Length.Px(56) })
+.Style(new StyleSheet { RowGap = Length.Px(8), ColumnGap = Length.Px(8), Padding = new Thickness(8f), Height = Length.Px(72) })
 .Children(UI.Box(
 new PropsBuilder()
 .ClassName("demo-item")
@@ -505,7 +505,7 @@ new PropsBuilder()
 .Build()), UI.Box(
 new PropsBuilder()
 .ClassName("demo-panel")
-.Style(new StyleSheet { JustifyContent = JustifyContent.SpaceBetween, RowGap = Length.Px(8), ColumnGap = Length.Px(8), Height = Length.Px(48) })
+.Style(new StyleSheet { JustifyContent = JustifyContent.SpaceBetween, RowGap = Length.Px(8), ColumnGap = Length.Px(8), Padding = new Thickness(8f), Height = Length.Px(64) })
 .Children(UI.Box(
 new PropsBuilder()
 .Style(new StyleSheet { Width = Length.Px(60), MinWidth = Length.Px(60), Height = Length.Px(48), Background = new PaperColour(0.3882353f, 0.4f, 0.94509804f, 1f) })
@@ -527,7 +527,7 @@ new PropsBuilder()
 .Build()), UI.Box(
 new PropsBuilder()
 .ClassName("demo-panel")
-.Style(new StyleSheet { JustifyContent = JustifyContent.Center, RowGap = Length.Px(8), ColumnGap = Length.Px(8), Height = Length.Px(48) })
+.Style(new StyleSheet { JustifyContent = JustifyContent.Center, RowGap = Length.Px(8), ColumnGap = Length.Px(8), Padding = new Thickness(8f), Height = Length.Px(64) })
 .Children(UI.Box(
 new PropsBuilder()
 .Style(new StyleSheet { Width = Length.Px(60), MinWidth = Length.Px(60), Height = Length.Px(48), Background = new PaperColour(0.9254902f, 0.28235295f, 0.6f, 1f) })
@@ -546,7 +546,7 @@ new PropsBuilder()
 .Build()), UI.Box(
 new PropsBuilder()
 .ClassName("demo-panel")
-.Style(new StyleSheet { JustifyContent = JustifyContent.SpaceAround, Height = Length.Px(48) })
+.Style(new StyleSheet { JustifyContent = JustifyContent.SpaceAround, Padding = new Thickness(8f), Height = Length.Px(64) })
 .Children(UI.Box(
 new PropsBuilder()
 .Style(new StyleSheet { Width = Length.Px(50), MinWidth = Length.Px(50), Height = Length.Px(48), Background = new PaperColour(0.078431375f, 0.72156864f, 0.6509804f, 1f) })
@@ -565,7 +565,7 @@ new PropsBuilder()
 .Build()), UI.Box(
 new PropsBuilder()
 .ClassName("demo-panel")
-.Style(new StyleSheet { AlignItems = AlignItems.Stretch, RowGap = Length.Px(8), ColumnGap = Length.Px(8), Height = Length.Px(64) })
+.Style(new StyleSheet { AlignItems = AlignItems.Stretch, RowGap = Length.Px(8), ColumnGap = Length.Px(8), Padding = new Thickness(8f), Height = Length.Px(80) })
 .Children(UI.Box(
 new PropsBuilder()
 .Style(new StyleSheet { Width = Length.Px(40), Background = new PaperColour(0.91764706f, 0.7019608f, 0.03137255f, 1f) })
@@ -587,7 +587,7 @@ new PropsBuilder()
 .Build()), UI.Box(
 new PropsBuilder()
 .ClassName("demo-panel")
-.Style(new StyleSheet { AlignItems = AlignItems.Center, RowGap = Length.Px(8), ColumnGap = Length.Px(8), Height = Length.Px(64) })
+.Style(new StyleSheet { AlignItems = AlignItems.Center, RowGap = Length.Px(8), ColumnGap = Length.Px(8), Padding = new Thickness(8f), Height = Length.Px(80) })
 .Children(UI.Box(
 new PropsBuilder()
 .Style(new StyleSheet { Width = Length.Px(50), Height = Length.Px(40), Background = new PaperColour(0.05490196f, 0.64705884f, 0.9137255f, 1f) })
@@ -630,7 +630,7 @@ new PropsBuilder()
 .Build()), UI.Box(
 new PropsBuilder()
 .ClassName("demo-panel")
-.Style(new StyleSheet { FlexDirection = FlexDirection.RowReverse, RowGap = Length.Px(8), ColumnGap = Length.Px(8), Height = Length.Px(44) })
+.Style(new StyleSheet { FlexDirection = FlexDirection.RowReverse, RowGap = Length.Px(8), ColumnGap = Length.Px(8), Padding = new Thickness(8f) })
 .Children(UI.Box(
 new PropsBuilder()
 .ClassName("demo-item")
