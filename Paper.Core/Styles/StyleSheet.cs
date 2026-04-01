@@ -141,6 +141,7 @@ namespace Paper.Core.Styles
         // ── Interaction ───────────────────────────────────────────────────────
 
         public Cursor? Cursor { get; init; }
+        public UserSelect? UserSelect { get; init; }
         public Visibility? Visibility { get; init; }
         public PointerEvents? PointerEvents { get; init; }
 
@@ -261,7 +262,8 @@ namespace Paper.Core.Styles
             Direction     = other.Direction     ?? Direction,
             AspectRatio   = other.AspectRatio   ?? AspectRatio,
             Cursor        = other.Cursor        ?? Cursor,
-            Visibility    = other.Visibility    ?? Visibility,
+            UserSelect   = other.UserSelect     ?? UserSelect,
+            Visibility   = other.Visibility     ?? Visibility,
             PointerEvents = other.PointerEvents ?? PointerEvents,
             TranslateX    = other.TranslateX    ?? TranslateX,
             TranslateY    = other.TranslateY    ?? TranslateY,

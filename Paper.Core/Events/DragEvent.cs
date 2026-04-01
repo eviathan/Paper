@@ -24,6 +24,6 @@ namespace Paper.Core.Events
         public float Y { get; init; }
 
         /// <summary>Arbitrary payload attached by the drag source in OnDragStart.</summary>
-        public object? Data { get; init; }
+        public object? Data { get; set; }
     }
 }

@@ -131,38 +131,38 @@ namespace Paper.Core.Reconciler
             if (node.Type is Type t && typeof(Components.IErrorBoundary).IsAssignableFrom(t))
                 fiber.IsErrorBoundary = true;
 
-            var children = ExpandNode(node, fiber);
-
-            foreach (var (slotIndex, effect, deps) in HookContext.PendingEffects)
-            {
-                if (slotIndex < fiber.HookSlots.Count)
-                {
-                    fiber.HookSlots[slotIndex].PendingEffect = () =>
-                    {
-                        var result = effect();
-                        return result;
-                    };
-                }
-            }
-
-            foreach (var (slotIndex, effect, deps) in HookContext.PendingLayoutEffects)
-            {
-                if (slotIndex < fiber.HookSlots.Count)
-                {
-                    fiber.HookSlots[slotIndex].PendingLayoutEffect = () =>
-                    {
-                        var result = effect();
-                        return result;
-                    };
-                }
-            }
-
-            // Context providers push their value before child reconciliation so that any
-            // UseContext calls inside child component functions see the correct value.
+            // Context providers push their value before expanding children so that any
+            // UseContext calls inside function components see the correct value.
             ContextProviderBase? provider = node.Type as ContextProviderBase;
             provider?.Push();
             try
             {
+                var children = ExpandNode(node, fiber);
+
+                foreach (var (slotIndex, effect, deps) in HookContext.PendingEffects)
+                {
+                    if (slotIndex < fiber.HookSlots.Count)
+                    {
+                        fiber.HookSlots[slotIndex].PendingEffect = () =>
+                        {
+                            var result = effect();
+                            return result;
+                        };
+                    }
+                }
+
+                foreach (var (slotIndex, effect, deps) in HookContext.PendingLayoutEffects)
+                {
+                    if (slotIndex < fiber.HookSlots.Count)
+                    {
+                        fiber.HookSlots[slotIndex].PendingLayoutEffect = () =>
+                        {
+                            var result = effect();
+                            return result;
+                        };
+                    }
+                }
+
                 ReconcileChildren(fiber, children, current);
             }
             finally
@@ -512,8 +512,16 @@ namespace Paper.Core.Reconciler
             FlushEffects(fiber.Sibling);
         }
 
-        private static bool IsSameType(Fiber fiber, UINode node) =>
-            fiber.Type.Equals(node.Type);
+        private static bool IsSameType(Fiber fiber, UINode node)
+        {
+            // For function components, we need to compare the underlying method, not the delegate instance
+            // because each render creates a new delegate instance even for the same function
+            if (fiber.Type is Func<Props, UINode> fn && node.Type is Func<Props, UINode> fn2)
+            {
+                return fn.Target == fn2.Target && fn.Method == fn2.Method;
+            }
+            return fiber.Type.Equals(node.Type);
+        }
 
         private static List<Fiber> FlattenChildren(Fiber? parent)
         {

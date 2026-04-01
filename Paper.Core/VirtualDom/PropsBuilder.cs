@@ -13,6 +13,7 @@ namespace Paper.Core.VirtualDom
         // ── Style & class ─────────────────────────────────────────────────────
 
         public PropsBuilder Style(StyleSheet style) { _data["style"] = style; return this; }
+        public PropsBuilder HoverStyle(StyleSheet style) { _data["hoverStyle"] = style; return this; }
         public PropsBuilder ClassName(string cls) { _data["className"] = cls; return this; }
         public PropsBuilder Id(string id) { _data["id"] = id; return this; }
 

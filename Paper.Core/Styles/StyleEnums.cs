@@ -172,6 +172,9 @@ namespace Paper.Core.Styles
         Help,
         None,
         EwResize,
+        ColResize,
+        RowResize,
+        SouthEastResize,
     }
 
     // ── Visibility / Pointer Events ───────────────────────────────────────────
@@ -224,5 +227,15 @@ namespace Paper.Core.Styles
         Uppercase,
         Lowercase,
         Capitalize,
+    }
+
+    // ── User Select ─────────────────────────────────────────────────────────────
+
+    public enum UserSelect
+    {
+        None,
+        Text,
+        All,
+        Contain,
     }
 }

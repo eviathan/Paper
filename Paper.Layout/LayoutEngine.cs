@@ -300,7 +300,15 @@ namespace Paper.Layout
                 w = containingW;   // use full containing width for child layout; shrink below
 
             bool hAuto = style.Height == null || style.Height.Value.IsAuto;
-            float h = hAuto ? 0f : BoxModel.ResolveLength(style.Height, containingH, 0f);
+            float h;
+            if (!hAuto)
+                h = BoxModel.ResolveLength(style.Height, containingH, 0f);
+            else if (hasTop && hasBottom)
+                h = Math.Max(0, containingH
+                    - style.Top!.Value.Resolve(containingH)
+                    - style.Bottom!.Value.Resolve(containingH));
+            else
+                h = 0f;
 
             float x = containingX;
             float y = containingY;
