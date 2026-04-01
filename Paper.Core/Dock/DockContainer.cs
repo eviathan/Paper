@@ -50,6 +50,50 @@ namespace Paper.Core.Dock
         /// </summary>
         public static UINode Render(StyleSheet? style = null) =>
             UI.Component(RootComponent, new PropsBuilder().Style(style ?? StyleSheet.Empty).Build());
+        
+        /// <summary>
+        /// Renders the dock tree directly with provided state and context.
+        /// Use this when you manage state yourself.
+        /// </summary>
+        public static UINode RenderTree(DockState state, DockContextValue ctx, StyleSheet? style = null)
+        {
+            // Build main tiled area
+            UINode tileArea;
+            if (state.MaximizedPanelId is { } maxId)
+            {
+                var maxPanel = FindPanel(state.Root, maxId);
+                tileArea = maxPanel != null
+                    ? DockPanel.Render(maxPanel, ctx)
+                    : RenderNode(state.Root, ctx);
+            }
+            else
+            {
+                tileArea = RenderNode(state.Root, ctx);
+            }
+            
+            var floatNodes = state.Floats.Count == 0
+                ? Array.Empty<UINode>()
+                : state.Floats.Select(f => RenderFloat(f, ctx)).ToArray();
+            
+            var hasFloats = floatNodes.Length > 0;
+            
+            var outer = new StyleSheet
+            {
+                Display  = Display.Flex,
+                Width    = Length.Percent(100),
+                Height   = Length.Percent(100),
+                Position = Position.Relative,
+                Overflow = Overflow.Hidden,
+                FlexGrow = 1f,
+            }.Merge(style ?? StyleSheet.Empty);
+            
+            if (!hasFloats)
+                return UI.Box(outer, tileArea);
+            
+            return UI.Box(outer,
+                tileArea,
+                UI.Portal(floatNodes));
+        }
 
         // ── Root component (reads context, renders tree + floats) ─────────────
 
@@ -125,12 +169,10 @@ namespace Paper.Core.Dock
             {
                 var splitId  = props.Get<string>("splitId")!;
                 var ctxLocal = H.UseContext(DockContext.Context)!;
-                var (isDragging, setDragging, _) = H.UseState(false);
-                var (ratio, setRatio, _)         = H.UseState(props.Get<float?>("ratio") ?? 0.5f);
-                var (startRatio, setStartRatio, _) = H.UseState(0f);
-                var (startPos, setStartPos, _)   = H.UseState(0f);
+                var ratioState = H.UseStable(() => new float[] { props.Get<float?>("ratio") ?? 0.5f });
+                var resizeState = H.UseStable(() => new float[] { 0f, 0f, 0f, 0f });
 
-                float currentRatio = ratio;
+                float currentRatio = ratioState[0];
 
                 StyleSheet SizeStyle(bool first) => isH
                     ? new StyleSheet { Width = Length.Percent(first ? currentRatio * 100f : (1f - currentRatio) * 100f), Display = Display.Flex, FlexDirection = FlexDirection.Column, Overflow = Overflow.Hidden }
@@ -166,29 +208,22 @@ namespace Paper.Core.Dock
                         .HoverStyle(handleHoverStyle)
                         .OnPointerDown(e =>
                         {
-                            setDragging(true);
-                            setStartRatio(currentRatio);
-                            setStartPos(isH ? e.X : e.Y);
+                            resizeState[0] = currentRatio;
+                            resizeState[1] = isH ? e.X : e.Y;
+                            resizeState[2] = 1f;
                             e.StopPropagation();
                         })
                         .OnPointerMoveCapture(e =>
                         {
-                            if (!isDragging) return;
-                            // We cannot easily measure container size here without a ref,
-                            // so we compute delta as fraction of viewport via layout bounds.
-                            // The container width/height comes from the fiber layout,
-                            // but we approximate: store delta in ratio units.
-                            // On the next frame we dispatch ResizeSplit.
-                            float delta  = (isH ? e.X : e.Y) - startPos;
-                            // Convert pixel delta → ratio delta by assuming 1000px container
-                            // Real size is unknown at this level; DockSplitHandle refines this.
-                            float newRatio = Math.Clamp(startRatio + delta / 1000f, 0.05f, 0.95f);
-                            setRatio(newRatio);
+                            if (resizeState[2] < 0.5f) return;
+                            float delta  = (isH ? e.X : e.Y) - resizeState[1];
+                            float newRatio = Math.Clamp(resizeState[0] + delta / 1000f, 0.05f, 0.95f);
+                            ratioState[0] = newRatio;
                             ctxLocal.Dispatch(new DockResizeSplit { SplitNodeId = splitId, Ratio = newRatio });
                         })
                         .OnPointerUpCapture(e =>
                         {
-                            setDragging(false);
+                            resizeState[2] = 0f;
                         })
                         .Build()),
                     UI.Box(new PropsBuilder()
@@ -388,15 +423,13 @@ namespace Paper.Core.Dock
                 var initH    = props.Get<float?>("h") ?? 300f;
                 var ctxLocal = Paper.Core.Hooks.Hooks.UseContext(DockContext.Context)!;
 
-                var (x, setX, _) = Paper.Core.Hooks.Hooks.UseState(initX);
-                var (y, setY, _) = Paper.Core.Hooks.Hooks.UseState(initY);
-                var (w, setW, _) = Paper.Core.Hooks.Hooks.UseState(initW);
-                var (h, setH, _) = Paper.Core.Hooks.Hooks.UseState(initH);
-                var (dragStartX, setDragStartX, _) = Paper.Core.Hooks.Hooks.UseState(0f);
-                var (dragStartY, setDragStartY, _) = Paper.Core.Hooks.Hooks.UseState(0f);
-                var (dragOriginX, setDragOriginX, _) = Paper.Core.Hooks.Hooks.UseState(0f);
-                var (dragOriginY, setDragOriginY, _) = Paper.Core.Hooks.Hooks.UseState(0f);
-                var (resizing, setResizing, _) = Paper.Core.Hooks.Hooks.UseState(false);
+                var posState = Paper.Core.Hooks.Hooks.UseStable(() => new float[] { initX, initY, initW, initH });
+                var dragState = Paper.Core.Hooks.Hooks.UseStable(() => new float[] { 0f, 0f, 0f, 0f, 0f, 0f, 0f });
+
+                float x = posState[0];
+                float y = posState[1];
+                float w = posState[2];
+                float h = posState[3];
 
                 var windowStyle = new StyleSheet
                 {
@@ -430,24 +463,28 @@ namespace Paper.Core.Dock
                         })
                         .OnDragStart(e =>
                         {
-                            setDragStartX(e.X);
-                            setDragStartY(e.Y);
-                            setDragOriginX(x);
-                            setDragOriginY(y);
+                            dragState[0] = e.X;
+                            dragState[1] = e.Y;
+                            dragState[2] = x;
+                            dragState[3] = y;
+                            dragState[4] = 1f;
                             e.Data = new DockDragPayload(panel.PanelId, floatId, IsFloat: true);
                             ctxLocal.SetDragging?.Invoke(true, panel.PanelId, floatId);
                         })
                         .OnDrag(e =>
                         {
-                            float nx = dragOriginX + (e.X - dragStartX);
-                            float ny = dragOriginY + (e.Y - dragStartY);
-                            setX(nx); setY(ny);
+                            if (dragState[4] < 0.5f) return;
+                            float nx = dragState[2] + (e.X - dragState[0]);
+                            float ny = dragState[3] + (e.Y - dragState[1]);
+                            posState[0] = nx;
+                            posState[1] = ny;
                             ctxLocal.Dispatch(new DockMoveFloat { FloatNodeId = floatId, X = nx, Y = ny });
                         })
                         .OnDragEnd(e =>
                         {
+                            dragState[4] = 0f;
                             ctxLocal.SetDragging?.Invoke(false, null, null);
-                            ctxLocal.Dispatch(new DockMoveFloat { FloatNodeId = floatId, X = x, Y = y });
+                            ctxLocal.Dispatch(new DockMoveFloat { FloatNodeId = floatId, X = posState[0], Y = posState[1] });
                         })
                         .Children(
                             UI.Text(panel.Title, new StyleSheet { Color = ColText, FlexGrow = 1 }),
@@ -486,25 +523,26 @@ namespace Paper.Core.Dock
                         })
                         .OnPointerDown(e =>
                         {
-                            setResizing(true);
-                            setDragStartX(e.X);
-                            setDragStartY(e.Y);
-                            setDragOriginX(w);
-                            setDragOriginY(h);
+                            dragState[0] = e.X;
+                            dragState[1] = e.Y;
+                            dragState[2] = w;
+                            dragState[3] = h;
+                            dragState[5] = 1f;
                             e.StopPropagation();
                         })
                         .OnPointerMoveCapture(e =>
                         {
-                            if (!resizing) return;
-                            float nw = Math.Max(150f, dragOriginX + (e.X - dragStartX));
-                            float nh = Math.Max(100f, dragOriginY + (e.Y - dragStartY));
-                            setW(nw); setH(nh);
+                            if (dragState[5] < 0.5f) return;
+                            float nw = Math.Max(150f, dragState[2] + (e.X - dragState[0]));
+                            float nh = Math.Max(100f, dragState[3] + (e.Y - dragState[1]));
+                            posState[2] = nw;
+                            posState[3] = nh;
                         })
                         .OnPointerUpCapture(e =>
                         {
-                            if (!resizing) return;
-                            setResizing(false);
-                            ctxLocal.Dispatch(new DockResizeFloat { FloatNodeId = floatId, Width = w, Height = h });
+                            if (dragState[5] < 0.5f) return;
+                            dragState[5] = 0f;
+                            ctxLocal.Dispatch(new DockResizeFloat { FloatNodeId = floatId, Width = posState[2], Height = posState[3] });
                         })
                         .Build());
 

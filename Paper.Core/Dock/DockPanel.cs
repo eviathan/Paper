@@ -46,6 +46,61 @@ namespace Paper.Core.Dock
                 ? factory() 
                 : UI.Text($"(no panel: {panel.PanelId})", new StyleSheet { Color = ColTextDim });
 
+            // Header buttons
+            UINode MinimizeBtn() => UI.Box(new PropsBuilder()
+                .Style(new StyleSheet
+                {
+                    Width        = Length.Px(22),
+                    Height       = Length.Px(22),
+                    Display      = Display.Flex,
+                    AlignItems   = AlignItems.Center,
+                    JustifyContent = JustifyContent.Center,
+                    Cursor       = Cursor.Pointer,
+                    BorderRadius = 3,
+                    Color        = ColTextDim,
+                    Margin       = new Thickness(Length.Px(0), Length.Px(2)),
+                })
+                .HoverStyle(new StyleSheet { Background = ColButtonHov, Color = ColText })
+                .OnClick(() => ctx.Dispatch(new DockMinimize { PanelId = panel.PanelId, Minimized = true }))
+                .Children(UI.Text("▼", new StyleSheet { FontSize = Length.Px(10) }))
+                .Build());
+
+            UINode MaximizeBtn() => UI.Box(new PropsBuilder()
+                .Style(new StyleSheet
+                {
+                    Width        = Length.Px(22),
+                    Height       = Length.Px(22),
+                    Display      = Display.Flex,
+                    AlignItems   = AlignItems.Center,
+                    JustifyContent = JustifyContent.Center,
+                    Cursor       = Cursor.Pointer,
+                    BorderRadius = 3,
+                    Color        = ColTextDim,
+                    Margin       = new Thickness(Length.Px(0), Length.Px(2)),
+                })
+                .HoverStyle(new StyleSheet { Background = ColButtonHov, Color = ColText })
+                .OnClick(() => ctx.Dispatch(new DockMaximize { PanelId = panel.PanelId }))
+                .Children(UI.Text("□", new StyleSheet { FontSize = Length.Px(10) }))
+                .Build());
+
+            UINode CloseBtn() => UI.Box(new PropsBuilder()
+                .Style(new StyleSheet
+                {
+                    Width        = Length.Px(22),
+                    Height       = Length.Px(22),
+                    Display      = Display.Flex,
+                    AlignItems   = AlignItems.Center,
+                    JustifyContent = JustifyContent.Center,
+                    Cursor       = Cursor.Pointer,
+                    BorderRadius = 3,
+                    Color        = ColTextDim,
+                    Margin       = new Thickness(Length.Px(0), Length.Px(2)),
+                })
+                .HoverStyle(new StyleSheet { Background = new PaperColour(0.8f, 0.2f, 0.2f, 1f), Color = ColText })
+                .OnClick(() => ctx.Dispatch(new DockTearOff { SourcePanelId = panel.PanelId, X = -9999, Y = -9999 }))
+                .Children(UI.Text("✕", new StyleSheet { FontSize = Length.Px(10) }))
+                .Build());
+
             return UI.Box(new StyleSheet 
             { 
                 Display = Display.Flex, 
@@ -64,13 +119,17 @@ namespace Paper.Core.Dock
                     Height = Length.Px(HeaderPx),
                     Background = ColHeader,
                     FlexShrink = 0,
+                    Cursor = Cursor.Move,
                 },
                     UI.Text(panel.Title ?? panel.PanelId, new StyleSheet 
                     { 
                         Color = ColText, 
                         FlexGrow = 1,
                         Padding = new Thickness(Length.Px(8), Length.Px(0)),
-                    })
+                    }),
+                    MinimizeBtn(),
+                    MaximizeBtn(),
+                    CloseBtn()
                 ),
                 // Content
                 UI.Box(new StyleSheet { FlexGrow = 1, Overflow = Overflow.Hidden, Padding = new Thickness(Length.Px(8)) },

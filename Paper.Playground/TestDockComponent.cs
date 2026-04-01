@@ -29,6 +29,10 @@ public static class TestDockComponent
         
         var (activeDemo, setActiveDemo, _) = Hooks.UseState("Slider");
         
+        var (minimizedPanels, updateMinimizedPanels, _) = Hooks.UseState(new List<string>());
+        
+        var (maximizedPanel, setMaximizedPanel, _) = Hooks.UseState<string?>(null);
+        
         var resizeState = Hooks.UseStable(() => new object[] { null, 0f, 0f, false });
         var dragState = Hooks.UseStable(() => new object[] { null, 0f });
         
@@ -57,6 +61,24 @@ public static class TestDockComponent
         
         void HandleResizeEnd() {
             resizeState[3] = false;
+        }
+        
+        void ToggleMinimize(string panelId) {
+            var copy = new List<string>(minimizedPanels ?? new List<string>());
+            if (copy.Contains(panelId)) {
+                copy.Remove(panelId);
+            } else {
+                copy.Add(panelId);
+            }
+            updateMinimizedPanels(copy);
+        }
+        
+        void ToggleMaximize(string panelId) {
+            if (maximizedPanel == panelId) {
+                setMaximizedPanel(null);
+            } else {
+                setMaximizedPanel(panelId);
+            }
         }
         
         void HandlePanelDragMove(float x, float containerLeft, float containerWidth) {
@@ -107,22 +129,75 @@ public static class TestDockComponent
         }
         
         UINode BuildLeftPanel() {
+            var isMin = minimizedPanels?.Contains("left") ?? false;
+            var isMax = maximizedPanel == "left";
+            
+            UINode headerButtons = UI.Box(new PropsBuilder()
+                .Style(new StyleSheet { Display = Display.Flex, Gap = 2f, MarginRight = 4f })
+                .Children(
+                    UI.Box(new PropsBuilder()
+                        .Style(new StyleSheet { Width = 22f, Height = 22f, Display = Display.Flex, AlignItems = AlignItems.Center, JustifyContent = JustifyContent.Center, Cursor = Cursor.Pointer, BorderRadius = 3f, Color = color7878A0 })
+                        .OnClick(() => ToggleMinimize("left"))
+                        .Children(UI.Text("▼", new StyleSheet { FontSize = 10f }))
+                        .Build()),
+                    UI.Box(new PropsBuilder()
+                        .Style(new StyleSheet { Width = 22f, Height = 22f, Display = Display.Flex, AlignItems = AlignItems.Center, JustifyContent = JustifyContent.Center, Cursor = Cursor.Pointer, BorderRadius = 3f, Color = color7878A0 })
+                        .OnClick(() => ToggleMaximize("left"))
+                        .Children(UI.Text("□", new StyleSheet { FontSize = 10f }))
+                        .Build()),
+                    UI.Box(new PropsBuilder()
+                        .Style(new StyleSheet { Width = 22f, Height = 22f, Display = Display.Flex, AlignItems = AlignItems.Center, JustifyContent = JustifyContent.Center, Cursor = Cursor.Pointer, BorderRadius = 3f, Color = color7878A0 })
+                        .OnClick(() => ToggleMinimize("left"))
+                        .Children(UI.Text("✕", new StyleSheet { FontSize = 10f }))
+                        .Build())
+                )
+                .Build());
+            
             UINode leftHeader = UI.Box(
                 new PropsBuilder()
                     .Style(new StyleSheet {
-                        Height = 28f,
-                        Background = new PaperColour(0.15f, 0.15f, 0.25f, 1f),
+                        Height = 30f,
+                        Background = new PaperColour(0.145f, 0.145f, 0.27f, 1f),
                         Display = Display.Flex,
                         AlignItems = AlignItems.Center,
-                        Padding = new Thickness(8, 0, 8, 0),
-                        Cursor = Paper.Core.Styles.Cursor.Grab,
+                        Padding = new Thickness(8, 0, 0, 0),
+                        Cursor = Cursor.Grab,
                     })
                     .OnDragStart(e => { dragState[0] = "left"; dragState[1] = e.X; e.StopPropagation(); })
                     .OnDrag(e => { HandlePanelDragMove(e.X, leftWidth + rightWidth + 100f, 800f); })
                     .OnDragEnd(e => { HandlePanelDragEnd(); })
-                    .Children(UI.Text("Components", new StyleSheet { Color = colorC8C8E0, FontSize = 13f }))
+                    .Children(
+                        UI.Text("Components", new StyleSheet { Color = colorC8C8E0, FlexGrow = 1f, FontSize = 13f }),
+                        isMin ? null : headerButtons
+                    )
                     .Build()
             );
+            
+            if (isMin) {
+                return UI.Box(
+                    new PropsBuilder()
+                        .Style(new StyleSheet {
+                            Width = Length.Px(leftWidth),
+                            Height = 24f,
+                            Background = new PaperColour(0.08f, 0.08f, 0.16f, 1f),
+                            Border = new BorderEdges(new Border(1f, new PaperColour(0.3f, 0.3f, 0.4f, 1f))),
+                            Display = Display.Flex,
+                            AlignItems = AlignItems.Center,
+                            Padding = new Thickness(8, 0, 8, 0),
+                            Cursor = Cursor.Pointer,
+                        })
+                        .OnClick(() => ToggleMinimize("left"))
+                        .Children(
+                            UI.Text("Components", new StyleSheet { Color = color7878A0, FlexGrow = 1f, FontSize = 12f }),
+                            UI.Box(new PropsBuilder()
+                                .Style(new StyleSheet { Width = 22f, Height = 22f, Display = Display.Flex, AlignItems = AlignItems.Center, JustifyContent = JustifyContent.Center, Cursor = Cursor.Pointer, BorderRadius = 3f, Color = color7878A0 })
+                                .OnClick(() => ToggleMaximize("left"))
+                                .Children(UI.Text("□", new StyleSheet { FontSize = 10f }))
+                                .Build())
+                        )
+                        .Build()
+                );
+            }
             
             UINode resizeHandle = UI.Box(
                 new PropsBuilder()
@@ -133,7 +208,7 @@ public static class TestDockComponent
                         Top = 0f,
                         Bottom = 0f,
                         Background = new PaperColour(0.25f, 0.25f, 0.35f, 1f),
-                        Cursor = Paper.Core.Styles.Cursor.EwResize,
+                        Cursor = Cursor.EwResize,
                         ZIndex = 10,
                     })
                     .OnPointerDown(e => { resizeState[0] = "left"; resizeState[1] = e.X; resizeState[2] = leftWidth; resizeState[3] = true; e.StopPropagation(); })
@@ -165,22 +240,75 @@ public static class TestDockComponent
         }
         
         UINode BuildRightPanel() {
+            var isMin = minimizedPanels?.Contains("right") ?? false;
+            var isMax = maximizedPanel == "right";
+            
+            UINode headerButtons = UI.Box(new PropsBuilder()
+                .Style(new StyleSheet { Display = Display.Flex, Gap = 2f, MarginRight = 4f })
+                .Children(
+                    UI.Box(new PropsBuilder()
+                        .Style(new StyleSheet { Width = 22f, Height = 22f, Display = Display.Flex, AlignItems = AlignItems.Center, JustifyContent = JustifyContent.Center, Cursor = Cursor.Pointer, BorderRadius = 3f, Color = color7878A0 })
+                        .OnClick(() => ToggleMinimize("right"))
+                        .Children(UI.Text("▼", new StyleSheet { FontSize = 10f }))
+                        .Build()),
+                    UI.Box(new PropsBuilder()
+                        .Style(new StyleSheet { Width = 22f, Height = 22f, Display = Display.Flex, AlignItems = AlignItems.Center, JustifyContent = JustifyContent.Center, Cursor = Cursor.Pointer, BorderRadius = 3f, Color = color7878A0 })
+                        .OnClick(() => ToggleMaximize("right"))
+                        .Children(UI.Text("□", new StyleSheet { FontSize = 10f }))
+                        .Build()),
+                    UI.Box(new PropsBuilder()
+                        .Style(new StyleSheet { Width = 22f, Height = 22f, Display = Display.Flex, AlignItems = AlignItems.Center, JustifyContent = JustifyContent.Center, Cursor = Cursor.Pointer, BorderRadius = 3f, Color = color7878A0 })
+                        .OnClick(() => ToggleMinimize("right"))
+                        .Children(UI.Text("✕", new StyleSheet { FontSize = 10f }))
+                        .Build())
+                )
+                .Build());
+            
             UINode rightHeader = UI.Box(
                 new PropsBuilder()
                     .Style(new StyleSheet {
-                        Height = 28f,
-                        Background = new PaperColour(0.15f, 0.15f, 0.25f, 1f),
+                        Height = 30f,
+                        Background = new PaperColour(0.145f, 0.145f, 0.27f, 1f),
                         Display = Display.Flex,
                         AlignItems = AlignItems.Center,
-                        Padding = new Thickness(8, 0, 8, 0),
-                        Cursor = Paper.Core.Styles.Cursor.Grab,
+                        Padding = new Thickness(8, 0, 0, 0),
+                        Cursor = Cursor.Grab,
                     })
                     .OnDragStart(e => { dragState[0] = "right"; dragState[1] = e.X; e.StopPropagation(); })
                     .OnDrag(e => { HandlePanelDragMove(e.X, leftWidth + rightWidth + 100f, 800f); })
                     .OnDragEnd(e => { HandlePanelDragEnd(); })
-                    .Children(UI.Text("Info", new StyleSheet { Color = colorC8C8E0, FontSize = 13f }))
+                    .Children(
+                        UI.Text("Info", new StyleSheet { Color = colorC8C8E0, FlexGrow = 1f, FontSize = 13f }),
+                        isMin ? null : headerButtons
+                    )
                     .Build()
             );
+            
+            if (isMin) {
+                return UI.Box(
+                    new PropsBuilder()
+                        .Style(new StyleSheet {
+                            Width = Length.Px(rightWidth),
+                            Height = 24f,
+                            Background = new PaperColour(0.08f, 0.08f, 0.16f, 1f),
+                            Border = new BorderEdges(new Border(1f, new PaperColour(0.3f, 0.3f, 0.4f, 1f))),
+                            Display = Display.Flex,
+                            AlignItems = AlignItems.Center,
+                            Padding = new Thickness(8, 0, 8, 0),
+                            Cursor = Cursor.Pointer,
+                        })
+                        .OnClick(() => ToggleMinimize("right"))
+                        .Children(
+                            UI.Text("Info", new StyleSheet { Color = color7878A0, FlexGrow = 1f, FontSize = 12f }),
+                            UI.Box(new PropsBuilder()
+                                .Style(new StyleSheet { Width = 22f, Height = 22f, Display = Display.Flex, AlignItems = AlignItems.Center, JustifyContent = JustifyContent.Center, Cursor = Cursor.Pointer, BorderRadius = 3f, Color = color7878A0 })
+                                .OnClick(() => ToggleMaximize("right"))
+                                .Children(UI.Text("□", new StyleSheet { FontSize = 10f }))
+                                .Build())
+                        )
+                        .Build()
+                );
+            }
             
             UINode resizeHandle = UI.Box(
                 new PropsBuilder()
@@ -191,7 +319,7 @@ public static class TestDockComponent
                         Top = 0f,
                         Bottom = 0f,
                         Background = new PaperColour(0.25f, 0.25f, 0.35f, 1f),
-                        Cursor = Paper.Core.Styles.Cursor.EwResize,
+                        Cursor = Cursor.EwResize,
                         ZIndex = 10,
                     })
                     .OnPointerDown(e => { resizeState[0] = "right"; resizeState[1] = e.X; resizeState[2] = rightWidth; resizeState[3] = true; e.StopPropagation(); })
@@ -229,6 +357,30 @@ public static class TestDockComponent
         }
         
         UINode BuildCenterPanel() {
+            var isMin = minimizedPanels?.Contains("center") ?? false;
+            var isMax = maximizedPanel == "center";
+            
+            UINode headerButtons = UI.Box(new PropsBuilder()
+                .Style(new StyleSheet { Display = Display.Flex, Gap = 2f, MarginRight = 4f })
+                .Children(
+                    UI.Box(new PropsBuilder()
+                        .Style(new StyleSheet { Width = 22f, Height = 22f, Display = Display.Flex, AlignItems = AlignItems.Center, JustifyContent = JustifyContent.Center, Cursor = Cursor.Pointer, BorderRadius = 3f, Color = color7878A0 })
+                        .OnClick(() => ToggleMinimize("center"))
+                        .Children(UI.Text("▼", new StyleSheet { FontSize = 10f }))
+                        .Build()),
+                    UI.Box(new PropsBuilder()
+                        .Style(new StyleSheet { Width = 22f, Height = 22f, Display = Display.Flex, AlignItems = AlignItems.Center, JustifyContent = JustifyContent.Center, Cursor = Cursor.Pointer, BorderRadius = 3f, Color = color7878A0 })
+                        .OnClick(() => ToggleMaximize("center"))
+                        .Children(UI.Text("□", new StyleSheet { FontSize = 10f }))
+                        .Build()),
+                    UI.Box(new PropsBuilder()
+                        .Style(new StyleSheet { Width = 22f, Height = 22f, Display = Display.Flex, AlignItems = AlignItems.Center, JustifyContent = JustifyContent.Center, Cursor = Cursor.Pointer, BorderRadius = 3f, Color = color7878A0 })
+                        .OnClick(() => ToggleMinimize("center"))
+                        .Children(UI.Text("✕", new StyleSheet { FontSize = 10f }))
+                        .Build())
+                )
+                .Build());
+            
             UINode demoContent;
             if (activeDemo == "Slider") {
                 var (sliderVal, setSliderVal, _) = Hooks.UseState(50f);
@@ -762,6 +914,52 @@ public static class TestDockComponent
                 );
             }
             
+            UINode centerHeader = UI.Box(
+                new PropsBuilder()
+                    .Style(new StyleSheet {
+                        Height = 30f,
+                        Background = new PaperColour(0.145f, 0.145f, 0.27f, 1f),
+                        Display = Display.Flex,
+                        AlignItems = AlignItems.Center,
+                        Padding = new Thickness(8, 0, 0, 0),
+                        Cursor = Cursor.Grab,
+                    })
+                    .OnDragStart(e => { dragState[0] = "center"; dragState[1] = e.X; e.StopPropagation(); })
+                    .OnDrag(e => { HandlePanelDragMove(e.X, leftWidth + rightWidth + 100f, 800f); })
+                    .OnDragEnd(e => { HandlePanelDragEnd(); })
+                    .Children(
+                        UI.Text("Content", new StyleSheet { Color = colorC8C8E0, FlexGrow = 1f, FontSize = 13f }),
+                        isMin ? null : headerButtons
+                    )
+                    .Build()
+            );
+            
+            if (isMin) {
+                return UI.Box(
+                    new PropsBuilder()
+                        .Style(new StyleSheet {
+                            FlexGrow = 1f,
+                            Height = 24f,
+                            Background = new PaperColour(0.08f, 0.08f, 0.16f, 1f),
+                            Border = new BorderEdges(new Border(1f, new PaperColour(0.3f, 0.3f, 0.4f, 1f))),
+                            Display = Display.Flex,
+                            AlignItems = AlignItems.Center,
+                            Padding = new Thickness(8, 0, 8, 0),
+                            Cursor = Cursor.Pointer,
+                        })
+                        .OnClick(() => ToggleMinimize("center"))
+                        .Children(
+                            UI.Text("Content", new StyleSheet { Color = color7878A0, FlexGrow = 1f, FontSize = 12f }),
+                            UI.Box(new PropsBuilder()
+                                .Style(new StyleSheet { Width = 22f, Height = 22f, Display = Display.Flex, AlignItems = AlignItems.Center, JustifyContent = JustifyContent.Center, Cursor = Cursor.Pointer, BorderRadius = 3f, Color = color7878A0 })
+                                .OnClick(() => ToggleMaximize("center"))
+                                .Children(UI.Text("□", new StyleSheet { FontSize = 10f }))
+                                .Build())
+                        )
+                        .Build()
+                );
+            }
+            
             return UI.Box(
                 new PropsBuilder()
                     .Style(new StyleSheet {
@@ -771,22 +969,7 @@ public static class TestDockComponent
                         Background = new PaperColour(0.08f, 0.08f, 0.12f, 1f),
                     })
                     .Children(
-                        UI.Box(
-                            new PropsBuilder()
-                                .Style(new StyleSheet {
-                                    Height = 28f,
-                                    Background = new PaperColour(0.15f, 0.15f, 0.25f, 1f),
-                                    Display = Display.Flex,
-                                    AlignItems = AlignItems.Center,
-                                    Padding = new Thickness(8, 0, 8, 0),
-                                    Cursor = Paper.Core.Styles.Cursor.Grab,
-                                })
-                                .OnDragStart(e => { dragState[0] = "center"; dragState[1] = e.X; e.StopPropagation(); })
-                                .OnDrag(e => { HandlePanelDragMove(e.X, leftWidth + rightWidth + 100f, 800f); })
-                                .OnDragEnd(e => { HandlePanelDragEnd(); })
-                                .Children(UI.Text("Content", new StyleSheet { Color = colorC8C8E0, FontSize = 13f }))
-                                .Build()
-                        ),
+                        centerHeader,
                         UI.Box(
                             new PropsBuilder()
                                 .Style(new StyleSheet { FlexGrow = 1f, Overflow = Overflow.Scroll })

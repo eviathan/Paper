@@ -3,6 +3,7 @@ using Paper.Core.Dock;
 using System.Collections.Generic;
 using Paper.Core.VirtualDom;
 using Paper.Core.Styles;
+using Paper.Core.Hooks;
 
 namespace Paper.Playground;
 
@@ -16,8 +17,9 @@ class Program
 
         if (args.Length > 0 && args[0] == "--dock")
         {
-            Console.WriteLine("Paper.Playground: Mounting TestDock component.");
-            app.Mount(TestDockComponent.TestDock);
+            Console.WriteLine("Paper.Playground: Testing Manual Dock.");
+            
+            app.Mount(props => TestDockComponent.TestDock(props));
         }
         else
         {

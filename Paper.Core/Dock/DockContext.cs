@@ -139,7 +139,35 @@ namespace Paper.Core.Dock
                     Width         = Length.Percent(100),
                     Height        = Length.Percent(100),
                 }.Merge(props.Style ?? StyleSheet.Empty);
-                return UI.Box(outerStyle, Context.Provider(live, children2.ToArray()));
+                
+                // If no children passed or empty placeholder, render the dock container automatically
+                UINode content;
+                if (children2.Count == 0 || (children2.Count == 1 && children2[0] is UINode child && IsEmptyBox(child)))
+                {
+                    // Direct render - create state and render container in one go
+                    content = UI.Box(new StyleSheet { FlexGrow = 1f, Width = Length.Percent(100), Height = Length.Percent(100), Position = Position.Relative },
+                        UI.Component(innerProps =>
+                        {
+                            var (dockState, dispatch) = Paper.Core.Hooks.Hooks.UseReducer<DockState, DockAction>(DockReducer.Reduce, init);
+                            
+                            // Build the tree directly
+                            var ctx = new DockContextValue
+                            {
+                                State = dockState,
+                                Dispatch = dispatch,
+                                PanelRegistry = registry,
+                            };
+                            
+                            return DockContainer.RenderTree(dockState, ctx);
+                        }, new PropsBuilder().Build())
+                    );
+                }
+                else
+                {
+                    content = UI.Box(new StyleSheet { FlexGrow = 1f, Width = Length.Percent(100), Height = Length.Percent(100) }, children2.ToArray());
+                }
+                
+                return UI.Box(outerStyle, Context.Provider(live, content));
             }, new PropsBuilder()
                 .Set("registry", panelRegistry)
                 .Set("initialState", initialState)
@@ -147,5 +175,10 @@ namespace Paper.Core.Dock
                 .Children(children)
                 .Build(), key);
         }
+        
+        private static bool IsEmptyBox(UINode node) => node switch
+        {
+            _ => false,
+        };
     }
 }
