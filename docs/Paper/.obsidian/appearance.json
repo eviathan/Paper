@@ -1,0 +1,13 @@
+{
+  "cssTheme": "",
+  "theme": "obsidian",
+  "translucency": false,
+  "showViewHeader": false,
+  "showRibbon": false,
+  "nativeMenus": true,
+  "enabledCssSnippets": [
+    "hidetabs"
+  ],
+  "accentColor": "#60be84",
+  "textFontFamily": "Andale Mono"
+}

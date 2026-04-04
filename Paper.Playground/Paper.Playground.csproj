@@ -33,6 +33,7 @@
 
   <ItemGroup>
     <Content Include="Assets\**\*" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="src\**\*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 

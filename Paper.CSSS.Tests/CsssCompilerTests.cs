@@ -112,7 +112,7 @@ public sealed class CsssCompilerTests
     public void Compile_BorderRadius_SetsBorderRadius()
     {
         var style = CSSSCompiler.CompileOne(".c { border-radius: 8px; }", ".c");
-        Assert.True(Math.Abs(8f - (style.BorderRadius ?? 0f)) < 0.01f);
+        Assert.True(Math.Abs(8f - style.BorderRadius) < 0.01f);
     }
 
     [Fact]

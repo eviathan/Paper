@@ -1,0 +1,3 @@
+.mod-root .workspace-tab-header-container:not(:has(.workspace-tab-header-container-inner > .workspace-tab-header:nth-child(2))) {
+
+}

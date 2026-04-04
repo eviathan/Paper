@@ -7,7 +7,7 @@ namespace Paper.Rendering.Silk.NET
 {
     internal sealed class CSXHotReload : IDisposable
     {
-        private readonly PaperSurface _surface;
+        private readonly Canvas _surface;
         private readonly string _csxFilePath;
         private readonly string _csxDir;
         private readonly string _scopeId;
@@ -25,7 +25,7 @@ namespace Paper.Rendering.Silk.NET
 
         public Func<Props, UINode> RootComponent { get; }
 
-        public CSXHotReload(PaperSurface surface, string csxFilePath, string scopeId)
+        public CSXHotReload(Canvas surface, string csxFilePath, string scopeId)
         {
             _surface = surface;
             _csxFilePath = csxFilePath;

@@ -34,7 +34,50 @@ public static class TestDockComponent
         var (maximizedPanel, setMaximizedPanel, _) = Hooks.UseState<string?>(null);
         
         var resizeState = Hooks.UseStable(() => new object[] { null, 0f, 0f, false });
-        var dragState = Hooks.UseStable(() => new object[] { null, 0f });
+        var dragState = Hooks.UseStable(() => new object[] { null, 0f, 0f, 0f, 0f, 0f, 0f, 0f });
+        
+        UINode BuildGhostWindow(string panelId, float x, float y, float w, float h) {
+            string title = panelId switch { "left" => "Components", "right" => "Info", "center" => "Content", _ => panelId };
+            return UI.Box(new StyleSheet {
+                Position = Position.Absolute, Left = Length.Px(x), Top = Length.Px(y),
+                Width = Length.Px(w), Height = Length.Px(h),
+                Background = new PaperColour(0.15f, 0.15f, 0.22f, 0.95f),
+                Border = new Border(1f, new PaperColour(0.5f, 0.5f, 0.7f, 1f)),
+                BorderRadius = 10f, ZIndex = 1000,
+            },
+                UI.Box(new StyleSheet { Height = 28f, Background = new PaperColour(0.25f, 0.25f, 0.35f, 1f), BorderRadius = 10f, Display = Display.Flex, AlignItems = AlignItems.Center, Padding = 10f },
+                    UI.Box(new StyleSheet { Width = 14f, Height = 14f, BorderRadius = 7f, Background = new PaperColour(1f, 0.35f, 0.35f, 1f), MarginRight = 8f }),
+                    UI.Box(new StyleSheet { Width = 14f, Height = 14f, BorderRadius = 7f, Background = new PaperColour(1f, 0.85f, 0.3f, 1f), MarginRight = 8f }),
+                    UI.Box(new StyleSheet { Width = 14f, Height = 14f, BorderRadius = 7f, Background = new PaperColour(0.4f, 0.85f, 0.4f, 1f), MarginRight = 8f }),
+                    UI.Text(title, new StyleSheet { Color = colorC8C8E0, FlexGrow = 1f, FontSize = 13f })
+                ),
+                UI.Box(new StyleSheet { FlexGrow = 1f, Background = new PaperColour(0.1f, 0.1f, 0.18f, 1f), BorderRadius = 10f, Display = Display.Flex, AlignItems = AlignItems.Center, JustifyContent = JustifyContent.Center },
+                    UI.Text("Drag to reorder", new StyleSheet { Color = color7878A0, FontSize = 14f })
+                )
+            );
+        }
+        
+        UINode BuildDragGhost() {
+            if (dragState[0] == null) return UI.Box(new PropsBuilder().Build());
+            
+            var ghostPanelId = dragState[0] as string ?? "";
+            var origX = (float)dragState[1];
+            var origY = (float)dragState[2];
+            var curX = (float)dragState[3];
+            var curY = (float)dragState[4];
+            var origW = (float)dragState[5];
+            var origH = (float)dragState[6];
+            
+            var dist = MathF.Sqrt((curX - origX) * (curX - origX) + (curY - origY) * (curY - origY));
+            var maxDist = 200f;
+            var t = Math.Min(dist / maxDist, 1f);
+            var ghostW = origW + (200f - origW) * t;
+            var ghostH = origH + (150f - origH) * t;
+            var ghostX = curX - ghostW / 2f;
+            var ghostY = curY - ghostH / 2f;
+            
+            return BuildGhostWindow(ghostPanelId, ghostX, ghostY, ghostW, ghostH);
+        }
         
         var demoNames = new[] { 
             "Slider", "NumberInput", "Tabs", "Popover", "Toast", "FontStyle", "AspectRatio",
@@ -163,9 +206,18 @@ public static class TestDockComponent
                         Padding = new Thickness(8, 0, 0, 0),
                         Cursor = Cursor.Grab,
                     })
-                    .OnDragStart(e => { dragState[0] = "left"; dragState[1] = e.X; e.StopPropagation(); })
-                    .OnDrag(e => { HandlePanelDragMove(e.X, leftWidth + rightWidth + 100f, 800f); })
-                    .OnDragEnd(e => { HandlePanelDragEnd(); })
+                    .OnDragStart(e => { dragState[0] = "left"; dragState[1] = e.X; dragState[2] = e.Y; dragState[3] = e.X; dragState[4] = e.Y; dragState[5] = leftWidth; dragState[6] = 500f; e.StopPropagation(); })
+                    .OnDrag(e => { dragState[3] = e.X; dragState[4] = e.Y; })
+                    .OnDragEnd(e => { 
+                        if (dragState[0] != null) {
+                            float relX = (float)dragState[3] - (leftWidth + rightWidth + 100f);
+                            float third = 800f / 3f;
+                            var newPositions = new Dictionary<string, string>(panelPositions ?? new Dictionary<string, string>());
+                            newPositions["left"] = relX < third ? "left" : (relX > third * 2 ? "right" : "center");
+                            updatePanelPositions(newPositions);
+                        }
+                        dragState[0] = null; 
+                    })
                     .Children(
                         UI.Text("Components", new StyleSheet { Color = colorC8C8E0, FlexGrow = 1f, FontSize = 13f }),
                         isMin ? null : headerButtons
@@ -274,9 +326,18 @@ public static class TestDockComponent
                         Padding = new Thickness(8, 0, 0, 0),
                         Cursor = Cursor.Grab,
                     })
-                    .OnDragStart(e => { dragState[0] = "right"; dragState[1] = e.X; e.StopPropagation(); })
-                    .OnDrag(e => { HandlePanelDragMove(e.X, leftWidth + rightWidth + 100f, 800f); })
-                    .OnDragEnd(e => { HandlePanelDragEnd(); })
+                    .OnDragStart(e => { dragState[0] = "right"; dragState[1] = e.X; dragState[2] = e.Y; dragState[3] = e.X; dragState[4] = e.Y; dragState[5] = rightWidth; dragState[6] = 500f; e.StopPropagation(); })
+                    .OnDrag(e => { dragState[3] = e.X; dragState[4] = e.Y; })
+                    .OnDragEnd(e => { 
+                        if (dragState[0] != null) {
+                            float relX = (float)dragState[3] - (leftWidth + rightWidth + 100f);
+                            float third = 800f / 3f;
+                            var newPositions = new Dictionary<string, string>(panelPositions ?? new Dictionary<string, string>());
+                            newPositions["right"] = relX < third ? "left" : (relX > third * 2 ? "right" : "center");
+                            updatePanelPositions(newPositions);
+                        }
+                        dragState[0] = null; 
+                    })
                     .Children(
                         UI.Text("Info", new StyleSheet { Color = colorC8C8E0, FlexGrow = 1f, FontSize = 13f }),
                         isMin ? null : headerButtons
@@ -924,9 +985,18 @@ public static class TestDockComponent
                         Padding = new Thickness(8, 0, 0, 0),
                         Cursor = Cursor.Grab,
                     })
-                    .OnDragStart(e => { dragState[0] = "center"; dragState[1] = e.X; e.StopPropagation(); })
-                    .OnDrag(e => { HandlePanelDragMove(e.X, leftWidth + rightWidth + 100f, 800f); })
-                    .OnDragEnd(e => { HandlePanelDragEnd(); })
+                    .OnDragStart(e => { dragState[0] = "center"; dragState[1] = e.X; dragState[2] = e.Y; dragState[3] = e.X; dragState[4] = e.Y; dragState[5] = 300f; dragState[6] = 400f; e.StopPropagation(); })
+                    .OnDrag(e => { dragState[3] = e.X; dragState[4] = e.Y; })
+                    .OnDragEnd(e => { 
+                        if (dragState[0] != null) {
+                            float relX = (float)dragState[3] - (leftWidth + rightWidth + 100f);
+                            float third = 800f / 3f;
+                            var newPositions = new Dictionary<string, string>(panelPositions ?? new Dictionary<string, string>());
+                            newPositions["center"] = relX < third ? "left" : (relX > third * 2 ? "right" : "center");
+                            updatePanelPositions(newPositions);
+                        }
+                        dragState[0] = null; 
+                    })
                     .Children(
                         UI.Text("Content", new StyleSheet { Color = colorC8C8E0, FlexGrow = 1f, FontSize = 13f }),
                         isMin ? null : headerButtons
@@ -1059,7 +1129,8 @@ public static class TestDockComponent
                             .Children(
                                 panelNodes.Length > 0 ? panelNodes[0] : UI.Box(new PropsBuilder().Build()),
                                 panelNodes.Length > 1 ? panelNodes[1] : UI.Box(new PropsBuilder().Build()),
-                                panelNodes.Length > 2 ? panelNodes[2] : UI.Box(new PropsBuilder().Build())
+                                panelNodes.Length > 2 ? panelNodes[2] : UI.Box(new PropsBuilder().Build()),
+                                BuildDragGhost()
                             )
                             .Build()
                     ),

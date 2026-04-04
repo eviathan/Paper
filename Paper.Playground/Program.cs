@@ -5,33 +5,29 @@ using Paper.Core.VirtualDom;
 using Paper.Core.Styles;
 using Paper.Core.Hooks;
 
-namespace Paper.Playground;
-
-class Program
+namespace Paper.Playground
 {
-    static void Main(string[] args)
+    class Program
     {
-        var app = new PaperSurface("❖ Paper ❖", 800, 700);
-        app.MinimumWindowWidth = 400;
-        app.MinimumWindowHeight = 500;
-
-        if (args.Length > 0 && args[0] == "--dock")
+        static void Main(string[] args)
         {
-            Console.WriteLine("Paper.Playground: Testing Manual Dock.");
-            
-            app.Mount(props => TestDockComponent.TestDock(props));
-        }
-        else
-        {
-            var csxPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../src/App.csx"));
-            Console.WriteLine($"Paper.Playground: Loading {csxPath}");
-            if (File.Exists(csxPath))
+            var canvas = new Canvas("Paper", 800, 700)
             {
-                Console.WriteLine("Mounting App.csx hot reload.");
-                app.MountCSXHotReload(csxPath, scopeId: "DemoApp");
-            }
-        }
+                MinimumWindowWidth = 400,
+                MinimumWindowHeight = 500
+            };
 
-        app.Run();
-    }
+            if (args.Length > 0 && args[0] == "--dock")
+            {
+                Console.WriteLine("Paper.Playground: Testing Manual Dock.");
+                canvas.Mount(TestDockComponent.TestDock);
+            }
+            else
+            {
+                canvas.MountCSXHotReload("src/App.csx", scopeId: "DemoApp");
+            }
+
+            canvas.Run();
+        }
+    }    
 }

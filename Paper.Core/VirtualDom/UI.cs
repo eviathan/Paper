@@ -167,6 +167,21 @@ namespace Paper.Core.VirtualDom
             return new UINode(ElementTypes.RadioGroup, b.Build(), key);
         }
 
+        /// <summary>Radio group — options (value, label), selectedValue, onSelect. Renders as column of radio options.</summary>
+        public static UINode Panel(
+            IReadOnlyList<(string Value, string Label)> options,
+            string? selectedValue,
+            Action<string>? onSelect,
+            StyleSheet? style = null,
+            string? key = null)
+        {
+            // TODO: Implement this
+            var b = new PropsBuilder().Set("options", options).Set("selectedValue", selectedValue ?? "");
+            if (onSelect != null) b.Set("onSelect", onSelect);
+            if (style != null) b.Style(style);
+            return new UINode(ElementTypes.Panel, b.Build(), key);
+        }
+
         /// <summary>Table container (block).</summary>
         public static UINode Table(StyleSheet? style = null, string? key = null, params UINode[] children) =>
             new(ElementTypes.Table, new PropsBuilder()

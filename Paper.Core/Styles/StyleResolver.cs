@@ -1,3 +1,4 @@
+using System.Net.Http.Headers;
 using Paper.Core.Reconciler;
 using Paper.Core.VirtualDom;
 
@@ -176,6 +177,10 @@ namespace Paper.Core.Styles
                     Display = Display.Block,
                     OverflowX = Overflow.Auto,
                     OverflowY = Overflow.Scroll,
+                },
+                ElementTypes.Panel => new StyleSheet
+                {
+                    // TODO: FINISH THIS
                 },
                 _ => StyleSheet.Empty,
             };
