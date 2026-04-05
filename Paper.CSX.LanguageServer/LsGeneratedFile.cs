@@ -57,12 +57,12 @@ namespace Paper.CSX.LanguageServer
             // each CSX preamble line mapping 1:1 to a generated source line.
             var preambleLines = (preamble ?? "").Split(new[] { '\r', '\n' }, StringSplitOptions.None);
             var extraUsings = preambleLines
-                .Where(l => { var t = l.Trim(); return t.StartsWith("using ", StringComparison.Ordinal) && t.EndsWith(";"); })
+                .Where(l => { var trimmedLine = l.Trim(); return trimmedLine.StartsWith("using ", StringComparison.Ordinal) && trimmedLine.EndsWith(";"); })
                 .Select(l => l.Trim())
                 .Distinct()
                 .ToList();
             var bodyLines = preambleLines
-                .Where(l => { var t = l.Trim(); return !(t.StartsWith("using ", StringComparison.Ordinal) && t.EndsWith(";")); })
+                .Where(l => { var trimmedLine = l.Trim(); return !(trimmedLine.StartsWith("using ", StringComparison.Ordinal) && trimmedLine.EndsWith(";")); })
                 .ToArray();
 
             // Compute the base indent of the CSX preamble (smallest leading whitespace of any

@@ -277,10 +277,10 @@ namespace Paper.CSX.LanguageServer
         /// <summary>Returns the offset past "style={{" if we're inside an unclosed style block, or -1.</summary>
         private static int FindUnclosedStyleBlock(string before)
         {
-            var m = Regex.Match(before, @"\bstyle\s*=\s*\{\{");
-            if (!m.Success) return -1;
+            var styleMatch = Regex.Match(before, @"\bstyle\s*=\s*\{\{");
+            if (!styleMatch.Success) return -1;
             // Walk forward from the end of the match counting {{ vs }} depth
-            var pos = m.Index + m.Length;
+            var pos = styleMatch.Index + styleMatch.Length;
             int depth = 2; // opened {{
             while (pos < before.Length && depth > 0)
             {
@@ -289,7 +289,7 @@ namespace Paper.CSX.LanguageServer
                 if (depth == 0) return -1; // we're past the closing }}
                 pos++;
             }
-            return depth > 0 ? m.Index + m.Length : -1;
+            return depth > 0 ? styleMatch.Index + styleMatch.Length : -1;
         }
 
         /// <summary>Returns (tagName, textAfterTagName) if cursor is inside an open tag, or null.</summary>
@@ -375,13 +375,13 @@ namespace Paper.CSX.LanguageServer
                     var items = new List<object>();
                     foreach (var part in destructMatch.Groups[1].Value.Split(','))
                     {
-                        var p = part.Trim();
-                        if (string.IsNullOrEmpty(p)) continue;
+                        var partTrimmed = part.Trim();
+                        if (string.IsNullOrEmpty(partTrimmed)) continue;
                         // "type name" or "type name = default"
-                        var eq = p.IndexOf('='); if (eq >= 0) p = p[..eq].Trim();
-                        var sp = p.LastIndexOf(' '); if (sp < 0) continue;
-                        var type = p[..sp].Trim();
-                        var name = p[(sp + 1)..].Trim();
+                        var eqIndex = partTrimmed.IndexOf('='); if (eqIndex >= 0) partTrimmed = partTrimmed[..eqIndex].Trim();
+                        var spaceIndex = partTrimmed.LastIndexOf(' '); if (spaceIndex < 0) continue;
+                        var type = partTrimmed[..spaceIndex].Trim();
+                        var name = partTrimmed[(spaceIndex + 1)..].Trim();
                         var camel = char.ToLower(name[0]) + name[1..];
                         if (Regex.IsMatch(name, @"^\w+$"))
                             items.Add(Item(camel, camel + "={${1}}", $"({type}) {name}", CompletionItemKind.Field));
@@ -578,31 +578,31 @@ namespace Paper.CSX.LanguageServer
         private static string? ExtractExpressionBeforeDot(string before)
         {
             if (!before.EndsWith('.')) return null;
-            var s = before[..^1]; // strip trailing dot
+            var expression = before[..^1]; // strip trailing dot
 
             // If last char is `)`, walk back to find the matching `(` for method call chains
-            if (s.Length > 0 && s[^1] == ')')
+            if (expression.Length > 0 && expression[^1] == ')')
             {
-                int depth = 0, i = s.Length - 1;
-                while (i >= 0)
+                int depth = 0, searchIndex = expression.Length - 1;
+                while (searchIndex >= 0)
                 {
-                    if (s[i] == ')') depth++;
-                    else if (s[i] == '(') { depth--; if (depth == 0) break; }
-                    i--;
+                    if (expression[searchIndex] == ')') depth++;
+                    else if (expression[searchIndex] == '(') { depth--; if (depth == 0) break; }
+                    searchIndex--;
                 }
-                if (i >= 0)
+                if (searchIndex >= 0)
                 {
                     // Extract the identifier chain before the opening paren
-                    var chain = s[..i];
+                    var chain = expression[..searchIndex];
                     var chainMatch = Regex.Match(chain, @"\b([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)$");
                     if (chainMatch.Success)
-                        return chainMatch.Groups[1].Value + s[i..]; // e.g. "myList.Where(x => x > 0)"
+                        return chainMatch.Groups[1].Value + expression[searchIndex..]; // e.g. "myList.Where(x => x > 0)"
                 }
             }
 
             // Simple identifier or dotted chain
-            var m = Regex.Match(s, @"\b([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)$");
-            return m.Success ? m.Groups[1].Value : null;
+            var identifierMatch = Regex.Match(expression, @"\b([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)$");
+            return identifierMatch.Success ? identifierMatch.Groups[1].Value : null;
         }
 
         // ─── Item helpers ─────────────────────────────────────────────────────────

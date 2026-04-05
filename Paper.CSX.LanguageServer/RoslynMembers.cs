@@ -473,12 +473,12 @@ public static class _LsCompletion_
             });
         }
 
-        private static string MethodSignature(IMethodSymbol m)
+        private static string MethodSignature(IMethodSymbol method)
         {
-            var ps = string.Join(", ", m.Parameters.Select(p =>
-                p.Type.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat) + " " + p.Name));
-            var ret = m.ReturnType.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
-            return $"{ret} {m.Name}({ps})";
+            var parameterList = string.Join(", ", method.Parameters.Select(param =>
+                param.Type.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat) + " " + param.Name));
+            var returnType = method.ReturnType.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
+            return $"{returnType} {method.Name}({parameterList})";
         }
     }
 }

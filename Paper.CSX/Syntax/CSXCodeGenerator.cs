@@ -123,8 +123,8 @@ namespace Paper.CSX.Syntax
                 {
                     case "style":
                     {
-                        var s = GetStyle(el);
-                        if (s != null) sb.Append($"\n.Style({s})");
+                        var styleValue = GetStyle(el);
+                        if (styleValue != null) sb.Append($"\n.Style({styleValue})");
                         break;
                     }
                     case "className":
@@ -182,8 +182,8 @@ namespace Paper.CSX.Syntax
                     case "activeStyle":
                     case "focusStyle":
                     {
-                        var s = GetStyleAttr(el, a.Name);
-                        if (s != null) sb.Append($"\n.Set(\"{a.Name}\", {s})");
+                        var styleValue = GetStyleAttr(el, a.Name);
+                        if (styleValue != null) sb.Append($"\n.Set(\"{a.Name}\", {styleValue})");
                         break;
                     }
                 }

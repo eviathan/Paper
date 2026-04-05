@@ -295,8 +295,8 @@ namespace Paper.CSX
             }
             if (string.Equals(propertyName, "Display", StringComparison.OrdinalIgnoreCase))
             {
-                var d = ParseDisplay(lower);
-                if (d != null) return d;
+                var display = ParseDisplay(lower);
+                if (display != null) return display;
             }
             if (string.Equals(propertyName, "BoxSizing", StringComparison.OrdinalIgnoreCase))
                 return lower == "content-box" ? "BoxSizing.ContentBox" : "BoxSizing.BorderBox";
@@ -307,13 +307,13 @@ namespace Paper.CSX
             }
             if (string.Equals(propertyName, "Cursor", StringComparison.OrdinalIgnoreCase))
             {
-                var c = ParseCursor(lower);
-                if (c != null) return c;
+                var cursor = ParseCursor(lower);
+                if (cursor != null) return cursor;
             }
             if (string.Equals(propertyName, "Position", StringComparison.OrdinalIgnoreCase))
             {
-                var p = ParsePosition(lower);
-                if (p != null) return p;
+                var position = ParsePosition(lower);
+                if (position != null) return position;
             }
             if (string.Equals(propertyName, "Visibility", StringComparison.OrdinalIgnoreCase))
             {
@@ -620,24 +620,24 @@ namespace Paper.CSX
 
             foreach (var part in parts)
             {
-                var p = part.Trim().Trim('"', '\'');
-                if (p.EndsWith("px", StringComparison.OrdinalIgnoreCase) &&
-                    double.TryParse(p[..^2], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double w))
+                var partValue = part.Trim().Trim('"', '\'');
+                if (partValue.EndsWith("px", StringComparison.OrdinalIgnoreCase) &&
+                    double.TryParse(partValue[..^2], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double w))
                 {
                     width = (float)w;
                 }
-                else if (double.TryParse(p, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double wn))
+                else if (double.TryParse(partValue, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double wn))
                 {
                     width = (float)wn;
                 }
-                else if (p.StartsWith('#'))
+                else if (partValue.StartsWith('#'))
                 {
-                    colourExpr = ParseHexColor(p);
+                    colourExpr = ParseHexColor(partValue);
                     hasColour = true;
                 }
-                else if (p is "none" or "solid" or "dashed" or "dotted" or "hidden")
+                else if (partValue is "none" or "solid" or "dashed" or "dotted" or "hidden")
                 {
-                    if (p == "none") return "new BorderEdges(Border.None)";
+                    if (partValue == "none") return "new BorderEdges(Border.None)";
                     // border-style is implicit in Border (always solid for now)
                 }
             }
@@ -662,22 +662,22 @@ namespace Paper.CSX
 
             foreach (var part in parts)
             {
-                var p = part.Trim().Trim('"', '\'');
-                if (p.EndsWith("px", StringComparison.OrdinalIgnoreCase) &&
-                    double.TryParse(p[..^2], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double w))
+                var partValue = part.Trim().Trim('"', '\'');
+                if (partValue.EndsWith("px", StringComparison.OrdinalIgnoreCase) &&
+                    double.TryParse(partValue[..^2], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double w))
                 {
                     width = (float)w;
                 }
-                else if (double.TryParse(p, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double wn))
+                else if (double.TryParse(partValue, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double wn))
                 {
                     width = (float)wn;
                 }
-                else if (p.StartsWith('#'))
+                else if (partValue.StartsWith('#'))
                 {
-                    colourExpr = ParseHexColor(p);
+                    colourExpr = ParseHexColor(partValue);
                     hasColour = true;
                 }
-                else if (p is "none")
+                else if (partValue is "none")
                 {
                     return "Border.None";
                 }
@@ -726,13 +726,13 @@ namespace Paper.CSX
         /// <summary>Parses <c>rgb(r,g,b)</c> or <c>rgba(r,g,b,a)</c> into a PaperColour initializer.</summary>
         private static string? ParseRgbColor(string value)
         {
-            var m = Regex.Match(value.Trim(), @"rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*([\d.]+))?\s*\)", RegexOptions.IgnoreCase);
-            if (!m.Success) return null;
-            int r = int.Parse(m.Groups[1].Value);
-            int g = int.Parse(m.Groups[2].Value);
-            int b = int.Parse(m.Groups[3].Value);
-            float a = m.Groups[4].Success
-                ? float.Parse(m.Groups[4].Value, System.Globalization.CultureInfo.InvariantCulture)
+            var rgbMatch = Regex.Match(value.Trim(), @"rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*([\d.]+))?\s*\)", RegexOptions.IgnoreCase);
+            if (!rgbMatch.Success) return null;
+            int r = int.Parse(rgbMatch.Groups[1].Value);
+            int g = int.Parse(rgbMatch.Groups[2].Value);
+            int b = int.Parse(rgbMatch.Groups[3].Value);
+            float a = rgbMatch.Groups[4].Success
+                ? float.Parse(rgbMatch.Groups[4].Value, System.Globalization.CultureInfo.InvariantCulture)
                 : 1f;
             return $"new PaperColour({r / 255.0f}f, {g / 255.0f}f, {b / 255.0f}f, {a}f)";
         }

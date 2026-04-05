@@ -72,11 +72,11 @@ namespace Paper.CSSS.Parser
 
             while (i < _tokens.Count)
             {
-                var k = _tokens[i].Kind;
-                if (k == TokenKind.Colon)     return true;
-                if (k == TokenKind.LeftBrace) return false;
-                if (k == TokenKind.Semicolon) return true;
-                if (k == TokenKind.EOF)       return false;
+                var tokenKind = _tokens[i].Kind;
+                if (tokenKind == TokenKind.Colon)     return true;
+                if (tokenKind == TokenKind.LeftBrace) return false;
+                if (tokenKind == TokenKind.Semicolon) return true;
+                if (tokenKind == TokenKind.EOF)       return false;
                 i++;
             }
             return false;
@@ -278,19 +278,19 @@ namespace Paper.CSSS.Parser
 
         private Token Advance()
         {
-            var t = PeekRaw();
+            var token = PeekRaw();
             _pos++;
-            return t;
+            return token;
         }
 
         private Token Consume(TokenKind kind)
         {
             SkipWs();
-            var t = PeekRaw();
-            if (t.Kind != kind)
-                throw new CSSSParseException($"Expected {kind} but got {t.Kind}('{t.Value}') at {t.Line}:{t.Column}");
+            var token = PeekRaw();
+            if (token.Kind != kind)
+                throw new CSSSParseException($"Expected {kind} but got {token.Kind}('{token.Value}') at {token.Line}:{token.Column}");
             _pos++;
-            return t;
+            return token;
         }
 
         private bool TryConsume(TokenKind kind)
@@ -311,22 +311,22 @@ namespace Paper.CSSS.Parser
             int depth = 0;
             while (!AtEnd())
             {
-                var t = PeekRaw();
+                var token = PeekRaw();
 
-                if (depth <= 0 && stopKinds.Contains(t.Kind)) break;
+                if (depth <= 0 && stopKinds.Contains(token.Kind)) break;
 
-                if (t.Kind is TokenKind.Whitespace or TokenKind.Newline)
+                if (token.Kind is TokenKind.Whitespace or TokenKind.Newline)
                 {
                     sb.Append(' ');
                     _pos++;
                     continue;
                 }
 
-                if (t.Kind is TokenKind.LeftBrace or TokenKind.LeftParen)   depth++;
-                if (t.Kind is TokenKind.RightBrace or TokenKind.RightParen) depth--;
+                if (token.Kind is TokenKind.LeftBrace or TokenKind.LeftParen)   depth++;
+                if (token.Kind is TokenKind.RightBrace or TokenKind.RightParen) depth--;
 
-                if (t.Kind == TokenKind.Variable) sb.Append('$');
-                sb.Append(t.Value);
+                if (token.Kind == TokenKind.Variable) sb.Append('$');
+                sb.Append(token.Value);
                 _pos++;
             }
             return sb.ToString();

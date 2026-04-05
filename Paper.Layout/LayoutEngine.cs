@@ -257,16 +257,16 @@ namespace Paper.Layout
             var child = container.Child;
             while (child != null)
             {
-                var s = child.ComputedStyle;
-                var pos = s.Position ?? Position.Static;
+                var computedStyle = child.ComputedStyle;
+                var pos = computedStyle.Position ?? Position.Static;
                 if (pos == Position.Absolute)
                 {
-                    LayoutAbsoluteNode(child, s, containerX, containerY, containerW, containerH, measurer, getImageSize);
+                    LayoutAbsoluteNode(child, computedStyle, containerX, containerY, containerW, containerH, measurer, getImageSize);
                 }
                 else if (pos == Position.Fixed)
                 {
                     // position:fixed is relative to the viewport, not the containing block.
-                    LayoutAbsoluteNode(child, s, 0f, 0f, _viewportW, _viewportH, measurer, getImageSize);
+                    LayoutAbsoluteNode(child, computedStyle, 0f, 0f, _viewportW, _viewportH, measurer, getImageSize);
                 }
                 child = child.Sibling;
             }
@@ -397,10 +397,10 @@ namespace Paper.Layout
                 if (hasBottom && !hasTop)
                     y = containingY + containingH - h - style.Bottom!.Value.Resolve(containingH);
 
-                var lb = fiber.Layout;
-                lb.Y = y;
-                lb.Height = h;
-                fiber.Layout = lb;
+                var layoutBox = fiber.Layout;
+                layoutBox.Y = y;
+                layoutBox.Height = h;
+                fiber.Layout = layoutBox;
             }
         }
 
@@ -409,42 +409,42 @@ namespace Paper.Layout
 
         private static void SetAbsolutePositions(Fiber fiber, float parentAbsX, float parentAbsY, float parentLayoutX, float parentLayoutY, float parentW = 0f, float parentH = 0f)
         {
-            var lb = fiber.Layout;
-            var s = fiber.ComputedStyle;
-            var pos = s.Position ?? Position.Static;
+            var layoutBox = fiber.Layout;
+            var computedStyle = fiber.ComputedStyle;
+            var pos = computedStyle.Position ?? Position.Static;
 
             if (pos == Position.Fixed)
             {
-                // position:fixed is in viewport space — lb.X/Y already computed relative to (0,0).
-                lb.AbsoluteX = lb.X;
-                lb.AbsoluteY = lb.Y;
+                // position:fixed is in viewport space — layoutBox.X/Y already computed relative to (0,0).
+                layoutBox.AbsoluteX = layoutBox.X;
+                layoutBox.AbsoluteY = layoutBox.Y;
             }
             else
             {
-                lb.AbsoluteX = parentAbsX + lb.X - parentLayoutX;
-                lb.AbsoluteY = parentAbsY + lb.Y - parentLayoutY;
+                layoutBox.AbsoluteX = parentAbsX + layoutBox.X - parentLayoutX;
+                layoutBox.AbsoluteY = parentAbsY + layoutBox.Y - parentLayoutY;
             }
 
             // position: relative — apply Top/Left/Right/Bottom as purely visual offsets (no flow change)
             if (pos == Position.Relative)
             {
-                if (s.Left != null && !s.Left.Value.IsAuto)
-                    lb.AbsoluteX += s.Left.Value.Resolve(parentW);
-                else if (s.Right != null && !s.Right.Value.IsAuto)
-                    lb.AbsoluteX -= s.Right.Value.Resolve(parentW);
+                if (computedStyle.Left != null && !computedStyle.Left.Value.IsAuto)
+                    layoutBox.AbsoluteX += computedStyle.Left.Value.Resolve(parentW);
+                else if (computedStyle.Right != null && !computedStyle.Right.Value.IsAuto)
+                    layoutBox.AbsoluteX -= computedStyle.Right.Value.Resolve(parentW);
 
-                if (s.Top != null && !s.Top.Value.IsAuto)
-                    lb.AbsoluteY += s.Top.Value.Resolve(parentH);
-                else if (s.Bottom != null && !s.Bottom.Value.IsAuto)
-                    lb.AbsoluteY -= s.Bottom.Value.Resolve(parentH);
+                if (computedStyle.Top != null && !computedStyle.Top.Value.IsAuto)
+                    layoutBox.AbsoluteY += computedStyle.Top.Value.Resolve(parentH);
+                else if (computedStyle.Bottom != null && !computedStyle.Bottom.Value.IsAuto)
+                    layoutBox.AbsoluteY -= computedStyle.Bottom.Value.Resolve(parentH);
             }
 
-            fiber.Layout = lb;
+            fiber.Layout = layoutBox;
 
             var child = fiber.Child;
             while (child != null)
             {
-                SetAbsolutePositions(child, lb.AbsoluteX, lb.AbsoluteY, lb.X, lb.Y, lb.Width, lb.Height);
+                SetAbsolutePositions(child, layoutBox.AbsoluteX, layoutBox.AbsoluteY, layoutBox.X, layoutBox.Y, layoutBox.Width, layoutBox.Height);
                 child = child.Sibling;
             }
         }

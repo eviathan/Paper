@@ -57,10 +57,10 @@ namespace Paper.CSX.LanguageServer
                 // Hoist namespace `using` directives to file scope (they can't live inside a method body)
                 var preambleLines = preamble.Split('\n');
                 var extraUsings = preambleLines
-                    .Where(l => { var t = l.Trim(); return t.StartsWith("using ") && t.EndsWith(";"); })
+                    .Where(l => { var trimmedLine = l.Trim(); return trimmedLine.StartsWith("using ") && trimmedLine.EndsWith(";"); })
                     .Select(l => l.Trim()).Distinct().ToList();
                 preamble = string.Join('\n', preambleLines
-                    .Where(l => { var t = l.Trim(); return !(t.StartsWith("using ") && t.EndsWith(";")); }));
+                    .Where(l => { var trimmedLine = l.Trim(); return !(trimmedLine.StartsWith("using ") && trimmedLine.EndsWith(";")); }));
                 string extraUsingsBlock = extraUsings.Count > 0 ? string.Join("\n", extraUsings) + "\n" : "";
 
                 // Use a placeholder return so we can compile even with JSX present

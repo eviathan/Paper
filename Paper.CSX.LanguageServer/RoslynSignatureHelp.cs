@@ -68,8 +68,8 @@ namespace Paper.CSX.LanguageServer
                 int argCount = argList.Arguments.Count;
                 for (int i = 0; i < signatures.Length; i++)
                 {
-                    var m = candidates.OfType<IMethodSymbol>().ElementAt(i);
-                    if (m.Parameters.Length >= argCount)
+                    var candidate = candidates.OfType<IMethodSymbol>().ElementAt(i);
+                    if (candidate.Parameters.Length >= argCount)
                     {
                         bestIdx = i;
                         break;

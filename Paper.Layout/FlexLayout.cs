@@ -134,18 +134,18 @@ namespace Paper.Layout
             // is positioned correctly. Only expand to fit content — never shrink below parent-given size.
             // Row: main=width cross=height. Column: main=height cross=width.
             if (style == null) return;
-            var lb = container.Layout;
+            var layoutBox = container.Layout;
             if (isRow)
             {
                 if (style.Height == null || style.Height.Value.IsAuto)
                 {
                     float vert = BoxModel.VerticalInsets(style, usedCrossTotal);
-                    lb.Height = Math.Max(lb.Height, usedCrossTotal + vert);
+                    layoutBox.Height = Math.Max(layoutBox.Height, usedCrossTotal + vert);
                 }
                 if (style.Width == null || style.Width.Value.IsAuto)
                 {
                     float horiz = BoxModel.HorizontalInsets(style, usedMainTotal);
-                    lb.Width = Math.Max(lb.Width, usedMainTotal + horiz);
+                    layoutBox.Width = Math.Max(layoutBox.Width, usedMainTotal + horiz);
                 }
             }
             else
@@ -154,15 +154,15 @@ namespace Paper.Layout
                 if (style.Height == null || style.Height.Value.IsAuto)
                 {
                     float vert = BoxModel.VerticalInsets(style, usedMainTotal);
-                    lb.Height = Math.Max(lb.Height, usedMainTotal + vert);
+                    layoutBox.Height = Math.Max(layoutBox.Height, usedMainTotal + vert);
                 }
                 if (style.Width == null || style.Width.Value.IsAuto)
                 {
                     float horiz = BoxModel.HorizontalInsets(style, usedCrossTotal);
-                    lb.Width = Math.Max(lb.Width, usedCrossTotal + horiz);
+                    layoutBox.Width = Math.Max(layoutBox.Width, usedCrossTotal + horiz);
                 }
             }
-            container.Layout = lb;
+            container.Layout = layoutBox;
         }
 
         // ── Item collection ───────────────────────────────────────────────────
@@ -173,9 +173,9 @@ namespace Paper.Layout
             var child = container.Child;
             while (child != null)
             {
-                var s = child.ComputedStyle;
-                var display = s.Display ?? Display.Block;
-                var position = s.Position ?? Position.Static;
+                var computedStyle = child.ComputedStyle;
+                var display = computedStyle.Display ?? Display.Block;
+                var position = computedStyle.Position ?? Position.Static;
                 if (display != Display.None && position != Position.Absolute && position != Position.Fixed)
                     items.Add(child);
                 child = child.Sibling;
@@ -237,8 +237,8 @@ namespace Paper.Layout
                 {
                     foreach (var fi in line.Items)
                     {
-                        var s = fi.Fiber.ComputedStyle;
-                        float scaled = (s.FlexShrink ?? 1f) * fi.HypotheticalMain;
+                        var computedStyle = fi.Fiber.ComputedStyle;
+                        float scaled = (computedStyle.FlexShrink ?? 1f) * fi.HypotheticalMain;
                         fi.FinalMain = fi.HypotheticalMain + (scaled / totalShrink) * freeSpace;
                     }
                 }
@@ -255,13 +255,13 @@ namespace Paper.Layout
             // Step 3b: clamp FinalMain to [MinMain, MaxMain]
             foreach (var fi in line.Items)
             {
-                var s = fi.Fiber.ComputedStyle;
+                var computedStyle = fi.Fiber.ComputedStyle;
                 float minMain = isRow
-                    ? (s.MinWidth  != null && !s.MinWidth.Value.IsAuto  ? s.MinWidth.Value.Resolve(mainSize)  : 0f)
-                    : (s.MinHeight != null && !s.MinHeight.Value.IsAuto ? s.MinHeight.Value.Resolve(mainSize) : 0f);
+                    ? (computedStyle.MinWidth  != null && !computedStyle.MinWidth.Value.IsAuto  ? computedStyle.MinWidth.Value.Resolve(mainSize)  : 0f)
+                    : (computedStyle.MinHeight != null && !computedStyle.MinHeight.Value.IsAuto ? computedStyle.MinHeight.Value.Resolve(mainSize) : 0f);
                 float maxMain = isRow
-                    ? (s.MaxWidth  != null && !s.MaxWidth.Value.IsAuto  ? s.MaxWidth.Value.Resolve(mainSize)  : float.MaxValue)
-                    : (s.MaxHeight != null && !s.MaxHeight.Value.IsAuto ? s.MaxHeight.Value.Resolve(mainSize) : float.MaxValue);
+                    ? (computedStyle.MaxWidth  != null && !computedStyle.MaxWidth.Value.IsAuto  ? computedStyle.MaxWidth.Value.Resolve(mainSize)  : float.MaxValue)
+                    : (computedStyle.MaxHeight != null && !computedStyle.MaxHeight.Value.IsAuto ? computedStyle.MaxHeight.Value.Resolve(mainSize) : float.MaxValue);
                 fi.FinalMain = Math.Max(minMain, Math.Min(maxMain, fi.FinalMain));
             }
 
@@ -424,8 +424,8 @@ namespace Paper.Layout
                     {
                         foreach (var fi in line.Items)
                         {
-                            var s = fi.Fiber.ComputedStyle;
-                            float scaled = (s.FlexShrink ?? 1f) * fi.HypotheticalMain;
+                            var computedStyle = fi.Fiber.ComputedStyle;
+                            float scaled = (computedStyle.FlexShrink ?? 1f) * fi.HypotheticalMain;
                             fi.FinalMain = fi.HypotheticalMain + (scaled / totalShrink) * freeSpace2;
                         }
                     }
@@ -591,10 +591,10 @@ namespace Paper.Layout
             var propsStyle = item.Props.Style;
             if (propsStyle != null)
             {
-                var pw = isRow ? propsStyle.Width?.Resolve(mainSize) : propsStyle.Height?.Resolve(mainSize);
-                if (pw.HasValue && pw.Value > 0) return pw.Value;
-                var pm = isRow ? propsStyle.MinWidth?.Resolve(mainSize) : propsStyle.MinHeight?.Resolve(mainSize);
-                if (pm.HasValue && pm.Value > 0) return pm.Value;
+                var proposedWidth = isRow ? propsStyle.Width?.Resolve(mainSize) : propsStyle.Height?.Resolve(mainSize);
+                if (proposedWidth.HasValue && proposedWidth.Value > 0) return proposedWidth.Value;
+                var proposedMinWidth = isRow ? propsStyle.MinWidth?.Resolve(mainSize) : propsStyle.MinHeight?.Resolve(mainSize);
+                if (proposedMinWidth.HasValue && proposedMinWidth.Value > 0) return proposedMinWidth.Value;
             }
 
             // For text/button elements, return main-size along the parent's axis (width for row, height for column).
@@ -769,38 +769,38 @@ namespace Paper.Layout
         /// </summary>
         private static float EstimateIntrinsicCross(Fiber item, bool isRow, float crossSize)
         {
-            var s = item.ComputedStyle;
+            var computedStyle = item.ComputedStyle;
 
             // Out-of-flow elements (absolute/fixed) don't contribute to intrinsic cross size.
             // Critically: position:fixed backdrops (e.g. from Popover) have Height=100% which
             // would otherwise inflate the parent's size estimate to the full viewport height.
-            var pos = s.Position ?? Position.Static;
+            var pos = computedStyle.Position ?? Position.Static;
             if (pos == Position.Absolute || pos == Position.Fixed) return 0f;
 
             // Explicit height/width wins immediately
-            float? exp = isRow ? s.Height?.Resolve(crossSize) : s.Width?.Resolve(crossSize);
+            float? exp = isRow ? computedStyle.Height?.Resolve(crossSize) : computedStyle.Width?.Resolve(crossSize);
             if (exp.HasValue && exp.Value > 0) return exp.Value;
 
             float minC = isRow
-                ? (s.MinHeight is { } mh && !mh.IsAuto ? mh.Resolve(crossSize) : 0f)
-                : (s.MinWidth  is { } mw && !mw.IsAuto ? mw.Resolve(crossSize) : 0f);
+                ? (computedStyle.MinHeight is { } mh && !mh.IsAuto ? mh.Resolve(crossSize) : 0f)
+                : (computedStyle.MinWidth  is { } mw && !mw.IsAuto ? mw.Resolve(crossSize) : 0f);
             if (minC > 0) return minC;
 
             // Text/button leaf nodes: estimate height from font size (same logic as GetCrossSize).
             if (isRow && item.Props.Text is { Length: > 0 })
             {
-                float fontPx = s.FontSize is { } fs && !fs.IsAuto ? Math.Max(1f, fs.Resolve(0f, 16f)) : 16f;
-                float th = fontPx * (s.LineHeight ?? 1.4f);
-                var hPad = s.Padding ?? Thickness.Zero;
+                float fontPx = computedStyle.FontSize is { } fs && !fs.IsAuto ? Math.Max(1f, fs.Resolve(0f, 16f)) : 16f;
+                float th = fontPx * (computedStyle.LineHeight ?? 1.4f);
+                var hPad = computedStyle.Padding ?? Thickness.Zero;
                 float padH = hPad.Top.Resolve(crossSize) + hPad.Bottom.Resolve(crossSize);
-                var (bt, _, bb, _) = BoxModel.BorderWidths(s);
+                var (bt, _, bb, _) = BoxModel.BorderWidths(computedStyle);
                 return th + padH + bt + bb;
             }
 
             if (item.Child == null) return 0f;
 
             // Own insets (padding + border) that must be added on top of the content estimate.
-            float ownCrossInsets = isRow ? BoxModel.VerticalInsets(s, crossSize) : BoxModel.HorizontalInsets(s, crossSize);
+            float ownCrossInsets = isRow ? BoxModel.VerticalInsets(computedStyle, crossSize) : BoxModel.HorizontalInsets(computedStyle, crossSize);
 
             // Single child: see through (component wrapper fibers), but include own insets so
             // padded containers (e.g. popover panel) are sized correctly.
@@ -812,7 +812,7 @@ namespace Paper.Layout
 
             // Multiple children: for column-direction containers sum heights (they stack vertically);
             // for row-direction containers take the max (they sit side-by-side).
-            var flexDir = s.FlexDirection ?? FlexDirection.Row;
+            var flexDir = computedStyle.FlexDirection ?? FlexDirection.Row;
             bool containerIsColumn = isRow && (flexDir == FlexDirection.Column || flexDir == FlexDirection.ColumnReverse);
             float result = 0f;
             int childCount = 0;
@@ -832,7 +832,7 @@ namespace Paper.Layout
             {
                 if (containerIsColumn && childCount > 1)
                 {
-                    var gapLength = s.RowGap ?? s.Gap;
+                    var gapLength = computedStyle.RowGap ?? computedStyle.Gap;
                     float gap = gapLength.HasValue ? gapLength.Value.Resolve(crossSize) : 0f;
                     result += gap * (childCount - 1);
                 }

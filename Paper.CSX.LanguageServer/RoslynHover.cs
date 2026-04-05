@@ -57,13 +57,13 @@ namespace Paper.CSX.LanguageServer
                                 if (text != null) return MkHover(text);
                             }
 
-                            var ti = model.GetTypeInfo(node);
+                            var typeInfo = model.GetTypeInfo(node);
                             // ConvertedType handles target-typed expressions like [] and new()
-                            var t = ti.Type ?? ti.ConvertedType;
-                            if (t != null && t.TypeKind != TypeKind.Error)
+                            var resolvedType = typeInfo.Type ?? typeInfo.ConvertedType;
+                            if (resolvedType != null && resolvedType.TypeKind != TypeKind.Error)
                             {
-                                if (t is INamedTypeSymbol namedT) return MkHover(FormatNamedType(namedT));
-                                return MkHover($"```csharp\n{t.ToDisplayString(_fmt)}\n```");
+                                if (resolvedType is INamedTypeSymbol namedT) return MkHover(FormatNamedType(namedT));
+                                return MkHover($"```csharp\n{resolvedType.ToDisplayString(_fmt)}\n```");
                             }
                         }
                     }
@@ -122,12 +122,12 @@ namespace Paper.CSX.LanguageServer
             // Hoist namespace `using` directives to file scope (they can't live inside a method body)
             var preambleLines = preamble.Split('\n');
             var extraUsings = preambleLines
-                .Where(l => { var t = l.Trim(); return t.StartsWith("using ") && t.EndsWith(";"); })
+                .Where(l => { var trimmedLine = l.Trim(); return trimmedLine.StartsWith("using ") && trimmedLine.EndsWith(";"); })
                 .Select(l => l.Trim())
                 .Distinct()
                 .ToList();
             preamble = string.Join('\n', preambleLines
-                .Where(l => { var t = l.Trim(); return !(t.StartsWith("using ") && t.EndsWith(";")); }));
+                .Where(l => { var trimmedLine = l.Trim(); return !(trimmedLine.StartsWith("using ") && trimmedLine.EndsWith(";")); }));
             string extraUsingsBlock = extraUsings.Count > 0 ? string.Join("\n", extraUsings) + "\n" : "";
 
             // If there is no JSX return expression, wrap an empty body
@@ -320,45 +320,45 @@ public static class _LsHover_
 
         private static string CleanXml(string raw)
         {
-            const RegexOptions S = RegexOptions.Singleline;
-            var s = raw.Trim();
-            s = Regex.Replace(s, @"<see\s+cref=""([^""]+)""\s*/>",          m => ResolveCref(m.Groups[1].Value));
-            s = Regex.Replace(s, @"<see\s+cref=""([^""]+)""\s*>.*?</see>",  m => ResolveCref(m.Groups[1].Value), S);
-            s = Regex.Replace(s, @"<paramref\s+name=""([^""]+)""\s*/>",     m => m.Groups[1].Value);
-            s = Regex.Replace(s, @"<typeparamref\s+name=""([^""]+)""\s*/>", m => m.Groups[1].Value);
-            s = Regex.Replace(s, @"<[^>]+>", "");
-            s = Regex.Replace(s, @"\s+", " ");
-            return s.Trim();
+            const RegexOptions singlelineOptions = RegexOptions.Singleline;
+            var cleaned = raw.Trim();
+            cleaned = Regex.Replace(cleaned, @"<see\s+cref=""([^""]+)""\s*/>",          m => ResolveCref(m.Groups[1].Value));
+            cleaned = Regex.Replace(cleaned, @"<see\s+cref=""([^""]+)""\s*>.*?</see>",  m => ResolveCref(m.Groups[1].Value), singlelineOptions);
+            cleaned = Regex.Replace(cleaned, @"<paramref\s+name=""([^""]+)""\s*/>",     m => m.Groups[1].Value);
+            cleaned = Regex.Replace(cleaned, @"<typeparamref\s+name=""([^""]+)""\s*/>", m => m.Groups[1].Value);
+            cleaned = Regex.Replace(cleaned, @"<[^>]+>", "");
+            cleaned = Regex.Replace(cleaned, @"\s+", " ");
+            return cleaned.Trim();
         }
 
         private static void AppendXmlDocs(System.Text.StringBuilder sb, string? xml)
         {
             if (string.IsNullOrWhiteSpace(xml)) return;
 
-            const RegexOptions S = RegexOptions.Singleline;
+            const RegexOptions singleline = RegexOptions.Singleline;
 
-            var summaryM = Regex.Match(xml, @"<summary>(.*?)</summary>", S);
-            if (summaryM.Success)
+            var summaryMatch = Regex.Match(xml, @"<summary>(.*?)</summary>", singleline);
+            if (summaryMatch.Success)
             {
-                var summary = CleanXml(summaryM.Groups[1].Value);
+                var summary = CleanXml(summaryMatch.Groups[1].Value);
                 if (!string.IsNullOrWhiteSpace(summary))
                     sb.Append("\n\n").Append(summary);
             }
 
-            var returnsM = Regex.Match(xml, @"<returns>(.*?)</returns>", S);
-            if (returnsM.Success)
+            var returnsMatch = Regex.Match(xml, @"<returns>(.*?)</returns>", singleline);
+            if (returnsMatch.Success)
             {
-                var ret = CleanXml(returnsM.Groups[1].Value);
-                if (!string.IsNullOrWhiteSpace(ret))
-                    sb.Append("\n\n**Returns:** ").Append(ret);
+                var returnText = CleanXml(returnsMatch.Groups[1].Value);
+                if (!string.IsNullOrWhiteSpace(returnText))
+                    sb.Append("\n\n**Returns:** ").Append(returnText);
             }
 
             // Extract exception type from cref attribute, not inner text
-            foreach (Match exM in Regex.Matches(xml, @"<exception\s+cref=""([^""]*)""\s*>(.*?)</exception>", S))
+            foreach (Match exceptionMatch in Regex.Matches(xml, @"<exception\s+cref=""([^""]*)""\s*>(.*?)</exception>", singleline))
             {
-                var exType = ResolveCref(exM.Groups[1].Value);
-                if (!string.IsNullOrWhiteSpace(exType))
-                    sb.Append("\n\n**Throws:** ").Append(exType);
+                var exceptionType = ResolveCref(exceptionMatch.Groups[1].Value);
+                if (!string.IsNullOrWhiteSpace(exceptionType))
+                    sb.Append("\n\n**Throws:** ").Append(exceptionType);
             }
         }
 

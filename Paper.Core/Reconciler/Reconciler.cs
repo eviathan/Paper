@@ -214,13 +214,13 @@ namespace Paper.Core.Reconciler
             {
                 var (value, label) = options[i];
                 var optValue = value;
-                var b = new PropsBuilder()
+                var propsBuilder = new PropsBuilder()
                     .Set("value", optValue)
                     .Text(label)
                     .Set("checked", selectedValue == optValue);
                 if (onSelect != null)
-                    b.OnClick(() => onSelect(optValue));
-                list.Add(new UINode(ElementTypes.RadioOption, b.Build(), $"${i}"));
+                    propsBuilder.OnClick(() => onSelect(optValue));
+                list.Add(new UINode(ElementTypes.RadioOption, propsBuilder.Build(), $"${i}"));
             }
             return list;
         }

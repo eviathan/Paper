@@ -1,12 +1,7 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-
 namespace Paper.Rendering.Silk.NET.Utilities
 {
+    // Reserved for text rendering helpers — see InputTextUtility for text-input caret/selection logic.
     public static class TextUtility
     {
-        
     }
 }
