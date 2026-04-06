@@ -96,18 +96,18 @@ namespace Paper.Core.Dock
                 UI.Box(new StyleSheet
                 {
                     FlexGrow      = 1,
-                    Overflow      = Overflow.Hidden,
                     Position      = Position.Relative,
                     Display       = Display.Flex,
                     FlexDirection = FlexDirection.Column,
+                    Overflow      = Overflow.Hidden,
                 },
-                    DockContainer.RenderDropTarget(panel.NodeId, ctx),
                     UI.Box(new StyleSheet
                     {
                         FlexGrow = 1,
                         Overflow = Overflow.Hidden,
                         Padding  = new Thickness(Length.Px(8)),
-                    }, content))
+                    }, content),
+                    DockContainer.RenderDropTarget(panel.NodeId, ctx))
             );
         }
 

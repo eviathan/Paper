@@ -277,10 +277,10 @@ namespace Paper.Core.Dock
                 UINode contentArea = activePanel != null
                     ? UI.Box(
                         new StyleSheet { FlexGrow = 1, Display = Display.Flex, FlexDirection = FlexDirection.Column, Overflow = Overflow.Hidden, Position = Position.Relative },
-                        RenderDropTarget(tg.NodeId, ctxLocal),
-                        DockPanel.ContentOnly(activePanel, ctxLocal))
+                        DockPanel.ContentOnly(activePanel, ctxLocal),
+                        RenderDropTarget(tg.NodeId, ctxLocal))
                     : UI.Box(
-                        new StyleSheet { FlexGrow = 1, Background = theme.Bg },
+                        new StyleSheet { FlexGrow = 1, Background = theme.Bg, Position = Position.Relative },
                         RenderDropTarget(tg.NodeId, ctxLocal));
 
                 return UI.Box(
@@ -328,14 +328,19 @@ namespace Paper.Core.Dock
 
             bool IsAllowed(DropZone zone) => allowed == null || allowed.Contains(zone);
 
+            // Build a zone hit-box. Each zone is absolutely positioned and covers its
+            // quadrant edge-to-edge so there are no dead zones even in small panels.
+            // Zone ordering matters for hit-testing: later siblings win, so Center is last
+            // (it sits in the middle of the other zones and should take priority there).
             UINode Zone(DropZone zone, StyleSheet style) =>
                 UI.Box(new PropsBuilder()
                     .Style(style.Merge(new StyleSheet
                     {
-                        Position     = Position.Absolute,
-                        Background   = zone == DropZone.Center ? theme.DropCenter : theme.DropZone,
-                        Border       = new BorderEdges(new Border(1.5f, theme.DropBorder)),
-                        BorderRadius = 4,
+                        Position      = Position.Absolute,
+                        Background    = zone == DropZone.Center ? theme.DropCenter : theme.DropZone,
+                        Border        = new BorderEdges(new Border(1.5f, theme.DropBorder)),
+                        BorderRadius  = 3,
+                        PointerEvents = PointerEvents.Auto,
                     }))
                     .OnDragOver(e => e.StopPropagation())
                     .OnDrop(e =>
@@ -348,43 +353,46 @@ namespace Paper.Core.Dock
                     })
                     .Build());
 
-            const float edgeFraction = 0.25f;
+            // Layout:
+            //   Left  covers the left 30% column (full height)
+            //   Right covers the right 30% column (full height)
+            //   Top   covers middle 40% column, top 33%
+            //   Bottom covers middle 40% column, bottom 33%
+            //   Center covers middle 40% column, middle 34%
+            //
+            // Together they tile the full panel with no gaps or dead zones.
 
             var zones = new List<UINode>();
             if (IsAllowed(DropZone.Left))
                 zones.Add(Zone(DropZone.Left, new StyleSheet
                 {
-                    Left = Length.Px(4), Top = Length.Percent(20),
-                    Width = Length.Percent(edgeFraction * 100), Height = Length.Percent(60),
-                    PointerEvents = PointerEvents.Auto,
+                    Left = Length.Px(0), Top = Length.Px(0),
+                    Width = Length.Percent(30), Height = Length.Percent(100),
                 }));
             if (IsAllowed(DropZone.Right))
                 zones.Add(Zone(DropZone.Right, new StyleSheet
                 {
-                    Right = Length.Px(4), Top = Length.Percent(20),
-                    Width = Length.Percent(edgeFraction * 100), Height = Length.Percent(60),
-                    PointerEvents = PointerEvents.Auto,
+                    Right = Length.Px(0), Top = Length.Px(0),
+                    Width = Length.Percent(30), Height = Length.Percent(100),
                 }));
             if (IsAllowed(DropZone.Top))
                 zones.Add(Zone(DropZone.Top, new StyleSheet
                 {
-                    Top = Length.Px(4), Left = Length.Percent(20),
-                    Width = Length.Percent(60), Height = Length.Percent(edgeFraction * 100),
-                    PointerEvents = PointerEvents.Auto,
+                    Left = Length.Percent(30), Top = Length.Px(0),
+                    Width = Length.Percent(40), Height = Length.Percent(33),
                 }));
             if (IsAllowed(DropZone.Bottom))
                 zones.Add(Zone(DropZone.Bottom, new StyleSheet
                 {
-                    Bottom = Length.Px(4), Left = Length.Percent(20),
-                    Width = Length.Percent(60), Height = Length.Percent(edgeFraction * 100),
-                    PointerEvents = PointerEvents.Auto,
+                    Left = Length.Percent(30), Bottom = Length.Px(0),
+                    Width = Length.Percent(40), Height = Length.Percent(33),
                 }));
+            // Center is last so it wins the hit test over the strip zones in the center column.
             if (IsAllowed(DropZone.Center))
                 zones.Add(Zone(DropZone.Center, new StyleSheet
                 {
-                    Left = Length.Percent(30), Top = Length.Percent(30),
-                    Width = Length.Percent(40), Height = Length.Percent(40),
-                    PointerEvents = PointerEvents.Auto,
+                    Left = Length.Percent(30), Top = Length.Percent(33),
+                    Width = Length.Percent(40), Height = Length.Percent(34),
                 }));
 
             return UI.Box(
@@ -410,7 +418,7 @@ namespace Paper.Core.Dock
         private static UINode RenderOuterDropZones(DockContextValue ctx)
         {
             var theme = ctx.Theme;
-            const float stripPx = 20f;
+            const float stripPx = 40f;
 
             UINode OuterZone(DropZone zone, StyleSheet style) =>
                 UI.Box(new PropsBuilder()
