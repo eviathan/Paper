@@ -109,97 +109,104 @@ namespace Paper.Core.Dock
             };
 
         // ── SplitNode ─────────────────────────────────────────────────────────
+        //
+        // IMPORTANT: The component body must be a static method (not an inline lambda) so that
+        // IsSameType can match the fiber across re-renders. An inline lambda that captures 'isH'
+        // creates a new closure instance each render, causing the fiber to be destroyed/recreated
+        // every frame and resetting all UseStable hook state (ratioState, resizeState).
 
         private static UINode RenderSplit(SplitNode s, DockContextValue ctx, string? key)
         {
-            bool isH      = s.Direction == DockDirection.Horizontal;
             string splitKey = key ?? s.NodeId;
-
-            return UI.Component(props =>
-            {
-                var splitId     = props.Get<string>("splitId")!;
-                var ctxLocal    = H.UseContext(DockContext.Context)!;
-                var theme       = ctxLocal.Theme;
-                var ratioState  = H.UseStable(() => new float[] { props.Get<float?>("ratio") ?? 0.5f });
-                var resizeState = H.UseStable(() => new float[] { 0f, 0f, 0f, 0f });
-
-                float currentRatio = ratioState[0];
-
-                StyleSheet SizeStyle(bool first) => isH
-                    ? new StyleSheet
-                    {
-                        Width         = Length.Percent(first ? currentRatio * 100f : (1f - currentRatio) * 100f),
-                        Display       = Display.Flex,
-                        FlexDirection = FlexDirection.Column,
-                        Overflow      = Overflow.Hidden,
-                    }
-                    : new StyleSheet
-                    {
-                        Height        = Length.Percent(first ? currentRatio * 100f : (1f - currentRatio) * 100f),
-                        Display       = Display.Flex,
-                        FlexDirection = FlexDirection.Column,
-                        Overflow      = Overflow.Hidden,
-                    };
-
-                var handleStyle = new StyleSheet
-                {
-                    Width      = isH ? Length.Px(theme.HandlePx) : Length.Percent(100),
-                    Height     = isH ? Length.Percent(100)        : Length.Px(theme.HandlePx),
-                    Background = theme.Handle,
-                    Cursor     = isH ? Cursor.ColResize : Cursor.RowResize,
-                    FlexShrink = 0,
-                };
-
-                var firstNode  = props.Get<DockNode>("first")!;
-                var secondNode = props.Get<DockNode>("second")!;
-
-                return UI.Box(
-                    new StyleSheet
-                    {
-                        Display       = Display.Flex,
-                        FlexDirection = isH ? FlexDirection.Row : FlexDirection.Column,
-                        FlexGrow      = 1,
-                        Overflow      = Overflow.Hidden,
-                    },
-                    UI.Box(new PropsBuilder()
-                        .Style(SizeStyle(true))
-                        .Children(RenderNode(firstNode, ctxLocal, firstNode.NodeId))
-                        .Build()),
-                    UI.Box(new PropsBuilder()
-                        .Style(handleStyle)
-                        .HoverStyle(new StyleSheet { Background = theme.HandleHover })
-                        .OnPointerDown(e =>
-                        {
-                            resizeState[0] = currentRatio;
-                            resizeState[1] = isH ? e.X : e.Y;
-                            resizeState[2] = 1f;
-                            resizeState[3] = currentRatio > 0.05f
-                                ? (isH ? e.X : e.Y) / currentRatio
-                                : 800f;
-                            e.StopPropagation();
-                        })
-                        .OnPointerMoveCapture(e =>
-                        {
-                            if (resizeState[2] < 0.5f) return;
-                            float delta         = (isH ? e.X : e.Y) - resizeState[1];
-                            float containerSize = Math.Max(100f, resizeState[3]);
-                            float newRatio      = Math.Clamp(resizeState[0] + delta / containerSize, 0.05f, 0.95f);
-                            ratioState[0] = newRatio;
-                            ctxLocal.Dispatch(new DockResizeSplit { SplitNodeId = splitId, Ratio = newRatio });
-                        })
-                        .OnPointerUpCapture(e => resizeState[2] = 0f)
-                        .Build()),
-                    UI.Box(new PropsBuilder()
-                        .Style(SizeStyle(false))
-                        .Children(RenderNode(secondNode, ctxLocal, secondNode.NodeId))
-                        .Build())
-                );
-            }, new PropsBuilder()
+            return UI.Component(SplitBody, new PropsBuilder()
                 .Set("splitId", s.NodeId)
+                .Set("isH",     (object)(s.Direction == DockDirection.Horizontal))
                 .Set("ratio",   s.Ratio)
                 .Set("first",   (object)s.First)
                 .Set("second",  (object)s.Second)
                 .Build(), splitKey);
+        }
+
+        private static UINode SplitBody(Props props)
+        {
+            var splitId     = props.Get<string>("splitId")!;
+            bool isH        = props.Get<bool?>("isH") ?? true;
+            var ctxLocal    = H.UseContext(DockContext.Context)!;
+            var theme       = ctxLocal.Theme;
+            var ratioState  = H.UseStable(() => new float[] { props.Get<float?>("ratio") ?? 0.5f });
+            var resizeState = H.UseStable(() => new float[] { 0f, 0f, 0f, 0f });
+
+            float currentRatio = ratioState[0];
+
+            StyleSheet SizeStyle(bool first) => isH
+                ? new StyleSheet
+                {
+                    Width         = Length.Percent(first ? currentRatio * 100f : (1f - currentRatio) * 100f),
+                    Display       = Display.Flex,
+                    FlexDirection = FlexDirection.Column,
+                    Overflow      = Overflow.Hidden,
+                }
+                : new StyleSheet
+                {
+                    Height        = Length.Percent(first ? currentRatio * 100f : (1f - currentRatio) * 100f),
+                    Display       = Display.Flex,
+                    FlexDirection = FlexDirection.Column,
+                    Overflow      = Overflow.Hidden,
+                };
+
+            var handleStyle = new StyleSheet
+            {
+                Width      = isH ? Length.Px(theme.HandlePx) : Length.Percent(100),
+                Height     = isH ? Length.Percent(100)        : Length.Px(theme.HandlePx),
+                Background = theme.Handle,
+                Cursor     = isH ? Cursor.ColResize : Cursor.RowResize,
+                FlexShrink = 0,
+            };
+
+            var firstNode  = props.Get<DockNode>("first")!;
+            var secondNode = props.Get<DockNode>("second")!;
+
+            return UI.Box(
+                new StyleSheet
+                {
+                    Display       = Display.Flex,
+                    FlexDirection = isH ? FlexDirection.Row : FlexDirection.Column,
+                    FlexGrow      = 1,
+                    Overflow      = Overflow.Hidden,
+                },
+                UI.Box(new PropsBuilder()
+                    .Style(SizeStyle(true))
+                    .Children(RenderNode(firstNode, ctxLocal, firstNode.NodeId))
+                    .Build()),
+                UI.Box(new PropsBuilder()
+                    .Style(handleStyle)
+                    .HoverStyle(new StyleSheet { Background = theme.HandleHover })
+                    .OnPointerDown(e =>
+                    {
+                        resizeState[0] = currentRatio;
+                        resizeState[1] = isH ? e.X : e.Y;
+                        resizeState[2] = 1f;
+                        resizeState[3] = currentRatio > 0.05f
+                            ? (isH ? e.X : e.Y) / currentRatio
+                            : 800f;
+                        e.StopPropagation();
+                    })
+                    .OnPointerMoveCapture(e =>
+                    {
+                        if (resizeState[2] < 0.5f) return;
+                        float delta         = (isH ? e.X : e.Y) - resizeState[1];
+                        float containerSize = Math.Max(100f, resizeState[3]);
+                        float newRatio      = Math.Clamp(resizeState[0] + delta / containerSize, 0.05f, 0.95f);
+                        ratioState[0] = newRatio;
+                        ctxLocal.Dispatch(new DockResizeSplit { SplitNodeId = splitId, Ratio = newRatio });
+                    })
+                    .OnPointerUpCapture(e => resizeState[2] = 0f)
+                    .Build()),
+                UI.Box(new PropsBuilder()
+                    .Style(SizeStyle(false))
+                    .Children(RenderNode(secondNode, ctxLocal, secondNode.NodeId))
+                    .Build())
+            );
         }
 
         // ── TabGroupNode ──────────────────────────────────────────────────────
