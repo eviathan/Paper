@@ -58,6 +58,14 @@ namespace Paper.Rendering.Silk.NET
             if (_uiState.HoveredPath != null)
                 _uiState.Hovered = FiberTreeUtility.GetFiberByPath(root, _uiState.HoveredPath);
 
+            // Re-bind pointer-down and drag fibers so stale references don't break pointer-move / drag dispatch.
+            if (_pointerDownFiberPath != null)
+                _pointerDownFiber = FiberTreeUtility.GetFiberByPath(root, _pointerDownFiberPath) ?? _pointerDownFiber;
+            if (_uiState.DragSourcePath != null)
+                _uiState.DragSource = FiberTreeUtility.GetFiberByPath(root, _uiState.DragSourcePath) ?? _uiState.DragSource;
+            if (_uiState.DragOverPath != null)
+                _uiState.DragOver = FiberTreeUtility.GetFiberByPath(root, _uiState.DragOverPath) ?? _uiState.DragOver;
+
             // If the style registry changed, mark all fibers dirty so stale cached ComputedStyles are recomputed.
             int registryVersion = Styles.Version;
             if (registryVersion != _renderState.LastStyleRegistryVersion)
@@ -149,7 +157,12 @@ namespace Paper.Rendering.Silk.NET
             renderer.Render(root);
 
             if (_uiState.DragActive && _uiState.DragSource != null)
-                renderer.RenderGhost(_uiState.DragSource, _uiState.DragCursorX, _uiState.DragCursorY, 0.5f);
+            {
+                if (_uiState.DragData is Paper.Core.Dock.DockDragPayload)
+                    renderer.RenderPanelGhost(_uiState.DragCursorX, _uiState.DragCursorY);
+                else
+                    renderer.RenderGhost(_uiState.DragSource, _uiState.DragCursorX, _uiState.DragCursorY, 0.5f);
+            }
 
             _rects!.Flush(framebufferSize.X, framebufferSize.Y);
             _text?.Flush(framebufferSize.X, framebufferSize.Y);

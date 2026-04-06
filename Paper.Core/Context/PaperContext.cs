@@ -10,6 +10,12 @@ namespace Paper.Core.Context
     {
         public abstract void Push();
         public abstract void Pop();
+        /// <summary>
+        /// Returns true if the value this provider carries is different from the value in
+        /// <paramref name="previous"/>. Used by the reconciler to force re-render of descendants
+        /// when context changes (Paper has no subscriber model — this is the propagation point).
+        /// </summary>
+        public abstract bool HasValueChanged(ContextProviderBase previous);
     }
 
     /// <summary>
@@ -55,6 +61,9 @@ namespace Paper.Core.Context
 
             public override void Push() => _ctx.Push(_value);
             public override void Pop()  => _ctx.Pop();
+
+            public override bool HasValueChanged(ContextProviderBase previous) =>
+                !(previous is ContextProviderNode<TVal> other && Equals(_value, other._value));
 
             // Two provider nodes for the same context are the "same type" for reconciliation —
             // this ensures the fiber is updated (not replaced) when the value changes.

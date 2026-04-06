@@ -134,7 +134,15 @@ namespace Paper.Core.Reconciler
             // Context providers push their value before expanding children so that any
             // UseContext calls inside function components see the correct value.
             ContextProviderBase? provider = node.Type as ContextProviderBase;
-            provider?.Push();
+            if (provider != null)
+            {
+                // When the context value changes, force all existing descendants to re-reconcile
+                // so UseContext consumers get the new value. Paper has no subscriber model, so
+                // this subtree-dirty mark is the only propagation mechanism.
+                if (current?.Type is ContextProviderBase prevProvider && provider.HasValueChanged(prevProvider))
+                    MarkSubtreeDirty(current.Child);
+                provider.Push();
+            }
             try
             {
                 var children = ExpandNode(node, fiber);
@@ -296,6 +304,21 @@ namespace Paper.Core.Reconciler
                 }
 
                 return Render(node, null, parent);
+            }
+        }
+
+        /// <summary>
+        /// Marks an entire fiber subtree as having dirty descendants so that
+        /// <see cref="ShouldSkipReconciliation"/> will force re-render on the next pass.
+        /// Called when a ContextProvider's value changes.
+        /// </summary>
+        private static void MarkSubtreeDirty(Fiber? fiber)
+        {
+            while (fiber != null)
+            {
+                fiber.HasDirtyDescendant = true;
+                MarkSubtreeDirty(fiber.Child);
+                fiber = fiber.Sibling;
             }
         }
 

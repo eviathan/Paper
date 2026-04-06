@@ -43,6 +43,7 @@ namespace Paper.Rendering.Silk.NET
         private ImageTextureLoader? _imageLoader;
         private FiberRenderer? _renderer;
         private Core.Reconciler.Fiber? _pointerDownFiber;
+        private string? _pointerDownFiberPath;
 
         private ClickState _clickState { get; set; } = new();
         private GLFWState _glfwState { get; set; } = new();

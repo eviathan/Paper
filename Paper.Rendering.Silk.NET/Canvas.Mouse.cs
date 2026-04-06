@@ -33,7 +33,11 @@ namespace Paper.Rendering.Silk.NET
             var target = HitTestAll(mouseX, mouseY);
             _uiState.Pressed = target;
             _uiState.PressedPath = target != null ? FiberTreeUtility.GetPathString(target) : null;
-            if (button == MouseButton.Left) _pointerDownFiber = target;
+            if (button == MouseButton.Left)
+            {
+                _pointerDownFiber     = target;
+                _pointerDownFiberPath = target != null ? FiberTreeUtility.GetPathString(target) : null;
+            }
 
             Fiber? dragCandidate = target;
             while (dragCandidate != null && dragCandidate.Props.OnDragStart == null)
@@ -99,7 +103,8 @@ namespace Paper.Rendering.Silk.NET
                 if (_uiState.DragOver != null)
                 {
                     DispatchDrag(_uiState.DragOver, new DragEvent { Type = DragEventType.DragLeave, X = mouseX, Y = mouseY, Data = _uiState.DragData });
-                    _uiState.DragOver = null;
+                    _uiState.DragOver     = null;
+                    _uiState.DragOverPath = null;
                 }
                 _uiState.DragSource = null;
                 _uiState.DragSourcePath = null;
@@ -123,7 +128,7 @@ namespace Paper.Rendering.Silk.NET
                     Button = 0,
                 });
             }
-            if (button == MouseButton.Left) _pointerDownFiber = null;
+            if (button == MouseButton.Left) { _pointerDownFiber = null; _pointerDownFiberPath = null; }
 
             DispatchPointer(target, new PointerEvent
             {

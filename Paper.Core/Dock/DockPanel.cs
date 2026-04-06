@@ -8,133 +8,106 @@ namespace Paper.Core.Dock
     // ── DockPanel ─────────────────────────────────────────────────────────────
     //
     // Renders a single leaf panel:
-    //   • Draggable header with title, minimize, maximize, and close-to-float buttons
+    //   • Draggable header with title, close, minimize, maximize, and float buttons
     //   • Content area that flexes to fill available space
     //   • Minimized state collapses to a thin strip showing title + restore button
-    //   • Drop zone overlay while another panel is being dragged
-    //   • Maximized state is handled by DockContainer (replaces tree with this panel)
+    //   • Buttons are hidden when the panel's DockPanelConstraints disallows them
+    //
+    // Colours come from ctx.Theme so both dark and light themes are supported.
     // ─────────────────────────────────────────────────────────────────────────
 
     public static class DockPanel
     {
-        // ── Colours (match DockContainer theme) ───────────────────────────────
-
-        private static readonly PaperColour ColBg        = new("#1a1a2e");
-        private static readonly PaperColour ColHeader    = new("#252545");
-        private static readonly PaperColour ColHeaderHov = new("#2d2d58");
-        private static readonly PaperColour ColBorder    = new("#3a3a5a");
-        private static readonly PaperColour ColText      = new("#c8c8e0");
-        private static readonly PaperColour ColTextDim   = new("#7878a0");
-        private static readonly PaperColour ColMinStrip  = new("#141428");
-        private static readonly PaperColour ColButton    = PaperColour.Transparent;
-        private static readonly PaperColour ColButtonHov = new("#404070");
-
-        private const float HeaderPx   = 30f;
-        private const float MinStripPx = 24f;
-
         // ── Full panel (header + content) ─────────────────────────────────────
 
         public static UINode Render(PanelNode panel, DockContextValue ctx, string? key = null)
         {
-            // Minimized → thin strip
             if (panel.Minimized)
                 return RenderMinimizedStrip(panel, ctx, key);
 
-            // Get panel content from registry
-            var factory = ctx.GetPanel(panel.PanelId);
-            UINode content = factory != null 
-                ? factory() 
-                : UI.Text($"(no panel: {panel.PanelId})", new StyleSheet { Color = ColTextDim });
+            var theme       = ctx.Theme;
+            var constraints = ctx.GetConstraints(panel.PanelId);
+            var factory     = ctx.GetPanel(panel.PanelId);
 
-            // Header buttons
-            UINode MinimizeBtn() => UI.Box(new PropsBuilder()
-                .Style(new StyleSheet
+            UINode content = factory != null
+                ? factory()
+                : UI.Text($"(no panel: {panel.PanelId})", new StyleSheet { Color = theme.TextDim });
+
+            var headerChildren = new List<UINode>
+            {
+                UI.Text(panel.Title ?? panel.PanelId, new StyleSheet
                 {
-                    Width        = Length.Px(22),
-                    Height       = Length.Px(22),
-                    Display      = Display.Flex,
-                    AlignItems   = AlignItems.Center,
-                    JustifyContent = JustifyContent.Center,
-                    Cursor       = Cursor.Pointer,
-                    BorderRadius = 3,
-                    Color        = ColTextDim,
-                    Margin       = new Thickness(Length.Px(0), Length.Px(2)),
-                })
-                .HoverStyle(new StyleSheet { Background = ColButtonHov, Color = ColText })
-                .OnClick(() => ctx.Dispatch(new DockMinimize { PanelId = panel.PanelId, Minimized = true }))
-                .Children(UI.Text("▼", new StyleSheet { FontSize = Length.Px(10) }))
-                .Build());
+                    Color   = theme.Text,
+                    FlexGrow = 1,
+                    Padding  = new Thickness(Length.Px(8), Length.Px(0)),
+                }),
+            };
 
-            UINode MaximizeBtn() => UI.Box(new PropsBuilder()
-                .Style(new StyleSheet
-                {
-                    Width        = Length.Px(22),
-                    Height       = Length.Px(22),
-                    Display      = Display.Flex,
-                    AlignItems   = AlignItems.Center,
-                    JustifyContent = JustifyContent.Center,
-                    Cursor       = Cursor.Pointer,
-                    BorderRadius = 3,
-                    Color        = ColTextDim,
-                    Margin       = new Thickness(Length.Px(0), Length.Px(2)),
-                })
-                .HoverStyle(new StyleSheet { Background = ColButtonHov, Color = ColText })
-                .OnClick(() => ctx.Dispatch(new DockMaximize { PanelId = panel.PanelId }))
-                .Children(UI.Text("□", new StyleSheet { FontSize = Length.Px(10) }))
-                .Build());
+            if (constraints?.AllowMinimize != false)
+                headerChildren.Add(HeaderButton("▼", theme, () =>
+                    ctx.Dispatch(new DockMinimize { PanelId = panel.PanelId, Minimized = true })));
 
-            UINode CloseBtn() => UI.Box(new PropsBuilder()
-                .Style(new StyleSheet
-                {
-                    Width        = Length.Px(22),
-                    Height       = Length.Px(22),
-                    Display      = Display.Flex,
-                    AlignItems   = AlignItems.Center,
-                    JustifyContent = JustifyContent.Center,
-                    Cursor       = Cursor.Pointer,
-                    BorderRadius = 3,
-                    Color        = ColTextDim,
-                    Margin       = new Thickness(Length.Px(0), Length.Px(2)),
-                })
-                .HoverStyle(new StyleSheet { Background = new PaperColour(0.8f, 0.2f, 0.2f, 1f), Color = ColText })
-                .OnClick(() => ctx.Dispatch(new DockTearOff { SourcePanelId = panel.PanelId, X = -9999, Y = -9999 }))
-                .Children(UI.Text("✕", new StyleSheet { FontSize = Length.Px(10) }))
-                .Build());
+            if (constraints?.AllowMaximize != false)
+                headerChildren.Add(HeaderButton("□", theme, () =>
+                    ctx.Dispatch(new DockMaximize { PanelId = panel.PanelId })));
 
-            return UI.Box(new StyleSheet 
-            { 
-                Display = Display.Flex, 
-                FlexDirection = FlexDirection.Column, 
-                FlexGrow = 1, 
-                Overflow = Overflow.Hidden, 
-                Background = ColBg,
-                Border = new BorderEdges(new Border(1f, ColBorder)),
+            if (constraints?.AllowFloat != false)
+                headerChildren.Add(HeaderButton("⊟", theme, () =>
+                    ctx.Dispatch(new DockTearOff { SourcePanelId = panel.PanelId, X = 100, Y = 100 })));
+
+            if (constraints?.AllowClose != false)
+                headerChildren.Add(HeaderButton("✕", theme, () =>
+                    ctx.Dispatch(new DockClosePanel { PanelId = panel.PanelId }),
+                    hoverBackground: theme.CloseHover));
+
+            return UI.Box(new StyleSheet
+            {
+                Display       = Display.Flex,
+                FlexDirection = FlexDirection.Column,
+                FlexGrow      = 1,
+                Overflow      = Overflow.Hidden,
+                Background    = theme.Bg,
+                Border        = new BorderEdges(new Border(1f, theme.Border)),
             },
-                // Header
-                UI.Box(new StyleSheet 
-                { 
-                    Display = Display.Flex, 
-                    FlexDirection = FlexDirection.Row,
-                    AlignItems = AlignItems.Center,
-                    Height = Length.Px(HeaderPx),
-                    Background = ColHeader,
-                    FlexShrink = 0,
-                    Cursor = Cursor.Move,
+                UI.Box(new PropsBuilder()
+                    .Style(new StyleSheet
+                    {
+                        Display       = Display.Flex,
+                        FlexDirection = FlexDirection.Row,
+                        AlignItems    = AlignItems.Center,
+                        Height        = Length.Px(theme.HeaderPx),
+                        Background    = theme.Header,
+                        FlexShrink    = 0,
+                        Cursor        = Cursor.Move,
+                    })
+                    .OnDragStart(e =>
+                    {
+                        e.Data = new DockDragPayload(panel.PanelId, null, IsFloat: false);
+                        ctx.SetDragging?.Invoke(true, panel.PanelId, null);
+                    })
+                    .OnDragEnd(e =>
+                    {
+                        ctx.SetDragging?.Invoke(false, null, null);
+                        if (e.Data is DockDragPayload { TearOff: true } payload)
+                            ctx.Dispatch(new DockTearOff { SourcePanelId = payload.PanelId, X = e.X - 20, Y = e.Y - 15 });
+                    })
+                    .Children(headerChildren.ToArray())
+                    .Build()),
+                UI.Box(new StyleSheet
+                {
+                    FlexGrow      = 1,
+                    Overflow      = Overflow.Hidden,
+                    Position      = Position.Relative,
+                    Display       = Display.Flex,
+                    FlexDirection = FlexDirection.Column,
                 },
-                    UI.Text(panel.Title ?? panel.PanelId, new StyleSheet 
-                    { 
-                        Color = ColText, 
+                    DockContainer.RenderDropTarget(panel.NodeId, ctx),
+                    UI.Box(new StyleSheet
+                    {
                         FlexGrow = 1,
-                        Padding = new Thickness(Length.Px(8), Length.Px(0)),
-                    }),
-                    MinimizeBtn(),
-                    MaximizeBtn(),
-                    CloseBtn()
-                ),
-                // Content
-                UI.Box(new StyleSheet { FlexGrow = 1, Overflow = Overflow.Hidden, Padding = new Thickness(Length.Px(8)) },
-                    content
-                )
+                        Overflow = Overflow.Hidden,
+                        Padding  = new Thickness(Length.Px(8)),
+                    }, content))
             );
         }
 
@@ -145,11 +118,23 @@ namespace Paper.Core.Dock
             var factory = ctx.GetPanel(panel.PanelId);
             if (factory == null)
                 return UI.Box(
-                    new StyleSheet { FlexGrow = 1, Display = Display.Flex, AlignItems = AlignItems.Center, JustifyContent = JustifyContent.Center },
-                    UI.Text($"(no panel: {panel.PanelId})", new StyleSheet { Color = ColTextDim }));
+                    new StyleSheet
+                    {
+                        FlexGrow       = 1,
+                        Display        = Display.Flex,
+                        AlignItems     = AlignItems.Center,
+                        JustifyContent = JustifyContent.Center,
+                    },
+                    UI.Text($"(no panel: {panel.PanelId})", new StyleSheet { Color = ctx.Theme.TextDim }));
 
             return UI.Box(
-                new StyleSheet { FlexGrow = 1, Display = Display.Flex, FlexDirection = FlexDirection.Column, Overflow = Overflow.Hidden },
+                new StyleSheet
+                {
+                    FlexGrow      = 1,
+                    Display       = Display.Flex,
+                    FlexDirection = FlexDirection.Column,
+                    Overflow      = Overflow.Hidden,
+                },
                 factory());
         }
 
@@ -157,77 +142,39 @@ namespace Paper.Core.Dock
 
         private static UINode RenderMinimizedStrip(PanelNode panel, DockContextValue ctx, string? key)
         {
+            var theme = ctx.Theme;
             return UI.Box(new PropsBuilder()
                 .Style(new StyleSheet
                 {
                     Display       = Display.Flex,
                     FlexDirection = FlexDirection.Row,
                     AlignItems    = AlignItems.Center,
-                    Height        = Length.Px(MinStripPx),
-                    Background    = ColMinStrip,
-                    Border        = new BorderEdges(new Border(1f, ColBorder)),
+                    Height        = Length.Px(theme.MinStripPx),
+                    Background    = theme.MinStrip,
+                    Border        = new BorderEdges(new Border(1f, theme.Border)),
                     FlexShrink    = 0,
                     Padding       = new Thickness(Length.Px(0), Length.Px(8)),
                 })
                 .Children(
                     UI.Text(panel.Title, new StyleSheet
                     {
-                        Color    = ColTextDim,
+                        Color    = theme.TextDim,
                         FlexGrow = 1,
                         FontSize = Length.Px(12),
                     }),
-                    HeaderButton("▲", () => ctx.Dispatch(new DockMinimize { PanelId = panel.PanelId, Minimized = false })),
-                    HeaderButton("□", () => ctx.Dispatch(new DockMaximize { PanelId = panel.PanelId }))
+                    HeaderButton("▲", theme, () => ctx.Dispatch(new DockMinimize { PanelId = panel.PanelId, Minimized = false })),
+                    HeaderButton("□", theme, () => ctx.Dispatch(new DockMaximize { PanelId = panel.PanelId }))
                 )
                 .Build(), key ?? panel.NodeId);
         }
 
-        // ── Drop overlay (for panels being dragged into this one) ─────────────
-
-        private static UINode RenderDropOverlay(string nodeId, DockContextValue ctx)
-        {
-            UINode Zone(DropZone zone, StyleSheet style) =>
-                UI.Box(new PropsBuilder()
-                    .Style(style.Merge(new StyleSheet
-                    {
-                        Position     = Position.Absolute,
-                        Background   = zone == DropZone.Center
-                            ? new PaperColour(0.3f, 0.8f, 0.5f, 0.22f)
-                            : new PaperColour(0.3f, 0.5f, 1f, 0.22f),
-                        Border       = new BorderEdges(new Border(1.5f, new PaperColour(0.4f, 0.6f, 1f, 0.7f))),
-                        BorderRadius = 4,
-                    }))
-                    .OnDragOver(e => e.StopPropagation())
-                    .OnDrop(e =>
-                    {
-                        if (e.Data is not DockDragPayload payload) return;
-                        if (payload.IsFloat)
-                            ctx.Dispatch(new DockDockFloat { FloatNodeId = payload.FloatNodeId!, TargetNodeId = nodeId, Zone = zone });
-                        else
-                            ctx.Dispatch(new DockDrop { SourcePanelId = payload.PanelId, TargetNodeId = nodeId, Zone = zone });
-                    })
-                    .Build());
-
-            return UI.Box(
-                new StyleSheet
-                {
-                    Position      = Position.Absolute,
-                    Left          = Length.Px(0), Top = Length.Px(0),
-                    Width         = Length.Percent(100), Height = Length.Percent(100),
-                    ZIndex        = 100,
-                    PointerEvents = PointerEvents.None,
-                },
-                Zone(DropZone.Left,   new StyleSheet { Left = Length.Px(4),   Top = Length.Percent(20), Width = Length.Percent(25), Height = Length.Percent(60), PointerEvents = PointerEvents.Auto }),
-                Zone(DropZone.Right,  new StyleSheet { Right = Length.Px(4),  Top = Length.Percent(20), Width = Length.Percent(25), Height = Length.Percent(60), PointerEvents = PointerEvents.Auto }),
-                Zone(DropZone.Top,    new StyleSheet { Top = Length.Px(4),    Left = Length.Percent(20), Width = Length.Percent(60), Height = Length.Percent(25), PointerEvents = PointerEvents.Auto }),
-                Zone(DropZone.Bottom, new StyleSheet { Bottom = Length.Px(4), Left = Length.Percent(20), Width = Length.Percent(60), Height = Length.Percent(25), PointerEvents = PointerEvents.Auto }),
-                Zone(DropZone.Center, new StyleSheet { Left = Length.Percent(30), Top = Length.Percent(30), Width = Length.Percent(40), Height = Length.Percent(40), PointerEvents = PointerEvents.Auto })
-            );
-        }
-
         // ── Button helper ─────────────────────────────────────────────────────
 
-        private static UINode HeaderButton(string icon, Action onClick) =>
+        internal static UINode HeaderButton(
+            string       icon,
+            DockTheme    theme,
+            Action       onClick,
+            PaperColour? hoverBackground = null) =>
             UI.Box(new PropsBuilder()
                 .Style(new StyleSheet
                 {
@@ -238,10 +185,10 @@ namespace Paper.Core.Dock
                     JustifyContent = JustifyContent.Center,
                     Cursor         = Cursor.Pointer,
                     BorderRadius   = 3,
-                    Color          = ColTextDim,
+                    Color          = theme.TextDim,
                     Margin         = new Thickness(Length.Px(0), Length.Px(1)),
                 })
-                .HoverStyle(new StyleSheet { Background = ColButtonHov, Color = ColText })
+                .HoverStyle(new StyleSheet { Background = hoverBackground ?? theme.ButtonHover, Color = theme.Text })
                 .OnClick(onClick)
                 .Children(UI.Text(icon, new StyleSheet { FontSize = Length.Px(11) }))
                 .Build());

@@ -67,6 +67,7 @@ namespace Paper.Rendering.Silk.NET
                 _renderState.LayoutDirty = true;
             };
             _reconciler.Mount(_rootFactory!());
+            _renderState.LayoutDirty = true;
 
             _width = _window!.Size.X;
             _height = _window.Size.Y;

@@ -181,7 +181,12 @@ namespace Paper.Layout
                 // explicit pixel Width merged in from user style (e.g. Slider track).
                 bool childGrowsHoriz = (childStyle.FlexGrow ?? 0f) > 0f;
                 float w = (float.IsNaN(rawW) || childGrowsHoriz) ? contentWidth : rawW;
-                float h = float.IsNaN(rawH) ? 0f          : rawH;
+                float h = float.IsNaN(rawH) ? 0f : rawH;
+                // FlexGrow > 0 with auto height in block context: fill the container height.
+                // Flex elements designed for flex layout that end up inside a block-layout stack
+                // (via transparent Func/ContextProvider wrappers) need this to size correctly.
+                if (h <= 0.0001f && float.IsNaN(rawH) && (childStyle.FlexGrow ?? 0f) > 0f)
+                    h = contentHeight;
                 // When height is auto, use at least MinHeight so e.g. table rows get a usable height
                 if (h <= 0.0001f && childStyle.MinHeight != null)
                     h = Math.Max(h, childStyle.MinHeight.Value.Resolve(contentHeight));
@@ -234,7 +239,12 @@ namespace Paper.Layout
                 };
 
                 var (cx, cy) = BoxModel.ContentOrigin(childStyle, child.Layout.Width, child.Layout.Height);
-                var (cw, ch) = BoxModel.ContentSize(child.Layout.Width, child.Layout.Height, childStyle, contentWidth, contentHeight);
+                // For transparent wrapper fibers (function components, context providers) with auto height,
+                // propagate the parent's contentHeight so percent heights inside them resolve correctly.
+                float innerH = (h <= 0.0001f && float.IsNaN(rawH) && child.Type is not string)
+                    ? contentHeight
+                    : child.Layout.Height;
+                var (cw, ch) = BoxModel.ContentSize(child.Layout.Width, innerH, childStyle, contentWidth, contentHeight);
                 LayoutChildren(child, childStyle,
                     child.Layout.X + cx, child.Layout.Y + cy, cw, ch, measurer, getImageSize);
 

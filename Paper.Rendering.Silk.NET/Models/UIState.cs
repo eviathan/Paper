@@ -20,5 +20,6 @@ namespace Paper.Rendering.Silk.NET.Models
         public float DragCursorX;
         public float DragCursorY;
         public Fiber? DragOver;
+        public string? DragOverPath;
     }
 }

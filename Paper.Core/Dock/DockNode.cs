@@ -17,6 +17,9 @@ namespace Paper.Core.Dock
 
     public enum DropZone { Left, Top, Right, Bottom, Center, None }
 
+    /// <summary>Which screen edge an auto-hidden panel is pinned to.</summary>
+    public enum AutoHideEdge { Left, Right, Top, Bottom }
+
     [JsonPolymorphic(TypeDiscriminatorPropertyName = "$type")]
     [JsonDerivedType(typeof(SplitNode),    "split")]
     [JsonDerivedType(typeof(TabGroupNode), "tabs")]
@@ -79,6 +82,14 @@ namespace Paper.Core.Dock
         public float Y      { get; set; } = 100;
         public float Width  { get; set; } = 400;
         public float Height { get; set; } = 300;
+    }
+
+    /// <summary>A panel collapsed to an edge strip (auto-hide state).</summary>
+    public sealed class AutoHideEntry
+    {
+        public string       NodeId { get; init; } = Guid.NewGuid().ToString("N")[..8];
+        public PanelNode    Panel  { get; init; } = new();
+        public AutoHideEdge Edge   { get; init; }
     }
 
     // ── JSON serialization context ────────────────────────────────────────────

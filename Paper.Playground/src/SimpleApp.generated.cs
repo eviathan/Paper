@@ -13,6 +13,7 @@ namespace Paper.Generated
     {
         public static UINode SimpleApp(Props props)
         {
+
             return UI.Box(
 new PropsBuilder()
 .Style(new StyleSheet { Display = Display.Flex, FlexDirection = FlexDirection.Column, AlignItems = AlignItems.Center, JustifyContent = JustifyContent.Center, Height = Length.Percent(100), Background = new PaperColour(0.101960786f, 0.101960786f, 0.18039216f, 1f), Padding = new Thickness(16f), BorderRadius = 8f })

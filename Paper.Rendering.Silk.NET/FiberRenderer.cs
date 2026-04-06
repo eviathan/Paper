@@ -186,6 +186,57 @@ namespace Paper.Rendering.Silk.NET
         /// drag ghost. Call this after the main <see cref="Render"/> pass; flush batches afterwards.
         /// <paramref name="cursorX"/>/<paramref name="cursorY"/> are in layout (window) pixel space.
         /// </summary>
+        /// <summary>
+        /// Draws a small stylised panel schematic ghost (header strip + content area lines) centered
+        /// on the cursor. Use this for dock panel drag previews instead of <see cref="RenderGhost"/>.
+        /// <paramref name="cursorX"/>/<paramref name="cursorY"/> are in layout (window) pixel space.
+        /// </summary>
+        public void RenderPanelGhost(float cursorX, float cursorY)
+        {
+            const float ghostW = 180f, ghostH = 110f, headerH = 24f, radius = 5f;
+            float s   = ScaleX;
+            float gx  = (cursorX - ghostW / 2f) * s;
+            float gy  = (cursorY - headerH / 2f) * s;
+            float gw  = ghostW * s;
+            float gh  = ghostH * s;
+            float hh  = headerH * s;
+            float br  = radius; // border radius
+
+            // Body background
+            _rects.Add(gx, gy, gw, gh,
+                0.11f, 0.11f, 0.24f, 0.88f,
+                radiusTL: br, radiusTR: br, radiusBR: br, radiusBL: br);
+
+            // Header strip
+            _rects.Add(gx, gy, gw, hh,
+                0.17f, 0.17f, 0.38f, 0.92f,
+                radiusTL: br, radiusTR: br);
+
+            // Outer border
+            _rects.Add(gx, gy, gw, gh,
+                0f, 0f, 0f, 0f,
+                0.28f, 0.35f, 0.72f, 0.95f,
+                borderWidth: 1.5f * s,
+                radiusTL: br, radiusTR: br, radiusBR: br, radiusBL: br);
+
+            // Content-area placeholder lines
+            float cx  = gx + 10f * s;
+            float cw1 = gw * 0.60f, cw2 = gw * 0.45f, cw3 = gw * 0.55f;
+            float lh  = 2f * s;
+            float ly  = gy + (headerH + 14f) * s;
+            _rects.Add(cx, ly,            cw1, lh, 0.28f, 0.28f, 0.52f, 0.55f);
+            _rects.Add(cx, ly + 9f * s,  cw2, lh, 0.28f, 0.28f, 0.52f, 0.40f);
+            _rects.Add(cx, ly + 18f * s, cw3, lh, 0.28f, 0.28f, 0.52f, 0.30f);
+
+            // Two small "button" dots in header (visual cue)
+            float dotY  = gy + (headerH / 2f - 3f) * s;
+            float dotW  = 6f * s, dotH = 6f * s;
+            float dotX2 = gx + gw - 12f * s;
+            float dotX1 = dotX2 - 10f * s;
+            _rects.Add(dotX1, dotY, dotW, dotH, 0.35f, 0.35f, 0.6f, 0.7f, radiusTL: 2, radiusTR: 2, radiusBR: 2, radiusBL: 2);
+            _rects.Add(dotX2, dotY, dotW, dotH, 0.6f,  0.25f, 0.25f, 0.7f, radiusTL: 2, radiusTR: 2, radiusBR: 2, radiusBL: 2);
+        }
+
         public void RenderGhost(Fiber? fiber, float cursorX, float cursorY, float opacity = 0.5f)
         {
             if (fiber == null) return;

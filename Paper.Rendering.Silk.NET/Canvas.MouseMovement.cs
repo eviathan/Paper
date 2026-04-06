@@ -112,7 +112,8 @@ namespace Paper.Rendering.Silk.NET
                     DispatchDrag(_uiState.DragOver, new DragEvent { Type = DragEventType.DragLeave, X = layoutCoordsX, Y = layoutCoordsY, Data = _uiState.DragData });
                 if (target != null)
                     DispatchDrag(target, new DragEvent { Type = DragEventType.DragEnter, X = layoutCoordsX, Y = layoutCoordsY, Data = _uiState.DragData });
-                _uiState.DragOver = target;
+                _uiState.DragOver     = target;
+                _uiState.DragOverPath = target != null ? FiberTreeUtility.GetPathString(target) : null;
             }
             else if (target != null)
             {
