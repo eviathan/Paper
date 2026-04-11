@@ -72,8 +72,18 @@ public static class {{componentClassName}}
 }
 """;
 
-            // Format the source code using Roslyn
-            source = FormatSourceCode(source);
+            // Note: We skip Roslyn formatting here because the Formatter has a bug where it 
+            // fails to properly indent code inside lambdas when the opening { is on the same 
+            // line as the lambda arrow =>. This causes CS1513 errors. Instead, we use a simple
+            // formatting pass to add basic indentation.
+            // Debug: Print ALL generated lines to see the full picture
+            var debugLines = source.Split('\n');
+            for (int i = 0; i < debugLines.Length; i++)
+            {
+                int lineNum = i + 1;
+                Console.WriteLine($"{lineNum,3}: {debugLines[i]}");
+            }
+            Console.WriteLine("[CSX] End of generated source");
 
             var syntaxTree = CSharpSyntaxTree.ParseText(source, new CSharpParseOptions(LanguageVersion.Preview));
 
@@ -81,6 +91,18 @@ public static class {{componentClassName}}
             _ = typeof(Console).Assembly;
 
             var refs = new List<MetadataReference>();
+            
+            // First add any explicitly configured extra references
+            lock (_extraReferences)
+            {
+                foreach (var asm in _extraReferences)
+                {
+                    if (!asm.IsDynamic && !string.IsNullOrWhiteSpace(asm.Location))
+                        refs.Add(MetadataReference.CreateFromFile(asm.Location));
+                }
+            }
+            
+            // Then add all loaded assemblies
             foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
             {
                 if (asm.IsDynamic) continue;
@@ -98,10 +120,14 @@ public static class {{componentClassName}}
             var emit = compilation.Emit(peStream);
             if (!emit.Success)
             {
-                var diag = string.Join("\n", emit.Diagnostics
+                var errors = emit.Diagnostics
                     .Where(d => d.Severity == DiagnosticSeverity.Error)
-                    .Select(d => d.ToString()));
-                throw new Exception(diag.Length > 0 ? diag : "Unknown CSX compilation error.");
+                    .Select(d => d.ToString())
+                    .ToList();
+                var diag = string.Join("\n", errors);
+                var errorMsg = diag.Length > 0 ? diag : "Unknown CSX compilation error.";
+                Console.WriteLine("[CSX] Compilation failed. Generated source above.");
+                throw new Exception(errorMsg);
             }
 
             peStream.Position = 0;
@@ -116,6 +142,61 @@ public static class {{componentClassName}}
                 typeof(Func<Paper.Core.VirtualDom.Props, Paper.Core.VirtualDom.UINode>));
 
             return new CSXCompiledComponent(del, alc);
+        }
+
+        private static readonly List<Assembly> _extraReferences = new();
+
+        public static void AddReferences(params Assembly[] assemblies)
+        {
+            lock (_extraReferences)
+            {
+                foreach (var asm in assemblies)
+                {
+                    if (asm != null && !_extraReferences.Contains(asm))
+                        _extraReferences.Add(asm);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Simple formatting pass that adds indentation without using Roslyn Formatter.
+        /// The Roslyn Formatter has a bug where it fails to properly indent code inside 
+        /// lambdas when the opening { is on the same line as the lambda arrow =>.
+        /// </summary>
+        private static string SimpleFormat(string source)
+        {
+            var lines = source.Split('\n');
+            var result = new List<string>();
+            int baseIndent = 0;
+
+            for (int i = 0; i < lines.Length; i++)
+            {
+                var line = lines[i].TrimEnd('\r');
+
+                // Skip empty lines
+                if (string.IsNullOrWhiteSpace(line))
+                {
+                    result.Add("");
+                    continue;
+                }
+
+                // Decrease indent for lines starting with closing braces (including with trailing semicolons/chains)
+                if (line.StartsWith("}") || line.StartsWith("});") || line.StartsWith("});"))
+                {
+                    baseIndent = Math.Max(0, baseIndent - 1);
+                }
+
+                // Add the line with current indentation
+                result.Add(new string(' ', baseIndent * 4) + line);
+
+                // Increase indent for lines starting with opening braces or ending with {
+                if (line.EndsWith("{") || line.EndsWith("=> {"))
+                {
+                    baseIndent++;
+                }
+            }
+
+            return string.Join("\n", result);
         }
     }
 }

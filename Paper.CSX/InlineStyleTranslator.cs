@@ -157,6 +157,23 @@ namespace Paper.CSX
 
             if (trimmedValue.Contains(' '))
             {
+                // If this looks like a ternary expression (has both ? and :), pass it through as code
+                // so it can be evaluated at runtime (e.g., color: host.IsPlaying ? '#40c060' : '#7878a0')
+                // For color properties, we wrap with PaperColour() so the ternary evaluates to a colour
+                if (trimmedValue.Contains('?') && trimmedValue.Contains(':'))
+                {
+                    bool isColourProp = propertyName is "Background" or "Color" or "BorderColor" or "OutlineColor";
+                    // If already a constructor call (new PaperColour(...)), don't wrap again
+                    if (isColourProp && trimmedValue.Contains("new "))
+                        return value.Trim();
+                    // The ternary expression will evaluate to a hex string or PaperColour, so wrap it
+                    // We need to remove any remaining quotes around the entire expression
+                    string result = value.Trim();
+                    if (result.StartsWith('\'') && result.EndsWith('\''))
+                        result = result[1..^1];
+                    return isColourProp ? $"new PaperColour({result})" : result;
+                }
+
                 if (string.Equals(propertyName, "Padding", StringComparison.OrdinalIgnoreCase) ||
                     string.Equals(propertyName, "Margin", StringComparison.OrdinalIgnoreCase))
                     return ParseThicknessExpression(trimmedValue);
@@ -228,6 +245,27 @@ namespace Paper.CSX
                     return $"new Thickness({num}f)";
 
                 return $"Length.Px({num})";
+            }
+
+            // Handle constructor calls like new PaperColour("#hex") - pass through as-is
+            // BEFORE the regex extraction happens (so it doesn't get mangled)
+            if (trimmedValue.StartsWith("new ", StringComparison.OrdinalIgnoreCase) ||
+                trimmedValue.StartsWith("new ", StringComparison.Ordinal) && trimmedValue.Contains("PaperColour"))
+            {
+                return value.Trim();
+            }
+
+            // Handle ternary expressions for color properties before other processing
+            if (trimmedValue.Contains('?') && trimmedValue.Contains(':'))
+            {
+                bool isColourProp = propertyName is "Background" or "Color" or "BorderColor" or "OutlineColor";
+                if (isColourProp)
+                {
+                    string result = value.Trim();
+                    if (result.StartsWith('\'') && result.EndsWith('\''))
+                        result = result[1..^1];
+                    return $"new PaperColour({result})";
+                }
             }
 
             if (trimmedValue.StartsWith('#'))
@@ -713,10 +751,20 @@ namespace Paper.CSX
             // If the value looks like a C# identifier or member access (variable reference),
             // emit it appropriately based on the property type:
             // - Colour properties: wrap in new PaperColour(var) so string hex vars work
+            //   BUT: if the value contains ternary (? and :), pass through as-is so it can be
+            //        evaluated at runtime (e.g., color: host.IsPlaying ? '#40c060' : '#7878a0')
+            //        EXCEPT when it's already a constructor call (new PaperColour(...))
             // - Everything else: emit as-is so the generated code type-checks correctly
             if (Regex.IsMatch(trimmedValue, @"^[a-zA-Z_]\w*(\.\w+)*$"))
             {
                 bool isColourProp = propertyName is "Background" or "Color" or "BorderColor" or "OutlineColor";
+                // For ternary expressions that are ALREADY constructor calls, don't wrap in PaperColour
+                if (isColourProp && trimmedValue.Contains('?') && trimmedValue.Contains(':'))
+                {
+                    if (trimmedValue.Contains("new "))
+                        return trimmedValue; // Already a constructor, pass through
+                    return $"new PaperColour({trimmedValue})";
+                }
                 return isColourProp ? $"new PaperColour({trimmedValue})" : trimmedValue;
             }
 
