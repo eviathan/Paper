@@ -10,5 +10,6 @@ namespace Paper.Rendering.Silk.NET.Models
         public nint CursorIBeam;
         public nint CursorCrosshair;
         public nint CursorEwResize;
+        public nint CursorNsResize;
     }
 }

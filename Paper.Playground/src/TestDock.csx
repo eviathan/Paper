@@ -40,14 +40,14 @@ UINode TestDock() {
   };
 
   return <Box style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-    <Box style={{ height: 40, background: '#1a1a2e' }}>
-      <Text style={{ color: '#c8c8e0', padding: '0 16px', fontSize: 14 }}>Paper UI</Text>
+    <Box style={{ height: 40, background: '#1a1a2e', display: 'flex', alignItems: 'center', paddingLeft: 16 }}>
+      <Text style={{ color: '#c8c8e0', fontSize: 14 }}>Paper UI</Text>
     </Box>
     <Box style={{ flexGrow: 1, overflow: 'hidden' }}>
       {Paper.Core.Dock.DockContext.Root(panels, dockLayout)}
     </Box>
-    <Box style={{ height: 28, background: '#1a1a2e' }}>
-      <Text style={{ color: '#7878a0', padding: '0 16px', fontSize: 11 }}>Status: Ready</Text>
+    <Box style={{ height: 28, background: '#1a1a2e', display: 'flex', alignItems: 'center', paddingLeft: 16 }}>
+      <Text style={{ color: '#7878a0', fontSize: 11 }}>Status: Ready</Text>
     </Box>
   </Box>;
 }

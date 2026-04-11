@@ -219,9 +219,22 @@ namespace Paper.Core.Dock
 
         private static DockState HandleDrop(DockState state, DockDrop a)
         {
+            // Detect self-drop: panel dragged onto its own node — cancel
+            var targetNode = FindNodeById(state.Root, a.TargetNodeId);
+            if (targetNode is PanelNode tp && tp.PanelId == a.SourcePanelId)
+                return state;
+
             var (sourcePanel, treeWithout) = ExtractPanel(state.Root, a.SourcePanelId);
             if (sourcePanel == null) return state;
-            var newRoot = InsertPanelSmart(treeWithout, a.TargetNodeId, a.Zone, sourcePanel);
+
+            // If the target node was collapsed away during extraction (e.g. a 2-panel tab group
+            // collapsed to a bare PanelNode, losing the tab group's NodeId), fall back to the
+            // remaining tree root so the panel still gets inserted rather than disappearing.
+            string effectiveTarget = a.TargetNodeId;
+            if (treeWithout != null && FindNodeById(treeWithout, a.TargetNodeId) == null)
+                effectiveTarget = treeWithout.NodeId;
+
+            var newRoot = InsertPanelSmart(treeWithout, effectiveTarget, a.Zone, sourcePanel);
             return state.With(root: newRoot, clearMaximized: true);
         }
 
@@ -464,6 +477,17 @@ namespace Paper.Core.Dock
             state.With(maximizedPanelId: a.PanelId, clearMaximized: a.PanelId == null);
 
         // ── Tree helpers ──────────────────────────────────────────────────────
+
+        /// <summary>Find a DockNode by its NodeId.</summary>
+        private static DockNode? FindNodeById(DockNode node, string nodeId)
+        {
+            if (node.NodeId == nodeId) return node;
+            return node switch
+            {
+                SplitNode s => FindNodeById(s.First, nodeId) ?? FindNodeById(s.Second, nodeId),
+                _ => null,
+            };
+        }
 
         /// <summary>Extract a PanelNode by PanelId from the tree, returning it and the pruned tree.</summary>
         private static (PanelNode? panel, DockNode? tree) ExtractPanel(DockNode node, string panelId)

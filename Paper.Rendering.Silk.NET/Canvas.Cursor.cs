@@ -16,6 +16,7 @@ namespace Paper.Rendering.Silk.NET
                 _glfwState.CursorIBeam = (nint)_glfwState.GLFW.CreateStandardCursor(CursorShape.IBeam);
                 _glfwState.CursorCrosshair = (nint)_glfwState.GLFW.CreateStandardCursor(CursorShape.Crosshair);
                 _glfwState.CursorEwResize = (nint)_glfwState.GLFW.CreateStandardCursor(CursorShape.HResize);
+                _glfwState.CursorNsResize = (nint)_glfwState.GLFW.CreateStandardCursor(CursorShape.VResize);
             }
             catch { }
         }
@@ -35,8 +36,10 @@ namespace Paper.Rendering.Silk.NET
                     _glfwState.GLFW.DestroyCursor((Cursor*)_glfwState.CursorCrosshair);
                 if (_glfwState.CursorEwResize != 0)
                     _glfwState.GLFW.DestroyCursor((Cursor*)_glfwState.CursorEwResize);
+                if (_glfwState.CursorNsResize != 0)
+                    _glfwState.GLFW.DestroyCursor((Cursor*)_glfwState.CursorNsResize);
 
-                _glfwState.CursorArrow = _glfwState.CursorHand = _glfwState.CursorIBeam = _glfwState.CursorCrosshair = _glfwState.CursorEwResize = 0;
+                _glfwState.CursorArrow = _glfwState.CursorHand = _glfwState.CursorIBeam = _glfwState.CursorCrosshair = _glfwState.CursorEwResize = _glfwState.CursorNsResize = 0;
                 _glfwState.GLFW.Dispose();
                 _glfwState.GLFW = null;
             }
@@ -55,7 +58,8 @@ namespace Paper.Rendering.Silk.NET
                     Core.Styles.Cursor.Pointer => _glfwState.CursorHand,
                     Core.Styles.Cursor.Text => _glfwState.CursorIBeam,
                     Core.Styles.Cursor.Crosshair => _glfwState.CursorCrosshair,
-                    Core.Styles.Cursor.EwResize => _glfwState.CursorEwResize,
+                    Core.Styles.Cursor.EwResize or Core.Styles.Cursor.ColResize => _glfwState.CursorEwResize,
+                    Core.Styles.Cursor.RowResize => _glfwState.CursorNsResize,
                     Core.Styles.Cursor.None => 0,
                     _ => _glfwState.CursorArrow,
                 };

@@ -37,9 +37,9 @@ namespace Paper.Core.Dock
             {
                 UI.Text(panel.Title ?? panel.PanelId, new StyleSheet
                 {
-                    Color   = theme.Text,
-                    FlexGrow = 1,
-                    Padding  = new Thickness(Length.Px(8), Length.Px(0)),
+                    Color       = theme.Text,
+                    FlexGrow    = 1,
+                    PaddingLeft = Length.Px(8),
                 }),
             };
 
