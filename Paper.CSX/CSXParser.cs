@@ -480,6 +480,7 @@ namespace Paper.CSX
             {
                 char c = s[i];
                 if (c == '\\') { i += 2; continue; }
+                if (c == '/' && i + 1 < s.Length && s[i + 1] == '/') { while (i < s.Length && s[i] != '\n') i++; continue; }
                 if (c == '"') { i++; while (i < s.Length && s[i] != '"') { if (s[i] == '\\') i++; i++; } }
                 else if (c == '\''){ i++; while (i < s.Length && s[i] != '\'') { if (s[i] == '\\') i++; i++; } }
                 else if (c == '(') depth++;
@@ -494,10 +495,6 @@ namespace Paper.CSX
         /// </summary>
         private static string CompileFunctionBody(string body)
         {
-            // Debug: log what we receive
-            Console.WriteLine($"[CSXParser] CompileFunctionBody input (len={body.Length}):");
-            Console.WriteLine(body.Length > 500 ? body.Substring(0, 500) + "..." : body);
-            
             var returnIdx = body.IndexOf("return (", StringComparison.Ordinal);
             if (returnIdx < 0)
             {
@@ -544,7 +541,6 @@ namespace Paper.CSX
                     }
                 }
                 sb.AppendLine($"return {generatedJsx};");
-                Console.WriteLine($"[CSXParser] Output: {sb.ToString().Replace("\n", "\\n").Replace("\r", "")}");
                 return sb.ToString();
             }
             else
@@ -639,6 +635,7 @@ namespace Paper.CSX
             {
                 char c = s[i];
                 if (c == '\\') { i += 2; continue; }
+                if (c == '/' && i + 1 < s.Length && s[i + 1] == '/') { while (i < s.Length && s[i] != '\n') i++; continue; }
                 if (c == '"') { i++; while (i < s.Length && s[i] != '"') { if (s[i] == '\\') i++; i++; } }
                 else if (c == '\'') { i++; while (i < s.Length && s[i] != '\'') { if (s[i] == '\\') i++; i++; } }
                 else if (c == '{') depth++;

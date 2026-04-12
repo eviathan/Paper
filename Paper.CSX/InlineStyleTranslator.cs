@@ -190,6 +190,9 @@ namespace Paper.CSX
                     var bs = ParseBorderSideShorthand(trimmedValue);
                     if (bs != null) return bs;
                 }
+                // C# constructor call — pass through as-is rather than wrapping in quotes
+                if (trimmedValue.StartsWith("new ", StringComparison.Ordinal))
+                    return trimmedValue;
                 return $"\"{trimmedValue}\"";
             }
 

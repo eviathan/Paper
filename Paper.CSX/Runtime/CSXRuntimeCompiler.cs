@@ -72,19 +72,6 @@ public static class {{componentClassName}}
 }
 """;
 
-            // Note: We skip Roslyn formatting here because the Formatter has a bug where it 
-            // fails to properly indent code inside lambdas when the opening { is on the same 
-            // line as the lambda arrow =>. This causes CS1513 errors. Instead, we use a simple
-            // formatting pass to add basic indentation.
-            // Debug: Print ALL generated lines to see the full picture
-            var debugLines = source.Split('\n');
-            for (int i = 0; i < debugLines.Length; i++)
-            {
-                int lineNum = i + 1;
-                Console.WriteLine($"{lineNum,3}: {debugLines[i]}");
-            }
-            Console.WriteLine("[CSX] End of generated source");
-
             var syntaxTree = CSharpSyntaxTree.ParseText(source, new CSharpParseOptions(LanguageVersion.Preview));
 
             // Ensure System.Console (and other runtime assemblies) are loaded so they appear in refs
@@ -126,7 +113,6 @@ public static class {{componentClassName}}
                     .ToList();
                 var diag = string.Join("\n", errors);
                 var errorMsg = diag.Length > 0 ? diag : "Unknown CSX compilation error.";
-                Console.WriteLine("[CSX] Compilation failed. Generated source above.");
                 throw new Exception(errorMsg);
             }
 

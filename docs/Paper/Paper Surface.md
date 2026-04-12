@@ -5,3 +5,6 @@
 5. and the rest of the static methods
 6. Think of something to do with the mouse and key events
 7. More static methods below to move elsewhere
+
+50.851147
+3.512243

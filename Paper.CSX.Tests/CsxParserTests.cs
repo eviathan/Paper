@@ -614,4 +614,5 @@ public sealed class CsxParserTests
         Assert.Contains("Label:", compiled);
         Assert.DoesNotContain("Variant:", compiled);
     }
+
 }
