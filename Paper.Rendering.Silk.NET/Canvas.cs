@@ -185,7 +185,7 @@ namespace Paper.Rendering.Silk.NET
                 var utcNow = DateTime.UtcNow.Ticks / (double)TimeSpan.TicksPerSecond;
                 var isAnimating = utcNow < _renderState.AnimationDeadline;
 
-                if (_renderState.LayoutDirty || isAnimating)
+                if (AlwaysRender || _renderState.LayoutDirty || isAnimating)
                     _window.DoRender();
                 else
                     Thread.Sleep(4);

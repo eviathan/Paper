@@ -94,7 +94,7 @@ namespace Paper.Rendering.Silk.NET
                 keyboard.KeyChar += OnKeyChar;
             }
 
-            OnLoad?.Invoke(_gl, inputContext, frameBufferSize.X, frameBufferSize.Y);
+            OnLoad?.Invoke(_gl, inputContext, _width, _height);
         }
 
         private void DisposeResources()
