@@ -45,6 +45,7 @@ namespace Paper.Rendering.Silk.NET
             public MdSegment[][] RowSegments = Array.Empty<MdSegment[]>();
         }
         // One entry per MarkdownEditor path.
+        private const int MaxCacheSize = 100;
         private readonly Dictionary<string, MdCache> _mdCache = new();
 
         /// <summary>Optional: returns current scrollbar thumb opacity [0,1] for a given scroll container path (used for fade-out).</summary>
@@ -110,6 +111,26 @@ namespace Paper.Rendering.Silk.NET
         }
 
         private readonly Dictionary<string, TransitionState> _transitions = new();
+        private int _evictionCounter;
+
+        private void EvictCachesIfNeeded()
+        {
+            _evictionCounter++;
+            if (_evictionCounter >= 60)
+            {
+                _evictionCounter = 0;
+                if (_mdCache.Count > MaxCacheSize / 2)
+                {
+                    var toRemove = _mdCache.Keys.Take(_mdCache.Count / 4).ToList();
+                    foreach (var k in toRemove) _mdCache.Remove(k);
+                }
+                if (_transitions.Count > MaxCacheSize / 2)
+                {
+                    var toRemove = _transitions.Keys.Take(_transitions.Count / 4).ToList();
+                    foreach (var k in toRemove) _transitions.Remove(k);
+                }
+            }
+        }
         private double _lastFrameTime = -1.0;
         private float _frameDt;
 
@@ -259,6 +280,7 @@ namespace Paper.Rendering.Silk.NET
 
         public void Render(Fiber? fiber, float inheritedOpacity = 1f)
         {
+            EvictCachesIfNeeded();
             double now = DateTime.UtcNow.Ticks / (double)TimeSpan.TicksPerSecond;
             _frameDt = _lastFrameTime < 0.0 ? 0f : (float)(now - _lastFrameTime);
             _lastFrameTime = now;

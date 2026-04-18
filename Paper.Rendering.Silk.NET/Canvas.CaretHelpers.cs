@@ -70,7 +70,8 @@ namespace Paper.Rendering.Silk.NET
         private int GetCaretIndexInSegment(string segmentText, int segmentStart, int segmentEnd, float contentX, float scale)
         {
             if (contentX <= 0) return segmentStart;
-            float segmentWidth = _text!.MeasureWidth(segmentText.AsSpan()) * scale;
+            if (_text == null) return segmentStart;
+            float segmentWidth = _text.MeasureWidth(segmentText.AsSpan()) * scale;
             if (contentX >= segmentWidth) return segmentEnd;
 
             for (int charIndex = 0; charIndex < segmentText.Length; charIndex++)
@@ -89,7 +90,8 @@ namespace Paper.Rendering.Silk.NET
         private int GetCaretIndexInSingleLineText(string text, float contentX, float scale)
         {
             if (contentX <= 0) return 0;
-            float totalWidth = _text!.MeasureWidth(text.AsSpan()) * scale;
+            if (_text == null) return text.Length;
+            float totalWidth = _text.MeasureWidth(text.AsSpan()) * scale;
             if (contentX >= totalWidth) return text.Length;
 
             for (int charIndex = 0; charIndex < text.Length; charIndex++)
