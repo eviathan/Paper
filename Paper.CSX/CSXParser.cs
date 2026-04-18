@@ -491,139 +491,40 @@ namespace Paper.CSX
         }
 
         /// <summary>
-        /// Converts a CSX function body to C# by compiling any JSX in the return statement.
+        /// Converts a CSX function body to C# by compiling any JSX in the "return ( ... )" statement.
+        /// The preamble (all code before the return) is already valid C# and is emitted as-is.
+        /// Early returns using "return UI.Xxx(...)" are left untouched in the preamble.
         /// </summary>
         private static string CompileFunctionBody(string body)
         {
+            // Only "return (" needs JSX translation. "return UI." is already valid C#.
             var returnIdx = body.IndexOf("return (", StringComparison.Ordinal);
             if (returnIdx < 0)
-            {
-                returnIdx = body.IndexOf("return UI.", StringComparison.Ordinal);
-                if (returnIdx < 0) return body.Trim() + "\n";
-            }
-            
-            // Extract the preamble (code before the return)
+                return body.Trim() + "\n";
+
+            // Everything before the JSX return is already valid C# — emit it verbatim.
             var preamble = body.Substring(0, returnIdx).Trim();
-            
-            // Check if this is a "return (...)" pattern - this needs JSX parsing
-            bool isReturnParen = body.IndexOf("return (", returnIdx, StringComparison.Ordinal) == returnIdx;
-            if (isReturnParen)
+
+            // Extract the JSX content inside "return ( ... )"
+            var parenOpen = returnIdx + "return (".Length - 1;
+            var depth = 1;
+            var j = parenOpen + 1;
+            while (j < body.Length && depth > 0)
             {
-                var parenOpen = returnIdx + "return (".Length - 1;
-                var depth = 1;
-                var j = parenOpen + 1;
-                while (j < body.Length && depth > 0)
-                {
-                    if (body[j] == '(') depth++;
-                    else if (body[j] == ')') depth--;
-                    j++;
-                }
-                var jsxContent = body.Substring(parenOpen + 1, j - 1 - (parenOpen + 1)).Trim();
-                string generatedJsx;
-                try { generatedJsx = Parse(jsxContent); }
-                catch (Exception ex) { generatedJsx = $"UI.Text(\"Helper JSX error: {ex.Message}\")"; }
-                
-                var sb = new StringBuilder();
-                if (!string.IsNullOrWhiteSpace(preamble)) {
-                    var ifStart = preamble.LastIndexOf("if (", StringComparison.Ordinal);
-                    if (ifStart >= 0) {
-                        var ifBraceStart = preamble.IndexOf('{', ifStart);
-                        if (ifBraceStart >= 0) {
-                            var preIfCode = preamble.Substring(0, ifStart).Trim();
-                            if (!string.IsNullOrWhiteSpace(preIfCode)) sb.AppendLine(preIfCode);
-                            var afterIf = preamble.Substring(ifBraceStart + 1).TrimStart();
-                            sb.Append(afterIf);
-                        } else {
-                            sb.AppendLine(preamble);
-                        }
-                    } else {
-                        sb.AppendLine(preamble);
-                    }
-                }
-                sb.AppendLine($"return {generatedJsx};");
-                return sb.ToString();
+                if (body[j] == '(') depth++;
+                else if (body[j] == ')') depth--;
+                j++;
             }
-            else
-            {
-                // For "return UI.Box(...)" pattern, the body already contains valid C# code
-                // We just need to find the semicolon to properly terminate the statement
-                // But we also need to handle the if block that wraps the return
-                
-                // Find the if block in the preamble (if any)
-                var ifStart = preamble.LastIndexOf("if (", StringComparison.Ordinal);
-                string preIfCode = "";
-                string ifCode = "";
-                
-                if (ifStart >= 0)
-                {
-                    var ifBraceStart = preamble.IndexOf('{', ifStart);
-                    if (ifBraceStart >= 0)
-                    {
-                        // Find matching close brace in BODY since the closing brace 
-                        // comes after the return statement
-                        var braceDepth = 1;
-                        var k = ifBraceStart + 1;
-                        while (k < body.Length && braceDepth > 0)
-                        {
-                            if (body[k] == '{') braceDepth++;
-                            else if (body[k] == '}') braceDepth--;
-                            k++;
-                        }
-                        preIfCode = preamble.Substring(0, ifBraceStart).Trim();
-                        // ifCode should include: { from preamble + return statement + } from body
-                        // preamble.Substring(ifBraceStart) gives us "{ if (entity == null) {"
-                        // body.Substring(0, k) gives us "{ if (entity == null) { return UI.Box(...).Build()); }"
-                        // So we need just the opening brace from preamble plus everything from body up to closing brace
-                        ifCode = "{" + preamble.Substring(ifBraceStart + 1) + body.Substring(0, k);
-                    }
-                }
-                
-                // Find the semicolon in the body that ends the return statement
-                var retParenOpen = body.IndexOf('(', returnIdx + "return UI.".Length);
-                int semiPos;
-                if (retParenOpen >= 0)
-                {
-                    // Find matching close paren
-                    var depth = 1;
-                    var j = retParenOpen + 1;
-                    while (j < body.Length && depth > 0)
-                    {
-                        if (body[j] == '(') depth++;
-                        else if (body[j] == ')') depth--;
-                        j++;
-                    }
-                    // Find semicolon
-                    while (j < body.Length && (body[j] == ' ' || body[j] == '\t' || body[j] == '\r')) j++;
-                    semiPos = j;
-                    while (semiPos < body.Length && body[semiPos] != ';') semiPos++;
-                }
-                else
-                {
-                    semiPos = body.IndexOf(';', returnIdx);
-                }
-                
-                if (semiPos < 0) return body.Trim() + "\n";
-                
-                // Get the return statement (from returnIdx to semiPos+1)
-                var returnStmt = body.Substring(returnIdx, semiPos + 1 - returnIdx).Trim();
-                
-                // Get any code after the semicolon
-                var afterSemi = body.Substring(semiPos + 1).Trim();
-                
-                var result = new StringBuilder();
-                if (!string.IsNullOrWhiteSpace(preIfCode)) { result.AppendLine(preIfCode); }
-                if (!string.IsNullOrWhiteSpace(ifCode)) { 
-                    // ifCode already includes the return statement from body.Substring(0, k)
-                    result.AppendLine(ifCode); 
-                }
-                else {
-                    // No if block, just add the return statement normally
-                    result.AppendLine(returnStmt);
-                }
-                if (!string.IsNullOrWhiteSpace(afterSemi)) { result.AppendLine(afterSemi); }
-                
-                return result.ToString();
-            }
+            var jsxContent = body.Substring(parenOpen + 1, j - 1 - (parenOpen + 1)).Trim();
+            string generatedJsx;
+            try { generatedJsx = Parse(jsxContent); }
+            catch (Exception ex) { generatedJsx = $"UI.Text(\"Helper JSX error: {ex.Message}\")"; }
+
+            var sb = new StringBuilder();
+            if (!string.IsNullOrWhiteSpace(preamble))
+                sb.AppendLine(preamble);
+            sb.AppendLine($"return {generatedJsx};");
+            return sb.ToString();
         }
 
         /// <summary>Finds the position of the closing brace matching the opening brace at <paramref name="openPos"/>.</summary>

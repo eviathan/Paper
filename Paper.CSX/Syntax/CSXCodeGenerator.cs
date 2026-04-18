@@ -178,6 +178,14 @@ namespace Paper.CSX.Syntax
                     case "onDrop":
                         sb.Append($"\n.OnDrop({ToStringLambda(a.Value)})");
                         break;
+                    case "onKeyDownCapture2":
+                    case "onKeyDownCapture":
+                        sb.Append($"\n.OnKeyDownCapture({ToStringLambda(a.Value)})");
+                        break;
+                    case "onKeyDown2":
+                    case "onKeyDown":
+                        sb.Append($"\n.OnKeyDown({ToStringLambda(a.Value)})");
+                        break;
                     case "hoverStyle":
                     case "activeStyle":
                     case "focusStyle":

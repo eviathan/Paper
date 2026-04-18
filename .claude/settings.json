@@ -41,7 +41,8 @@
       "Bash(sed -n '781,800p' Paper.Rendering.Silk.NET/FiberRenderer.cs)",
       "Bash(sed -n '1055,1080p' Paper.Rendering.Silk.NET/FiberRenderer.cs)",
       "Bash(sed -n '70,90p' Paper.CSSS/Parser/CSSSParser.cs)",
-      "Bash(sed -n '275,320p' Paper.CSSS/Parser/CSSSParser.cs)"
+      "Bash(sed -n '275,320p' Paper.CSSS/Parser/CSSSParser.cs)",
+      "Bash(awk '{print $NF}')"
     ],
     "additionalDirectories": [
       "/Users/brian/dev/Games/Archipelago/Archipelago.Engine/Archipelago.Engine.Editor",
