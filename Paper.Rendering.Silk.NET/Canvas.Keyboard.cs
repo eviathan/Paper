@@ -52,7 +52,7 @@ namespace Paper.Rendering.Silk.NET
 
             if (ordered.Count == 0) return;
 
-            int currentFocusIndex = all.FindIndex(fiber => ReferenceEquals(fiber, _inputState.Focused));
+            int currentFocusIndex = ordered.FindIndex(fiber => ReferenceEquals(fiber, _inputState.Focused));
             int nextFocusIndex = shift
                 ? (currentFocusIndex <= 0 ? ordered.Count - 1 : currentFocusIndex - 1)
                 : (currentFocusIndex < 0 || currentFocusIndex >= ordered.Count - 1 ? 0 : currentFocusIndex + 1);

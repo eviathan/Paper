@@ -18,7 +18,7 @@ namespace Paper.Rendering.Silk.NET
                 _glfwState.CursorEwResize = (nint)_glfwState.GLFW.CreateStandardCursor(CursorShape.HResize);
                 _glfwState.CursorNsResize = (nint)_glfwState.GLFW.CreateStandardCursor(CursorShape.VResize);
             }
-            catch { }
+            catch { /* GLFW cursor init failed - cursors won't change but app continues */ }
         }
 
         private unsafe void DestroyGlfwCursors()
@@ -43,7 +43,7 @@ namespace Paper.Rendering.Silk.NET
                 _glfwState.GLFW.Dispose();
                 _glfwState.GLFW = null;
             }
-            catch { }
+            catch { /* GLFW destroy failed - continuing anyway */ }
         }
 
         private unsafe void ApplyGlfwCursor(Core.Styles.Cursor cursor)
@@ -65,7 +65,7 @@ namespace Paper.Rendering.Silk.NET
                 };
                 _glfwState.GLFW.SetCursor((WindowHandle*)windowHandle, (Cursor*)cursorHandle);
             }
-            catch { }
+            catch { /* GLFW SetCursor failed - continuing */ }
         }
 
         /// <summary>Applies minimum window size constraints via GLFW. No-op if not set or backend is not GLFW.</summary>
@@ -82,7 +82,7 @@ namespace Paper.Rendering.Silk.NET
                 if (windowHandle == 0) return;
                 glfw.SetWindowSizeLimits((WindowHandle*)windowHandle, minWidth, minHeight, Glfw.DontCare, Glfw.DontCare);
             }
-            catch { }
+            catch { /* GLFW SetWindowSizeLimits failed - continuing */ }
         }
     }
 }
