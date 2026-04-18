@@ -304,9 +304,11 @@ namespace Paper.Layout
             // For reversed, main-start is the right/bottom edge. Keep items in original order and place from the right
             // so the first item (A) gets the rightmost slot; renderer draws in tree order so we see C B A.
             // (Reversing the list would assign C to right, but then drawing A,B,C gives A left, B mid, C right = wrong.)
-            float cursor = reversed && isRow ? contentX + mainSize
-                        : reversed && !isRow ? contentY + mainSize
-                        : (isRow ? contentX : contentY) + offset;
+            // Apply justify-content offset for reversed containers as well.
+            float baseStart = isRow ? contentX : contentY;
+            float cursor = reversed && isRow ? baseStart + mainSize - offset
+                        : reversed && !isRow ? baseStart + mainSize - offset
+                        : baseStart + offset;
 
             foreach (var fi in line.Items)
             {
@@ -378,7 +380,17 @@ namespace Paper.Layout
                 float itemMain = GetFlexBasis(item, itemStyle, mainSize, crossSize, isRow, measurer);
                 float addGap = current.Items.Count > 0 ? gap : 0;
 
-                if (usedMain + addGap + itemMain > mainSize && current.Items.Count > 0)
+                // Include item margin in wrap decision
+                var (mt, mr, mb, ml) = BoxModel.MarginPixels(itemStyle, mainSize, crossSize);
+                float itemMargin = isRow ? (ml + mr) : (mt + mb);
+                float currentLineMargins = 0f;
+                foreach (var existing in current.Items)
+                {
+                    var (emt, emr, emb, eml) = BoxModel.MarginPixels(existing.Fiber.ComputedStyle, mainSize, crossSize);
+                    currentLineMargins += isRow ? (eml + emr) : (emt + emb);
+                }
+
+                if (usedMain + addGap + itemMain + currentLineMargins + itemMargin > mainSize && current.Items.Count > 0)
                 {
                     lines.Add(current);
                     current = new FlexLine();
@@ -388,7 +400,7 @@ namespace Paper.Layout
                 var fi = new FlexItem { Fiber = item, HypotheticalMain = itemMain };
                 fi.FinalMain = itemMain;
                 current.Items.Add(fi);
-                usedMain += addGap + itemMain;
+                usedMain += addGap + itemMain + itemMargin;
             }
 
             if (current.Items.Count > 0)
@@ -409,12 +421,12 @@ namespace Paper.Layout
 
                 if (freeSpace2 > 0.001f)
                 {
-                    float totalGrow = line.Items.Sum(i => i.Fiber.ComputedStyle.FlexGrow ?? 0f);
+                    float totalGrow = line.Items.Sum(i => GetEffectiveFlexGrow(i.Fiber));
                     if (totalGrow > 0)
                     {
                         float perUnit = freeSpace2 / totalGrow;
                         foreach (var fi in line.Items)
-                            fi.FinalMain = fi.HypotheticalMain + (fi.Fiber.ComputedStyle.FlexGrow ?? 0f) * perUnit;
+                            fi.FinalMain = fi.HypotheticalMain + GetEffectiveFlexGrow(fi.Fiber) * perUnit;
                     }
                 }
                 else if (freeSpace2 < -0.001f && allowShrink)
@@ -862,7 +874,7 @@ namespace Paper.Layout
             {
                 AlignItems.FlexEnd => lineCrossSize - fi.FinalCross,
                 AlignItems.Center  => (lineCrossSize - fi.FinalCross) / 2f,
-                _                  => 0f,  // FlexStart, Stretch, Baseline
+                _                  => 0f,  // FlexStart, Stretch, Baseline (stub: baseline not implemented, falls back to flex-start)
             };
         }
 
