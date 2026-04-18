@@ -10,6 +10,7 @@ namespace Paper.CSSS
         public string? Element   { get; init; }  // element type e.g. "Box"; null = any; "*" = universal
         public string? Class     { get; init; }  // class name without dot
         public string? Id        { get; init; }  // id without hash
+        public string? Attribute { get; init; }  // attribute selector e.g. "type=text"
 
         public bool Matches(Fiber fiber)
         {
@@ -28,7 +29,31 @@ namespace Paper.CSSS
             }
             if (Id != null && fiber.Props.Id != Id)
                 return false;
+            if (Attribute != null)
+            {
+                var (attrName, attrValue) = ParseAttribute(Attribute);
+                var actualValue = fiber.Props.Get<string>(attrName);
+                if (attrValue == null)
+                {
+                    if (actualValue == null) return false;
+                }
+                else if (actualValue != attrValue)
+                    return false;
+            }
             return true;
+        }
+
+        private static (string name, string? value) ParseAttribute(string attr)
+        {
+            int eq = attr.IndexOf('=');
+            if (eq < 0) return (attr, null);
+            string name = attr[..eq].Trim();
+            string value = attr[(eq + 1)..].Trim();
+            if (value.StartsWith('"') && value.EndsWith('"'))
+                value = value[1..^1];
+            else if (value.StartsWith('\'') && value.EndsWith('\''))
+                value = value[1..^1];
+            return (name, value);
         }
 
         /// <summary>Parse a single selector token like "Box", ".card", "#header", "Box.card", "*".</summary>
@@ -38,9 +63,19 @@ namespace Paper.CSSS
             if (string.IsNullOrEmpty(t) || t == "*") return new CSSSSegment { Element = "*" };
             if (t.StartsWith('#')) return new CSSSSegment { Id = t[1..] };
             if (t.StartsWith('.')) return new CSSSSegment { Class = t[1..] };
+            if (t.StartsWith('[') && t.EndsWith(']')) return new CSSSSegment { Attribute = t[1..^1] };
             // element.class compound: e.g. "Box.card"
             int dotIdx = t.IndexOf('.');
             if (dotIdx > 0) return new CSSSSegment { Element = t[..dotIdx], Class = t[(dotIdx + 1)..] };
+            // attribute in compound: e.g. "Input[disabled]"
+            int attrStart = t.IndexOf('[');
+            if (attrStart > 0)
+            {
+                string elemClass = t[..attrStart];
+                string attr = t[attrStart..];
+                if (attr.StartsWith('[') && attr.EndsWith(']'))
+                    return new CSSSSegment { Element = elemClass, Attribute = attr[1..^1] };
+            }
             return new CSSSSegment { Element = t };
         }
     }

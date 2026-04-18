@@ -289,7 +289,7 @@ namespace Paper.CSSS.Preprocessor
                             "+" => left.Value + right.Value,
                             "-" => left.Value - right.Value,
                             "*" => left.Value * right.Value,
-                            "/" => right.Value != 0 ? left.Value / right.Value : left.Value,
+                            "/" => right.Value != 0 ? left.Value / right.Value : 0,
                             _ => left.Value
                         };
                         left = result;
