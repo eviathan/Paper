@@ -31,7 +31,26 @@ namespace Paper.CSSS.Preprocessor
 
             var output = new List<CSSSRule>();
             ProcessBlock(sheet.Statements, new List<string>(), output);
+            ApplyExtends(output);
             return output;
+        }
+
+        private void ApplyExtends(List<CSSSRule> output)
+        {
+            foreach (var rule in output)
+            {
+                foreach (var selector in rule.Selectors.ToList())
+                {
+                    if (_extendMap.TryGetValue(selector, out var parents))
+                    {
+                        foreach (var parent in parents)
+                        {
+                            if (!rule.Selectors.Contains(parent))
+                                rule.Selectors.Add(parent);
+                        }
+                    }
+                }
+            }
         }
 
         // ── Pre-collection ────────────────────────────────────────────────────
@@ -203,6 +222,11 @@ namespace Paper.CSSS.Preprocessor
                 // $var references
                 if (value[i] == '$')
                 {
+                    if (i > 0 && (char.IsLetterOrDigit(value[i-1]) || value[i-1] == '_'))
+                    {
+                        sb.Append(value[i++]);
+                        continue;
+                    }
                     int start = i + 1;
                     int end   = start;
                     while (end < value.Length && (char.IsLetterOrDigit(value[end]) || value[end] == '-' || value[end] == '_'))
