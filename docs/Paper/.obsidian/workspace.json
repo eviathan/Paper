@@ -13,15 +13,30 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "Paper Surface.md",
+                "file": "Archive/Paper Surface.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
               "title": "Paper Surface"
             }
+          },
+          {
+            "id": "e0c91fbbeab34b23",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "Todo/Refactoring.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "Refactoring"
+            }
           }
-        ]
+        ],
+        "currentTab": 1
       }
     ],
     "direction": "vertical"
@@ -184,12 +199,16 @@
       "bases:Create new base": false
     }
   },
-  "active": "8a945b0aee060ec7",
+  "active": "e0c91fbbeab34b23",
   "lastOpenFiles": [
-    "Refactoring.md",
-    "Paper Surface.md",
-    "Plans/Refactoring Plan for Paper Codebase.md",
+    "Archive/Paper Surface.md",
+    "Todo/Refactoring.md",
+    "Specifications",
+    "Todo",
+    "Archive",
+    "Archive/Refactoring.md",
+    "Archive/Plans/Refactoring Plan for Paper Codebase.md",
     "Welcome.md",
-    "Plans"
+    "Archive/Plans"
   ]
 }

@@ -77,7 +77,7 @@ namespace Paper.Layout
             else
             {
                 // Multi-line: pack items into lines
-                var lines = BuildLines(items, style, mainSize, crossSize, gap, measurer, isRow);
+                var lines = BuildLines(items, style, mainSize, crossSize, gap, measurer, isRow, allowShrink: !mainAxisScrollable && !isIntrinsicMain);
                 usedCrossTotal = lines.Sum(l => l.LineCrossSize) + Math.Max(0, lines.Count - 1) * gap;
                 usedMainTotal = lines.Sum(l =>
                     l.Items.Sum(i => i.FinalMain) + Math.Max(0, l.Items.Count - 1) * gap)
@@ -365,7 +365,7 @@ namespace Paper.Layout
 
         private static List<FlexLine> BuildLines(
             List<Fiber> items, StyleSheet style, float mainSize, float crossSize,
-            float gap, ILayoutMeasurer? measurer, bool isRow)
+            float gap, ILayoutMeasurer? measurer, bool isRow, bool allowShrink)
         {
             var lines = new List<FlexLine>();
             var current = new FlexLine();
@@ -417,7 +417,7 @@ namespace Paper.Layout
                             fi.FinalMain = fi.HypotheticalMain + (fi.Fiber.ComputedStyle.FlexGrow ?? 0f) * perUnit;
                     }
                 }
-                else if (freeSpace2 < -0.001f)
+                else if (freeSpace2 < -0.001f && allowShrink)
                 {
                     float totalShrink = line.Items.Sum(i => (i.Fiber.ComputedStyle.FlexShrink ?? 1f) * i.HypotheticalMain);
                     if (totalShrink > 0)
@@ -429,6 +429,18 @@ namespace Paper.Layout
                             fi.FinalMain = fi.HypotheticalMain + (scaled / totalShrink) * freeSpace2;
                         }
                     }
+                }
+
+                foreach (var fi in line.Items)
+                {
+                    var computedStyle = fi.Fiber.ComputedStyle;
+                    float minMain = isRow
+                        ? (computedStyle.MinWidth  != null && !computedStyle.MinWidth.Value.IsAuto  ? computedStyle.MinWidth.Value.Resolve(mainSize)  : 0f)
+                        : (computedStyle.MinHeight != null && !computedStyle.MinHeight.Value.IsAuto ? computedStyle.MinHeight.Value.Resolve(mainSize) : 0f);
+                    float maxMain = isRow
+                        ? (computedStyle.MaxWidth  != null && !computedStyle.MaxWidth.Value.IsAuto  ? computedStyle.MaxWidth.Value.Resolve(mainSize)  : float.MaxValue)
+                        : (computedStyle.MaxHeight != null && !computedStyle.MaxHeight.Value.IsAuto ? computedStyle.MaxHeight.Value.Resolve(mainSize) : float.MaxValue);
+                    fi.FinalMain = Math.Max(minMain, Math.Min(maxMain, fi.FinalMain));
                 }
 
                 foreach (var fi in line.Items)
@@ -452,7 +464,9 @@ namespace Paper.Layout
             ILayoutMeasurer? measurer = null,
             Func<string?, (float w, float h)?>? getImageSize = null)
         {
-            float crossGap = gap;
+            float crossGap = isRow 
+                ? (style.RowGap?.Resolve(crossSize) ?? style.Gap?.Resolve(crossSize) ?? gap) 
+                : (style.ColumnGap?.Resolve(crossSize) ?? style.Gap?.Resolve(crossSize) ?? gap);
             float totalLinesCross = lines.Sum(l => l.LineCrossSize);
             float totalCrossGaps = Math.Max(0, lines.Count - 1) * crossGap;
             float freeCross = crossSize - totalLinesCross - totalCrossGaps;
