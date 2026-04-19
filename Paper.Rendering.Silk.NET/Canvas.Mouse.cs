@@ -97,7 +97,10 @@ namespace Paper.Rendering.Silk.NET
 
             if (button == MouseButton.Left && _uiState.DragActive && _uiState.DragSource != null)
             {
-                DispatchDrag(target, new DragEvent { Type = DragEventType.Drop, X = mouseX, Y = mouseY, Data = _uiState.DragData });
+                DispatchDrag(target, new DragEvent { Type = DragEventType.Drop, X = mouseX, Y = mouseY, Data = _uiState.DragData,
+                    LocalX = target != null ? mouseX - target.Layout.AbsoluteX : 0,
+                    LocalY = target != null ? mouseY - target.Layout.AbsoluteY : 0,
+                    TargetWidth = target?.Layout.Width ?? 0, TargetHeight = target?.Layout.Height ?? 0 });
                 DispatchDrag(_uiState.DragSource, new DragEvent { Type = DragEventType.DragEnd, X = mouseX, Y = mouseY, Data = _uiState.DragData });
 
                 if (_uiState.DragOver != null)

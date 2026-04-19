@@ -109,15 +109,21 @@ namespace Paper.Rendering.Silk.NET
             if (!ReferenceEquals(target, _uiState.DragOver))
             {
                 if (_uiState.DragOver != null)
-                    DispatchDrag(_uiState.DragOver, new DragEvent { Type = DragEventType.DragLeave, X = layoutCoordsX, Y = layoutCoordsY, Data = _uiState.DragData });
+                    DispatchDrag(_uiState.DragOver, new DragEvent { Type = DragEventType.DragLeave, X = layoutCoordsX, Y = layoutCoordsY, Data = _uiState.DragData,
+                        LocalX = layoutCoordsX - _uiState.DragOver.Layout.AbsoluteX, LocalY = layoutCoordsY - _uiState.DragOver.Layout.AbsoluteY,
+                        TargetWidth = _uiState.DragOver.Layout.Width, TargetHeight = _uiState.DragOver.Layout.Height });
                 if (target != null)
-                    DispatchDrag(target, new DragEvent { Type = DragEventType.DragEnter, X = layoutCoordsX, Y = layoutCoordsY, Data = _uiState.DragData });
+                    DispatchDrag(target, new DragEvent { Type = DragEventType.DragEnter, X = layoutCoordsX, Y = layoutCoordsY, Data = _uiState.DragData,
+                        LocalX = layoutCoordsX - target.Layout.AbsoluteX, LocalY = layoutCoordsY - target.Layout.AbsoluteY,
+                        TargetWidth = target.Layout.Width, TargetHeight = target.Layout.Height });
                 _uiState.DragOver     = target;
                 _uiState.DragOverPath = target != null ? FiberTreeUtility.GetPathString(target) : null;
             }
             else if (target != null)
             {
-                DispatchDrag(target, new DragEvent { Type = DragEventType.DragOver, X = layoutCoordsX, Y = layoutCoordsY, Data = _uiState.DragData });
+                DispatchDrag(target, new DragEvent { Type = DragEventType.DragOver, X = layoutCoordsX, Y = layoutCoordsY, Data = _uiState.DragData,
+                    LocalX = layoutCoordsX - target.Layout.AbsoluteX, LocalY = layoutCoordsY - target.Layout.AbsoluteY,
+                    TargetWidth = target.Layout.Width, TargetHeight = target.Layout.Height });
             }
         }
 

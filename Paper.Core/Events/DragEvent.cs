@@ -23,6 +23,14 @@ namespace Paper.Core.Events
         public float X { get; init; }
         public float Y { get; init; }
 
+        /// <summary>Pointer position relative to the event target's top-left corner.</summary>
+        public float LocalX { get; set; }
+        public float LocalY { get; set; }
+
+        /// <summary>Layout dimensions of the event target.</summary>
+        public float TargetWidth  { get; set; }
+        public float TargetHeight { get; set; }
+
         /// <summary>Arbitrary payload attached by the drag source in OnDragStart.</summary>
         public object? Data { get; set; }
     }

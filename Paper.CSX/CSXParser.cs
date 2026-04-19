@@ -448,6 +448,16 @@ namespace Paper.CSX
                 var m = declRegex.Match(source, i);
                 if (!m.Success) break;
 
+                // Skip matches that fall inside a // line comment
+                var lineStart = source.LastIndexOf('\n', m.Index) + 1;
+                var commentStart = source.IndexOf("//", lineStart, m.Index - lineStart + 1, StringComparison.Ordinal);
+                if (commentStart >= 0 && commentStart < m.Index)
+                {
+                    var nextNl = source.IndexOf('\n', m.Index);
+                    i = nextNl >= 0 ? nextNl + 1 : source.Length;
+                    continue;
+                }
+
                 int idx = m.Index;
                 // Group 1 = return-type generic (UINode<T>), group 3 = method-level generic (Name<T>)
                 // Prefer return-type generic; fall back to method-level generic.
@@ -507,14 +517,7 @@ namespace Paper.CSX
 
             // Extract the JSX content inside "return ( ... )"
             var parenOpen = returnIdx + "return (".Length - 1;
-            var depth = 1;
-            var j = parenOpen + 1;
-            while (j < body.Length && depth > 0)
-            {
-                if (body[j] == '(') depth++;
-                else if (body[j] == ')') depth--;
-                j++;
-            }
+            var j = FindMatchingParen(body, parenOpen) + 1;
             var jsxContent = body.Substring(parenOpen + 1, j - 1 - (parenOpen + 1)).Trim();
             string generatedJsx;
             try { generatedJsx = Parse(jsxContent); }

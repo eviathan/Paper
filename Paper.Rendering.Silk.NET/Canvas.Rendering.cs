@@ -24,6 +24,15 @@ namespace Paper.Rendering.Silk.NET
                 _reconciler.Update(_rootFactory!(), forceReconcile: requested);
                 _renderState.LayoutDirty = true;
                 _renderState.NeedsLayout = true;
+
+                // AutoFocus: if a newly-mounted input has autoFocus=true, focus it.
+                var autoFocusFiber = FindAutoFocus(_reconciler.Root);
+                if (autoFocusFiber != null)
+                {
+                    var autoFocusPath = FiberTreeUtility.GetPathString(autoFocusFiber);
+                    if (autoFocusPath != _inputState.FocusedPath)
+                        SetFocus(autoFocusFiber);
+                }
             }
             var root = _reconciler.Root;
             if (root == null) return;
@@ -166,6 +175,15 @@ namespace Paper.Rendering.Silk.NET
 
             _rects!.Flush(framebufferSize.X, framebufferSize.Y);
             _text?.Flush(framebufferSize.X, framebufferSize.Y);
+        }
+
+        private static Fiber? FindAutoFocus(Fiber? fiber)
+        {
+            if (fiber == null) return null;
+            if (fiber.Props.AutoFocus && HitTestUtility.IsFocusable(fiber)) return fiber;
+            var found = FindAutoFocus(fiber.Child);
+            if (found != null) return found;
+            return FindAutoFocus(fiber.Sibling);
         }
 
         private void OnResize(Vector2D<int> size)

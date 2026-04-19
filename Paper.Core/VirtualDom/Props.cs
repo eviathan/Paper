@@ -86,6 +86,7 @@ namespace Paper.Core.VirtualDom
         public bool ReadOnly => Get<bool>("readOnly");
         public bool Disabled => Get<bool>("disabled");
         public string? InputType => Get<string>("inputType");
+        public bool AutoFocus => Get<bool>("autoFocus");
 
         public Action<DragEvent>? OnDragStart  => Get<Action<DragEvent>>("onDragStart");
         public Action<DragEvent>? OnDrag       => Get<Action<DragEvent>>("onDrag");

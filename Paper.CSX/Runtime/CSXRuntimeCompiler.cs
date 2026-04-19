@@ -113,6 +113,8 @@ public static class {{componentClassName}}
                     .ToList();
                 var diag = string.Join("\n", errors);
                 var errorMsg = diag.Length > 0 ? diag : "Unknown CSX compilation error.";
+                // Dump generated source to /tmp for debugging
+                try { System.IO.File.WriteAllText("/tmp/csx_generated.cs", source); } catch { }
                 throw new Exception(errorMsg);
             }
 

@@ -91,6 +91,7 @@ namespace Paper.Core.VirtualDom
         public PropsBuilder ReadOnly(bool readOnly = true) { _data["readOnly"] = readOnly; return this; }
         public PropsBuilder Disabled(bool disabled = true) { _data["disabled"] = disabled; return this; }
         public PropsBuilder InputType(string inputType) { _data["inputType"] = inputType; return this; }
+        public PropsBuilder AutoFocus(bool v = true) { _data["autoFocus"] = v; return this; }
 
         // ── Accessibility ─────────────────────────────────────────────────────────
 
