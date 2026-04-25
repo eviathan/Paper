@@ -68,6 +68,16 @@ namespace Paper.Rendering.Silk.NET
         /// <summary>Minimum window height in pixels. Null = no minimum.</summary>
         public int? MinimumWindowHeight { get; set; }
 
+        /// <summary>Window border type. Default is Resizable.</summary>
+        public WindowBorder WindowBorder { get; set; } = WindowBorder.Resizable;
+
+        /// <summary>Convenience: set true for a frameless window (sets WindowBorder to Hidden). Default false.</summary>
+        public bool Frameless
+        {
+            get => WindowBorder == WindowBorder.Hidden;
+            set => WindowBorder = value ? WindowBorder.Hidden : WindowBorder.Resizable;
+        }
+
         /// <summary>Called once after the GL context and input context are created.</summary>
         public Action<GL, IInputContext, int, int>? OnLoad { get; set; }
 
@@ -79,6 +89,15 @@ namespace Paper.Rendering.Silk.NET
             _title = title;
             _width = width;
             _height = height;
+        }
+
+        /// <summary>Create a canvas with full control over windowing options.</summary>
+        public Canvas(string title, int width, int height, WindowBorder windowBorder, bool isEventDriven = false, bool vsync = true)
+        {
+            _title = title;
+            _width = width;
+            _height = height;
+            WindowBorder = windowBorder;
         }
 
         /// <summary>Releases all GPU and managed resources. Called automatically at the end of <see cref="Run"/>.</summary>
@@ -126,6 +145,7 @@ namespace Paper.Rendering.Silk.NET
             options.VSync = true;
             options.IsEventDriven = false;
             options.PreferredStencilBufferBits = 8;
+            options.WindowBorder = WindowBorder;
 
             _window = Window.Create(options);
             _window.Load += OnWindowLoad;

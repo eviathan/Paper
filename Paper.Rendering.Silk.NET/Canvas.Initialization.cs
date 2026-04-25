@@ -6,6 +6,8 @@ using Paper.Rendering.Silk.NET.Text;
 using Paper.Rendering.Silk.NET.Utilities;
 using Silk.NET.Input;
 using Silk.NET.OpenGL;
+using System.IO;
+using System.Runtime.InteropServices;
 
 namespace Paper.Rendering.Silk.NET
 {
@@ -95,6 +97,9 @@ namespace Paper.Rendering.Silk.NET
             }
 
             OnLoad?.Invoke(_gl, inputContext, _width, _height);
+
+            // Apply macOS unified title bar style after window creation
+            ConfigureMacOSUnifiedTitleBar();
         }
 
         private void DisposeResources()
@@ -178,5 +183,116 @@ namespace Paper.Rendering.Silk.NET
 
             return fontRegistry;
         }
+
+        // Objective-C runtime interop
+        [System.Runtime.InteropServices.DllImport("/usr/lib/libobjc.dylib")]
+        private static extern IntPtr sel_registerName(string strName);
+
+        [System.Runtime.InteropServices.DllImport("/usr/lib/libobjc.dylib")]
+        private static extern IntPtr objc_msgSend(IntPtr receiver, IntPtr selector, byte arg);
+
+        [System.Runtime.InteropServices.DllImport("/usr/lib/libobjc.dylib")]
+        private static extern IntPtr objc_msgSend(IntPtr receiver, IntPtr selector, UIntPtr arg);
+
+        [System.Runtime.InteropServices.DllImport("/usr/lib/libobjc.dylib")]
+        private static extern IntPtr objc_msgSend(IntPtr receiver, IntPtr selector);
+
+        // Selectors
+        private static readonly IntPtr sel_setTitlebarAppearsTransparent = sel_registerName("setTitlebarAppearsTransparent:");
+        private static readonly IntPtr sel_setTitleVisibility = sel_registerName("setTitleVisibility:");
+        private static readonly IntPtr sel_setStyleMask = sel_registerName("setStyleMask:");
+        private static readonly IntPtr sel_setCollectionBehavior = sel_registerName("setCollectionBehavior:");
+        private static readonly IntPtr sel_styleMask = sel_registerName("styleMask");
+
+        // Constants
+        private const ulong NSWindowStyleMaskFullSizeContentView = 1 << 15;
+        private const ulong NSWindowCollectionBehaviorFullScreenAuxiliary = 1 << 8;
+        private const byte NSWindowTitleVisibilityHidden = 1;
+
+        // Lazy-loaded function pointer for glfwGetCocoaWindow (resolved from Silk.NET's native glfw library)
+        private static IntPtr _glfwGetCocoaWindowPtr;
+
+        private static unsafe void EnsureGlfwGetCocoaWindow()
+        {
+            if (_glfwGetCocoaWindowPtr != IntPtr.Zero) return;
+            try
+            {
+                // Determine RID subdirectory: osx-arm64 or osx-x64
+                string arch = RuntimeInformation.ProcessArchitecture == Architecture.Arm64 ? "osx-arm64" : "osx-x64";
+                string baseDir = AppContext.BaseDirectory;
+                string libPath = Path.Combine(baseDir, "runtimes", arch, "native", "libglfw.3.dylib");
+                if (!File.Exists(libPath))
+                {
+                    Console.WriteLine($"[macOS] GLFW library not found at {libPath}");
+                    return;
+                }
+
+                IntPtr lib = NativeLibrary.Load(libPath);
+                IntPtr proc = NativeLibrary.GetExport(lib, "glfwGetCocoaWindow");
+                _glfwGetCocoaWindowPtr = proc;
+                Console.WriteLine("[macOS] Resolved glfwGetCocoaWindow.");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[macOS] Failed to resolve glfwGetCocoaWindow: {ex.Message}");
+            }
+        }
+
+        // Configures native macOS window to use unified title bar (transparent, traffic lights overlay)
+        private unsafe void ConfigureMacOSUnifiedTitleBar()
+        {
+            // Only execute on macOS
+            if (!RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+                return;
+            if (_window == null) return;
+            try
+            {
+                // Resolve glfwGetCocoaWindow from the native GLFW library
+                EnsureGlfwGetCocoaWindow();
+                if (_glfwGetCocoaWindowPtr == IntPtr.Zero)
+                {
+                    Console.WriteLine("[macOS] glfwGetCocoaWindow delegate not available.");
+                    return;
+                }
+
+                // Get the GLFWwindow pointer from the window handle
+                IntPtr glfwWindowPtr = _window.Handle;
+                if (glfwWindowPtr == IntPtr.Zero)
+                {
+                    Console.WriteLine("[macOS] Window handle is zero.");
+                    return;
+                }
+
+                // Get the NSWindow from the GLFW window
+                var glfwGetCocoaWindow = (delegate* unmanaged<IntPtr, IntPtr>)_glfwGetCocoaWindowPtr;
+                IntPtr nsWindow = glfwGetCocoaWindow(glfwWindowPtr);
+                if (nsWindow == IntPtr.Zero)
+                {
+                    Console.WriteLine("[macOS] glfwGetCocoaWindow returned null.");
+                    return;
+                }
+
+                // Hide window title (NSWindowTitleVisibilityHidden = 1)
+                objc_msgSend(nsWindow, sel_setTitleVisibility, (UIntPtr)NSWindowTitleVisibilityHidden);
+
+                // Make title bar transparent
+                objc_msgSend(nsWindow, sel_setTitlebarAppearsTransparent, (UIntPtr)1);
+
+                // Extend content view under title bar
+                UIntPtr currentMask = (UIntPtr)objc_msgSend(nsWindow, sel_styleMask);
+                UIntPtr newMask = currentMask | (UIntPtr)NSWindowStyleMaskFullSizeContentView;
+                objc_msgSend(nsWindow, sel_setStyleMask, newMask);
+
+                // Enable full-screen auxiliary
+                objc_msgSend(nsWindow, sel_setCollectionBehavior, (UIntPtr)NSWindowCollectionBehaviorFullScreenAuxiliary);
+
+                Console.WriteLine("[macOS] Unified title bar applied successfully.");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[macOS] Unified title bar failed: {ex.Message}");
+            }
+        }
+
     }
 }
