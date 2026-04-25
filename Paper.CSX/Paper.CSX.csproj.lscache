@@ -247,14 +247,7 @@ Syntax/
  WindowsBase.dll
 <NUGET>/
  microsoft.codeanalysis.common/4.10.0/lib/net8.0/Microsoft.CodeAnalysis.dll
- microsoft.codeanalysis.csharp.workspaces/4.10.0/lib/net8.0/Microsoft.CodeAnalysis.CSharp.Workspaces.dll
  microsoft.codeanalysis.csharp/4.10.0/lib/net8.0/Microsoft.CodeAnalysis.CSharp.dll
- microsoft.codeanalysis.workspaces.common/4.10.0/lib/net8.0/Microsoft.CodeAnalysis.Workspaces.dll
- system.composition.attributedmodel/8.0.0/lib/net8.0/System.Composition.AttributedModel.dll
- system.composition.convention/8.0.0/lib/net8.0/System.Composition.Convention.dll
- system.composition.hosting/8.0.0/lib/net8.0/System.Composition.Hosting.dll
- system.composition.runtime/8.0.0/lib/net8.0/System.Composition.Runtime.dll
- system.composition.typedparts/8.0.0/lib/net8.0/System.Composition.TypedParts.dll
 
 [analyzerReferences]
 <DOTNET>/packs/Microsoft.NETCore.App.Ref/10.0.1/analyzers/dotnet/cs/

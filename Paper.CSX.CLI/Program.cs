@@ -137,7 +137,7 @@ namespace Paper.CSX.CLI
             var componentName = char.ToUpper(fileName[0]) + fileName.Substring(1) + "Component";
             var methodName = char.ToUpper(fileName[0]) + fileName.Substring(1);
 
-            var (preamble, jsxContent, hoistedClasses, _) = CSXCompiler.ExtractPreambleAndJsx(content);
+            var (preamble, jsxContent, hoistedClasses, _) = CSXCompiler.ExtractPreambleAndJsx(content, file.DirectoryName);
             var parsedBody = string.IsNullOrWhiteSpace(jsxContent) ? "UI.Fragment()" : CSXCompiler.Parse(jsxContent);
 
             string ns = "Paper.Generated";
@@ -154,6 +154,25 @@ namespace Paper.CSX.CLI
                 catch { /* use default namespace */ }
             }
 
+            // Separate using directives in the preamble so they can be hoisted to file scope.
+            // Using directives are invalid inside method bodies in C#.
+            var hoistedUsings = new HashSet<string>();
+            var preambleBody = string.Empty;
+            if (!string.IsNullOrEmpty(preamble))
+            {
+                var preambleLines = preamble.Split(new[] { '\r', '\n' }, StringSplitOptions.None);
+                var bodyLines = new List<string>();
+                foreach (var line in preambleLines)
+                {
+                    var trimmed = line.Trim();
+                    if (trimmed.StartsWith("using ") && trimmed.EndsWith(";"))
+                        hoistedUsings.Add(trimmed);
+                    else
+                        bodyLines.Add(line);
+                }
+                preambleBody = string.Join("\n", bodyLines);
+            }
+
             var sb = new StringBuilder();
             sb.AppendLine("using System.Collections.Generic;");
             sb.AppendLine("using System.Linq;");
@@ -162,6 +181,8 @@ namespace Paper.CSX.CLI
             sb.AppendLine("using Paper.Core.Styles;");
             sb.AppendLine("using Paper.Core.Hooks;");
             sb.AppendLine("using Paper.Core.Context;");
+            foreach (var usingLine in hoistedUsings.OrderBy(u => u))
+                sb.AppendLine(usingLine);
             sb.AppendLine();
             sb.AppendLine($"namespace {ns}");
             sb.AppendLine("{");
@@ -176,11 +197,11 @@ namespace Paper.CSX.CLI
             sb.AppendLine("    {");
             sb.AppendLine($"        public static UINode {methodName}(Props props)");
             sb.AppendLine("        {");
-            if (!string.IsNullOrEmpty(preamble))
+            if (!string.IsNullOrEmpty(preambleBody))
             {
                 // StringSplitOptions.None preserves blank lines so each CSX preamble line maps
                 // 1:1 to a generated source line — required for accurate LSP position mapping.
-                var pLines = preamble.Split(new[] { '\r', '\n' }, StringSplitOptions.None);
+                var pLines = preambleBody.Split(new[] { '\r', '\n' }, StringSplitOptions.None);
                 int baseInd = pLines
                     .Where(l => !string.IsNullOrWhiteSpace(l))
                     .Select(l => l.Length - l.TrimStart().Length)

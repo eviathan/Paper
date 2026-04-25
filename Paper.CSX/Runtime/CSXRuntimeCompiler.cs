@@ -4,7 +4,6 @@ using System.Reflection;
 using System.Runtime.Loader;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.Formatting;
 
 namespace Paper.CSX.Runtime
 {
@@ -14,15 +13,7 @@ namespace Paper.CSX.Runtime
 
     public static class CSXRuntimeCompiler
     {
-        private static string FormatSourceCode(string source)
-        {
-            var tree = CSharpSyntaxTree.ParseText(source);
-            var root = tree.GetRoot();
 
-            using var workspace = new AdhocWorkspace();
-            var formattedRoot = Formatter.Format(root, workspace);
-            return formattedRoot.ToFullString();
-        }
 
         public static CSXCompiledComponent Compile(string csxSource, string componentClassName = "CSXHotComponent", string? baseDir = null)
         {
