@@ -210,9 +210,9 @@ namespace Paper.Rendering.Silk.NET.Text
             }
 
             gl.TexParameter(TextureTarget.Texture2D,
-                TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
+                TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
             gl.TexParameter(TextureTarget.Texture2D,
-                TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
+                TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
             gl.TexParameter(TextureTarget.Texture2D,
                 TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
             gl.TexParameter(TextureTarget.Texture2D,

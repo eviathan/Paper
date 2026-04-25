@@ -172,8 +172,6 @@ namespace Paper.Rendering.Silk.NET
                             clickTarget.Props.OnCheckedChange(!clickTarget.Props.Checked);
                         else
                             clickTarget.Props.OnClick?.Invoke();
-                        if (_window != null)
-                            _window.Title = _title + " — clicked";
                     }
                     catch (Exception ex)
                     {

@@ -268,6 +268,12 @@ namespace Paper.Layout
             while (child != null)
             {
                 var computedStyle = child.ComputedStyle;
+                if ((computedStyle.Display ?? Display.Block) == Display.None)
+                {
+                    child.Layout = new LayoutBox();
+                    child = child.Sibling;
+                    continue;
+                }
                 var pos = computedStyle.Position ?? Position.Static;
                 if (pos == Position.Absolute)
                 {

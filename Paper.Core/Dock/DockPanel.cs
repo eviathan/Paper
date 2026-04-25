@@ -103,9 +103,10 @@ namespace Paper.Core.Dock
                 },
                     UI.Box(new StyleSheet
                     {
-                        FlexGrow = 1,
-                        Overflow = Overflow.Hidden,
-                        Padding  = new Thickness(Length.Px(8)),
+                        FlexGrow      = 1,
+                        Display       = Display.Flex,
+                        FlexDirection = FlexDirection.Column,
+                        Overflow      = Overflow.Hidden,
                     }, content),
                     DockContainer.RenderDropTarget(panel.NodeId, ctx))
             );
