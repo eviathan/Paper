@@ -142,7 +142,8 @@ namespace Paper.Layout
                     float vert = BoxModel.VerticalInsets(style, usedCrossTotal);
                     layoutBox.Height = Math.Max(layoutBox.Height, usedCrossTotal + vert);
                 }
-                if (style.Width == null || style.Width.Value.IsAuto)
+                // Scroll containers stay at their parent-allocated width; content overflows and scrolls.
+                if ((style.Width == null || style.Width.Value.IsAuto) && !mainAxisScrollable)
                 {
                     float horiz = BoxModel.HorizontalInsets(style, usedMainTotal);
                     layoutBox.Width = Math.Max(layoutBox.Width, usedMainTotal + horiz);
@@ -151,7 +152,8 @@ namespace Paper.Layout
             else
             {
                 // Column: main=height, cross=width
-                if (style.Height == null || style.Height.Value.IsAuto)
+                // Scroll containers stay at their parent-allocated height; content overflows and scrolls.
+                if ((style.Height == null || style.Height.Value.IsAuto) && !mainAxisScrollable)
                 {
                     float vert = BoxModel.VerticalInsets(style, usedMainTotal);
                     layoutBox.Height = Math.Max(layoutBox.Height, usedMainTotal + vert);

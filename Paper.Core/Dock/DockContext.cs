@@ -206,14 +206,14 @@ namespace Paper.Core.Dock
                     Overflow      = Overflow.Hidden,
                     FlexGrow      = 1f,
                     Width         = Length.Percent(100),
-                    Height        = Length.Percent(100),
+                    MinHeight     = Length.Px(0),
                 }.Merge(props.Style ?? StyleSheet.Empty);
 
                 // When no children are passed, render the dock container automatically.
                 // DockContainer.Render() reads from the Context.Provider(live, ...) below.
                 var content = children2.Count == 0
                     ? DockContainer.Render()
-                    : UI.Box(new StyleSheet { FlexGrow = 1f, Width = Length.Percent(100), Height = Length.Percent(100) }, children2.ToArray());
+                    : UI.Box(new StyleSheet { FlexGrow = 1f, Width = Length.Percent(100), MinHeight = Length.Px(0) }, children2.ToArray());
 
                 return UI.Box(outerStyle, Context.Provider(live, content));
             }, new PropsBuilder()

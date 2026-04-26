@@ -80,10 +80,10 @@ namespace Paper.Core.Dock
             {
                 Display  = Display.Flex,
                 Width    = Length.Percent(100),
-                Height   = Length.Percent(100),
                 Position = Position.Relative,
                 Overflow = Overflow.Hidden,
                 FlexGrow = 1f,
+                MinHeight = Length.Px(0),
             }.Merge(p.Style ?? StyleSheet.Empty);
 
             var children = new List<UINode> { tileArea };
@@ -145,6 +145,8 @@ namespace Paper.Core.Dock
                     Display       = Display.Flex,
                     FlexDirection = FlexDirection.Column,
                     Overflow      = Overflow.Hidden,
+                    MinWidth      = Length.Px(0),
+                    MinHeight     = Length.Px(0),
                 }
                 : new StyleSheet
                 {
@@ -152,6 +154,8 @@ namespace Paper.Core.Dock
                     Display       = Display.Flex,
                     FlexDirection = FlexDirection.Column,
                     Overflow      = Overflow.Hidden,
+                    MinWidth      = Length.Px(0),
+                    MinHeight     = Length.Px(0),
                 };
 
             var handleStyle = new StyleSheet
@@ -327,7 +331,7 @@ namespace Paper.Core.Dock
         /// </summary>
         internal static UINode RenderDropTarget(string nodeId, DockContextValue ctx)
         {
-            if (!ctx.IsDraggingPanel) return UI.Box(StyleSheet.Empty);
+            if (!ctx.IsDraggingPanel) return UI.Box(new StyleSheet { Display = Display.None });
 
             var theme       = ctx.Theme;
             var constraints = ctx.GetConstraints(nodeId);
