@@ -146,6 +146,12 @@ namespace Paper.Rendering.Silk.NET
             _gl.ClearStencil(0);
             _gl.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.StencilBufferBit);
 
+            // Reset blend state — game render (TickFrame) may leave additive or other
+            // non-standard blending active (particles, lighting post-process, etc.).
+            _gl.Enable(EnableCap.Blend);
+            _gl.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
+            _gl.Disable(EnableCap.DepthTest);
+
             var renderer = _renderer!;
             renderer.SetScreenSize(framebufferSize.X, framebufferSize.Y);
             renderer.DpiScale = _width > 0 ? framebufferSize.X / (float)_width : 1f;
