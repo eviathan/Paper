@@ -252,7 +252,7 @@ namespace Paper.Rendering.Silk.NET
             if (fiber.Type is string typeViewport && typeViewport == ElementTypes.Viewport)
             {
                 _rects.Flush(_screenW, _screenH);
-                fiber.Props.OnViewportSize?.Invoke((int)drawWidth, (int)drawHeight);
+                fiber.Props.OnViewportSize?.Invoke((int)layoutBox.Width, (int)layoutBox.Height);
                 uint texHandle = fiber.Props.TextureHandle;
                 if (texHandle != 0)
                 {
