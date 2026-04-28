@@ -177,6 +177,10 @@ namespace Paper.Rendering.Silk.NET
 
                 if (node.Props?.OnWheel != null)
                 {
+                    wheelEvent.LocalX       = mouseX - node.Layout.AbsoluteX;
+                    wheelEvent.LocalY       = mouseY - node.Layout.AbsoluteY;
+                    wheelEvent.TargetWidth  = node.Layout.Width;
+                    wheelEvent.TargetHeight = node.Layout.Height;
                     node.Props.OnWheel(wheelEvent);
                     return;
                 }
