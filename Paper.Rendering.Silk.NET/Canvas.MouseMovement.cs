@@ -44,7 +44,7 @@ namespace Paper.Rendering.Silk.NET
                 MarkDirty();
             }
 
-            if (mouse.IsButtonPressed(MouseButton.Left) && _pointerDownFiber != null)
+            if ((mouse.IsButtonPressed(MouseButton.Left) || mouse.IsButtonPressed(MouseButton.Middle)) && _pointerDownFiber != null)
             {
                 var layoutBox = _pointerDownFiber.Layout;
                 DispatchPointer(_pointerDownFiber, new PointerEvent
