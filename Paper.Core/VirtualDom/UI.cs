@@ -234,9 +234,10 @@ namespace Paper.Core.VirtualDom
         /// Renders an OpenGL texture as a viewport panel. The texture handle is typically
         /// obtained from the embedded engine's game-view framebuffer.
         /// </summary>
-        public static UINode Viewport(uint textureHandle, StyleSheet? style = null, string? key = null) =>
+        public static UINode Viewport(uint textureHandle, StyleSheet? style = null, string? key = null, Action<int, int>? onSizeChanged = null) =>
             new(ElementTypes.Viewport, new PropsBuilder()
                 .Set("textureHandle", textureHandle)
+                .Set("onViewportSize", onSizeChanged)
                 .Style(style ?? StyleSheet.Empty)
                 .Build(), key);
 

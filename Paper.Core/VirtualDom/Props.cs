@@ -37,7 +37,8 @@ namespace Paper.Core.VirtualDom
         public Action<string>? OnSelect => Get<Action<string>>("onSelect");
         public string? Value => Get<string>("value");
         public bool RadioChecked => Get<bool>("checked");
-        public uint                  TextureHandle => Get<uint>("textureHandle");
+        public uint                  TextureHandle  => Get<uint>("textureHandle");
+        public Action<int, int>?     OnViewportSize => Get<Action<int, int>>("onViewportSize");
 
         // ── Children ─────────────────────────────────────────────────────────
 
