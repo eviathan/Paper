@@ -157,6 +157,7 @@ namespace Paper.Rendering.Silk.NET
             renderer.DpiScale = _width > 0 ? framebufferSize.X / (float)_width : 1f;
             renderer.ScaleX = renderer.DpiScale;
             renderer.ScaleY = renderer.DpiScale;
+            DpiScale = renderer.DpiScale;
             renderer.FocusedInputPath = _inputState.Focused != null && InputTextUtility.IsTextInput(_inputState.Focused.Type as string)
                 ? FiberTreeUtility.GetPathString(_inputState.Focused)
                 : _inputState.FocusedPath;

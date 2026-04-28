@@ -59,6 +59,9 @@ namespace Paper.Rendering.Silk.NET
         /// </summary>
         public bool AlwaysRender { get; set; } = false;
 
+        /// <summary>Ratio of physical framebuffer pixels to logical window pixels (e.g. 2 on Retina). Updated each frame.</summary>
+        public float DpiScale { get; private set; } = 1f;
+
         /// <summary>Global style registry for this surface.</summary>
         public StyleRegistry Styles { get; } = new();
 
