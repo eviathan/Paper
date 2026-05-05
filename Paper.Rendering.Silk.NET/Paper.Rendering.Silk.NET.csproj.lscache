@@ -64,7 +64,9 @@ Canvas.Keyboard.cs
 Canvas.Mouse.cs
 Canvas.MouseMovement.cs
 Canvas.Rendering.cs
+CanvasManager.cs
 CSXHotReload.cs
+DockWindowFactory.cs
 FiberRenderer.cs
 FiberRenderer.Drawing.cs
 FiberRenderer.Render.cs

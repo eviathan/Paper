@@ -60,12 +60,13 @@ namespace Paper.Rendering.Silk.NET
                 }
             };
 
-            _reconciler = new Reconciler();
-
             var prevRequest = RenderScheduler.OnRenderRequested;
+            _reconciler = new Reconciler();
+            var reconRequest = RenderScheduler.OnRenderRequested;
             RenderScheduler.OnRenderRequested = () =>
             {
                 prevRequest?.Invoke();
+                reconRequest?.Invoke();
                 _renderState.LayoutDirty = true;
             };
             _reconciler.Mount(_rootFactory!());

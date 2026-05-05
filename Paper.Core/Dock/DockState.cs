@@ -191,28 +191,87 @@ namespace Paper.Core.Dock
         public required DockState State { get; init; }
     }
 
+    /// <summary>
+    /// Remove a panel from the layout without adding it to HiddenPanels.
+    /// Used when a panel is transferred to another window via cross-window drag.
+    /// </summary>
+    public sealed class DockRemovePanel : DockAction
+    {
+        public required string PanelId { get; init; }
+    }
+
+    /// <summary>
+    /// Remove a FloatNode from the floats list without adding it to HiddenPanels.
+    /// Used when a floating panel is ejected to a new OS window.
+    /// </summary>
+    public sealed class DockRemoveFloat : DockAction
+    {
+        public required string FloatNodeId { get; init; }
+    }
+
+    /// <summary>
+    /// Eject a panel outside the current window — handled by DockContext.Root,
+    /// not by the reducer. Creates a new OS window containing just that panel.
+    /// X/Y are window-relative drag-end coordinates; ScreenX/ScreenY are screen-absolute.
+    /// </summary>
+    public sealed class DockEjectToNewWindow : DockAction
+    {
+        public required string PanelId { get; init; }
+        public float X { get; init; }
+        public float Y { get; init; }
+        /// <summary>Screen-absolute X used to detect cross-window drops into existing windows.</summary>
+        public int ScreenX { get; init; }
+        /// <summary>Screen-absolute Y used to detect cross-window drops into existing windows.</summary>
+        public int ScreenY { get; init; }
+    }
+
+    /// <summary>
+    /// Accept a panel dragged in from another window into the tiled layout at a specific zone.
+    /// </summary>
+    public sealed class DockAcceptExternalPanel : DockAction
+    {
+        public required PanelNode Panel       { get; init; }
+        public required string    TargetNodeId { get; init; }
+        public required DropZone  Zone         { get; init; }
+    }
+
+    /// <summary>
+    /// Accept a panel dragged in from another window at a screen-edge zone
+    /// (wraps the entire root in a new split).
+    /// </summary>
+    public sealed class DockAcceptExternalPanelOuter : DockAction
+    {
+        public required PanelNode Panel { get; init; }
+        public required DropZone  Zone  { get; init; }
+    }
+
     // ── Reducer ───────────────────────────────────────────────────────────────
 
     public static class DockReducer
     {
         public static DockState Reduce(DockState state, DockAction action) => action switch
         {
-            DockDrop           a => HandleDrop(state, a),
-            DockDropOuter      a => HandleDropOuter(state, a),
-            DockTearOff        a => HandleTearOff(state, a),
-            DockClosePanel     a => HandleClosePanel(state, a),
-            DockShowPanel      a => HandleShowPanel(state, a),
-            DockSetAutoHide    a => HandleSetAutoHide(state, a),
-            DockDockFloat      a => HandleDockFloat(state, a),
-            DockDockFloatOuter a => HandleDockFloatOuter(state, a),
-            DockMoveFloat      a => HandleMoveFloat(state, a),
-            DockResizeFloat    a => HandleResizeFloat(state, a),
-            DockResizeSplit    a => HandleResizeSplit(state, a),
-            DockSelectTab      a => HandleSelectTab(state, a),
-            DockMinimize       a => HandleMinimize(state, a),
-            DockMaximize       a => HandleMaximize(state, a),
-            DockLoadPreset     a => a.State,
-            _                  => state,
+            DockDrop                    a => HandleDrop(state, a),
+            DockDropOuter               a => HandleDropOuter(state, a),
+            DockTearOff                 a => HandleTearOff(state, a),
+            DockClosePanel              a => HandleClosePanel(state, a),
+            DockShowPanel               a => HandleShowPanel(state, a),
+            DockSetAutoHide             a => HandleSetAutoHide(state, a),
+            DockDockFloat               a => HandleDockFloat(state, a),
+            DockDockFloatOuter          a => HandleDockFloatOuter(state, a),
+            DockMoveFloat               a => HandleMoveFloat(state, a),
+            DockResizeFloat             a => HandleResizeFloat(state, a),
+            DockResizeSplit             a => HandleResizeSplit(state, a),
+            DockSelectTab               a => HandleSelectTab(state, a),
+            DockMinimize                a => HandleMinimize(state, a),
+            DockMaximize                a => HandleMaximize(state, a),
+            DockLoadPreset              a => a.State,
+            DockRemovePanel             a => HandleRemovePanel(state, a),
+            DockRemoveFloat             a => HandleRemoveFloat(state, a),
+            DockAcceptExternalPanel     a => HandleAcceptExternal(state, a),
+            DockAcceptExternalPanelOuter a => HandleAcceptExternalOuter(state, a),
+            DockEjectToNewWindow          => state, // handled by DockContext.Root before reaching reducer
+            _                           => state,
         };
 
         // ── Drop ──────────────────────────────────────────────────────────────
@@ -275,7 +334,8 @@ namespace Paper.Core.Dock
                 Height = 300,
             };
             var newFloats = state.Floats.Append(floatNode).ToList();
-            return state.With(root: treeWithout, floats: newFloats);
+            var newRoot = treeWithout ?? new PanelNode { PanelId = "empty" };
+            return state.With(root: newRoot, floats: newFloats);
         }
 
         // ── ClosePanel ────────────────────────────────────────────────────────
@@ -287,8 +347,9 @@ namespace Paper.Core.Dock
             if (panel != null)
             {
                 var hidden = new List<PanelNode>(state.HiddenPanels) { panel };
+                var newRoot = treeWithout ?? new PanelNode { PanelId = "empty" };
                 return state.With(
-                    root: treeWithout,
+                    root: newRoot,
                     hiddenPanels: hidden,
                     clearMaximized: state.MaximizedPanelId == a.PanelId);
             }
@@ -356,7 +417,8 @@ namespace Paper.Core.Dock
                 }
                 var autoEntry = new AutoHideEntry { Panel = panel, Edge = a.Edge.Value };
                 var newAutoHide = new List<AutoHideEntry>(state.AutoHidePanels) { autoEntry };
-                return state.With(root: treeWithout, autoHidePanels: newAutoHide);
+                var newRoot = treeWithout ?? new PanelNode { PanelId = "empty" };
+                return state.With(root: newRoot, autoHidePanels: newAutoHide);
             }
         }
 
@@ -476,6 +538,48 @@ namespace Paper.Core.Dock
         private static DockState HandleMaximize(DockState state, DockMaximize a) =>
             state.With(maximizedPanelId: a.PanelId, clearMaximized: a.PanelId == null);
 
+        // ── RemovePanel / RemoveFloat (no hidden-list, for cross-window transfers) ──
+
+        private static DockState HandleRemovePanel(DockState state, DockRemovePanel a)
+        {
+            var (_, treeWithout) = ExtractPanel(state.Root, a.PanelId);
+            var newRoot = treeWithout ?? new PanelNode { PanelId = "empty" };
+            return state.With(root: newRoot, clearMaximized: state.MaximizedPanelId == a.PanelId);
+        }
+
+        private static DockState HandleRemoveFloat(DockState state, DockRemoveFloat a)
+        {
+            var newFloats = state.Floats.Where(f => f.NodeId != a.FloatNodeId).ToList();
+            return state.With(floats: newFloats);
+        }
+
+        // ── AcceptExternal (panel arriving from another window) ───────────────
+
+        private static DockState HandleAcceptExternal(DockState state, DockAcceptExternalPanel a)
+        {
+            var newRoot = InsertPanelSmart(state.Root, a.TargetNodeId, a.Zone, a.Panel);
+            return state.With(root: newRoot, clearMaximized: true);
+        }
+
+        private static DockState HandleAcceptExternalOuter(DockState state, DockAcceptExternalPanelOuter a)
+        {
+            // If the layout is empty, just install the panel as the sole root.
+            if (state.Root == null || (state.Root is PanelNode ep && ep.PanelId == "empty"))
+                return state.With(root: a.Panel, clearMaximized: true);
+
+            bool isFirst  = a.Zone == DropZone.Left || a.Zone == DropZone.Top;
+            var direction = (a.Zone == DropZone.Left || a.Zone == DropZone.Right)
+                ? DockDirection.Horizontal : DockDirection.Vertical;
+            var newRoot = new SplitNode
+            {
+                Direction = direction,
+                Ratio     = isFirst ? 0.25f : 0.75f,
+                First     = isFirst ? (DockNode)a.Panel : state.Root,
+                Second    = isFirst ? state.Root : a.Panel,
+            };
+            return state.With(root: newRoot, clearMaximized: true);
+        }
+
         // ── Tree helpers ──────────────────────────────────────────────────────
 
         /// <summary>Find a DockNode by its NodeId.</summary>
@@ -541,6 +645,11 @@ namespace Paper.Core.Dock
         /// <summary>Public wrapper used by DockContext when building the initial layout.</summary>
         internal static DockNode InsertPanelPublic(DockNode root, string targetNodeId, DropZone zone, PanelNode panel) =>
             InsertPanelSmart(root, targetNodeId, zone, panel);
+
+        /// <summary>Extract a panel from the layout tree, returning the panel and the pruned tree.
+        /// Used by DockContext.Root to handle eject-to-new-window.</summary>
+        internal static (PanelNode? panel, DockNode? tree) ExtractPanelPublic(DockNode root, string panelId) =>
+            ExtractPanel(root, panelId);
 
         /// <summary>Insert a PanelNode at the drop zone of the node with the given NodeId.</summary>
         private static DockNode InsertPanel(DockNode root, string targetNodeId, DropZone zone, PanelNode panel)

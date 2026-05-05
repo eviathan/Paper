@@ -95,13 +95,37 @@ namespace Paper.Rendering.Silk.NET
             var (mouseX, mouseY) = PaperUtility.ToLayoutCoords(mouse.Position);
             var target = HitTestAll(mouseX, mouseY);
 
-            if (button == MouseButton.Left && _uiState.DragActive && _uiState.DragSource != null)
+            if (button == MouseButton.Left && _uiState.CrossWindowDragActive)
             {
+                // Panel dragged from another OS window — complete the cross-window drop here.
+                var crossData = _uiState.CrossWindowDragData;
+                DispatchDrag(target, new DragEvent { Type = DragEventType.Drop, X = mouseX, Y = mouseY, Data = crossData,
+                    LocalX = target != null ? mouseX - target.Layout.AbsoluteX : 0,
+                    LocalY = target != null ? mouseY - target.Layout.AbsoluteY : 0,
+                    TargetWidth = target?.Layout.Width ?? 0, TargetHeight = target?.Layout.Height ?? 0 });
+                if (_uiState.CrossWindowDragOver != null)
+                {
+                    DispatchDrag(_uiState.CrossWindowDragOver, new DragEvent { Type = DragEventType.DragLeave, X = mouseX, Y = mouseY, Data = crossData });
+                    _uiState.CrossWindowDragOver     = null;
+                    _uiState.CrossWindowDragOverPath = null;
+                }
+                _uiState.CrossWindowDragActive = false;
+                _uiState.CrossWindowDragData   = null;
+                MarkDirty();
+            }
+            else if (button == MouseButton.Left && _uiState.DragActive && _uiState.DragSource != null)
+            {
+                bool outsideWindow = mouseX < 0 || mouseY < 0 || mouseX > _width || mouseY > _height;
+                Console.WriteLine($"[DockDbg] MouseUp: pos=({mouseX},{mouseY}) windowSize=({_width},{_height}) outsideWindow={outsideWindow} hasData={_uiState.DragData != null}");
+                var winPos = _window?.Position ?? default;
+                int screenX = winPos.X + (int)mouseX;
+                int screenY = winPos.Y + (int)mouseY;
                 DispatchDrag(target, new DragEvent { Type = DragEventType.Drop, X = mouseX, Y = mouseY, Data = _uiState.DragData,
                     LocalX = target != null ? mouseX - target.Layout.AbsoluteX : 0,
                     LocalY = target != null ? mouseY - target.Layout.AbsoluteY : 0,
                     TargetWidth = target?.Layout.Width ?? 0, TargetHeight = target?.Layout.Height ?? 0 });
-                DispatchDrag(_uiState.DragSource, new DragEvent { Type = DragEventType.DragEnd, X = mouseX, Y = mouseY, Data = _uiState.DragData });
+                DispatchDrag(_uiState.DragSource, new DragEvent { Type = DragEventType.DragEnd, X = mouseX, Y = mouseY, Data = _uiState.DragData,
+                    OutsideSourceWindow = outsideWindow, ScreenX = screenX, ScreenY = screenY });
 
                 if (_uiState.DragOver != null)
                 {

@@ -74,6 +74,8 @@ namespace Paper.Rendering.Silk.NET
                 _uiState.DragSource = FiberTreeUtility.GetFiberByPath(root, _uiState.DragSourcePath) ?? _uiState.DragSource;
             if (_uiState.DragOverPath != null)
                 _uiState.DragOver = FiberTreeUtility.GetFiberByPath(root, _uiState.DragOverPath) ?? _uiState.DragOver;
+            if (_uiState.CrossWindowDragOverPath != null)
+                _uiState.CrossWindowDragOver = FiberTreeUtility.GetFiberByPath(root, _uiState.CrossWindowDragOverPath) ?? _uiState.CrossWindowDragOver;
 
             // If the style registry changed, mark all fibers dirty so stale cached ComputedStyles are recomputed.
             int registryVersion = Styles.Version;
@@ -178,6 +180,18 @@ namespace Paper.Rendering.Silk.NET
                     renderer.RenderPanelGhost(_uiState.DragCursorX, _uiState.DragCursorY);
                 else
                     renderer.RenderGhost(_uiState.DragSource, _uiState.DragCursorX, _uiState.DragCursorY, 0.5f);
+            }
+            else if (_dockSession?.IsCrossWindowDragActive == true && !_uiState.DragActive && _window != null)
+            {
+                // macOS GLFW implicit grab: source window keeps all mouse events, so this window
+                // never receives OnMouseMove. Read the screen cursor coords the source window wrote
+                // into the session on each of its own mouse-move events, then convert to local coords.
+                var screenPos = _window.Position;
+                var winSize   = _window.Size;
+                float localX  = _dockSession.CrossDragCursorScreenX - screenPos.X;
+                float localY  = _dockSession.CrossDragCursorScreenY - screenPos.Y;
+                if (localX >= 0 && localY >= 0 && localX <= winSize.X && localY <= winSize.Y)
+                    renderer.RenderPanelGhost(localX, localY);
             }
 
             _rects!.Flush(framebufferSize.X, framebufferSize.Y);

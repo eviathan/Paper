@@ -18,6 +18,17 @@ namespace Paper.Rendering.Silk.NET
                 return;
             }
 
+            // Clean up stale drag state if the button was released while cursor was in another window.
+            if (_uiState.DragActive && !mouse.IsButtonPressed(MouseButton.Left))
+            {
+                _uiState.DragActive     = false;
+                _uiState.DragSource     = null;
+                _uiState.DragSourcePath = null;
+                _uiState.DragData       = null;
+                if (_uiState.DragOver != null)
+                    _uiState.DragOver = null;
+            }
+
             var (layoutCoordsX, layoutCoordsY) = PaperUtility.ToLayoutCoords(position);
             var target = HitTestAll(layoutCoordsX, layoutCoordsY);
 
@@ -63,6 +74,17 @@ namespace Paper.Rendering.Silk.NET
             }
 
             HandleDragAndDropMove(target, mouse, layoutCoordsX, layoutCoordsY);
+
+            // Source window: keep session cursor position current so other windows can render the ghost.
+            if (_uiState.DragActive && _dockSession?.IsCrossWindowDragActive == true && _window != null)
+            {
+                var winPos = _window.Position;
+                _dockSession.UpdateCrossWindowCursorPosition(
+                    winPos.X + (int)layoutCoordsX,
+                    winPos.Y + (int)layoutCoordsY);
+            }
+
+            HandleCrossWindowDragMove(target, mouse, layoutCoordsX, layoutCoordsY);
             HandleMouseSelectionDrag(target, mouse, layoutCoordsX, layoutCoordsY);
         }
 
@@ -80,6 +102,89 @@ namespace Paper.Rendering.Silk.NET
             _scrollState.ScrollOffsets[_scrollState.ScrollbarDragPath] = (currentScrollX, newScrollY);
             _scrollState.ScrollbarLastActive[_scrollState.ScrollbarDragPath] = DateTime.UtcNow.Ticks / (double)TimeSpan.TicksPerSecond;
             MarkDirty(animationSeconds: 2.0);
+        }
+
+        private void HandleCrossWindowDragMove(Fiber? target, IMouse mouse, float layoutCoordsX, float layoutCoordsY)
+        {
+            // No local drag active — check if a panel is being dragged from another OS window.
+            if (_uiState.DragActive || _dockSession == null) return;
+
+            var crossData = GetCrossWindowDragData();
+
+            if (crossData == null)
+            {
+                // Session drag ended or cancelled — clean up any lingering state.
+                if (_uiState.CrossWindowDragActive)
+                {
+                    if (_uiState.CrossWindowDragOver != null)
+                    {
+                        DispatchDrag(_uiState.CrossWindowDragOver, new DragEvent
+                            { Type = DragEventType.DragLeave, X = layoutCoordsX, Y = layoutCoordsY, Data = _uiState.CrossWindowDragData });
+                        _uiState.CrossWindowDragOver     = null;
+                        _uiState.CrossWindowDragOverPath = null;
+                    }
+                    _uiState.CrossWindowDragActive = false;
+                    _uiState.CrossWindowDragData   = null;
+                    MarkDirty();
+                }
+                return;
+            }
+
+            if (!mouse.IsButtonPressed(MouseButton.Left))
+            {
+                // Button already released — ignore.
+                if (_uiState.CrossWindowDragActive)
+                {
+                    _uiState.CrossWindowDragActive = false;
+                    _uiState.CrossWindowDragData   = null;
+                    _uiState.CrossWindowDragOver   = null;
+                }
+                return;
+            }
+
+            _uiState.CrossWindowDragData = crossData;
+            _uiState.CrossWindowDragX = layoutCoordsX;
+            _uiState.CrossWindowDragY = layoutCoordsY;
+
+            if (!_uiState.CrossWindowDragActive)
+            {
+                _uiState.CrossWindowDragActive = true;
+                if (target != null)
+                {
+                    DispatchDrag(target, new DragEvent
+                    {
+                        Type = DragEventType.DragEnter, X = layoutCoordsX, Y = layoutCoordsY, Data = crossData,
+                        LocalX = layoutCoordsX - target.Layout.AbsoluteX, LocalY = layoutCoordsY - target.Layout.AbsoluteY,
+                        TargetWidth = target.Layout.Width, TargetHeight = target.Layout.Height,
+                    });
+                    _uiState.CrossWindowDragOver     = target;
+                    _uiState.CrossWindowDragOverPath = FiberTreeUtility.GetPathString(target);
+                }
+            }
+            else if (!ReferenceEquals(target, _uiState.CrossWindowDragOver))
+            {
+                if (_uiState.CrossWindowDragOver != null)
+                    DispatchDrag(_uiState.CrossWindowDragOver, new DragEvent
+                        { Type = DragEventType.DragLeave, X = layoutCoordsX, Y = layoutCoordsY, Data = crossData,
+                          LocalX = layoutCoordsX - _uiState.CrossWindowDragOver.Layout.AbsoluteX,
+                          LocalY = layoutCoordsY - _uiState.CrossWindowDragOver.Layout.AbsoluteY,
+                          TargetWidth = _uiState.CrossWindowDragOver.Layout.Width, TargetHeight = _uiState.CrossWindowDragOver.Layout.Height });
+                if (target != null)
+                    DispatchDrag(target, new DragEvent
+                        { Type = DragEventType.DragEnter, X = layoutCoordsX, Y = layoutCoordsY, Data = crossData,
+                          LocalX = layoutCoordsX - target.Layout.AbsoluteX, LocalY = layoutCoordsY - target.Layout.AbsoluteY,
+                          TargetWidth = target.Layout.Width, TargetHeight = target.Layout.Height });
+                _uiState.CrossWindowDragOver     = target;
+                _uiState.CrossWindowDragOverPath = target != null ? FiberTreeUtility.GetPathString(target) : null;
+            }
+            else if (target != null)
+            {
+                DispatchDrag(target, new DragEvent
+                    { Type = DragEventType.DragOver, X = layoutCoordsX, Y = layoutCoordsY, Data = crossData,
+                      LocalX = layoutCoordsX - target.Layout.AbsoluteX, LocalY = layoutCoordsY - target.Layout.AbsoluteY,
+                      TargetWidth = target.Layout.Width, TargetHeight = target.Layout.Height });
+            }
+            MarkDirty();
         }
 
         private void HandleDragAndDropMove(Fiber? target, IMouse mouse, float layoutCoordsX, float layoutCoordsY)

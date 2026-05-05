@@ -273,12 +273,27 @@ namespace Paper.Core.Dock
                             {
                                 e.Data = new DockDragPayload(tab.PanelId, null, false);
                                 ctxLocal.SetDragging?.Invoke(true, tab.PanelId, null);
+                                if (ctxLocal.Session != null)
+                                    ctxLocal.Session.BeginCrossWindowDrag(tab.PanelId, ctxLocal.WindowId, () =>
+                                    {
+                                        ctxLocal.Dispatch(new DockRemovePanel { PanelId = tab.PanelId });
+                                        ctxLocal.SetDragging?.Invoke(false, null, null);
+                                    });
                             })
                             .OnDragEnd(e =>
                             {
                                 ctxLocal.SetDragging?.Invoke(false, null, null);
-                                if (e.Data is DockDragPayload { TearOff: true } payload)
-                                    ctxLocal.Dispatch(new DockTearOff { SourcePanelId = payload.PanelId, X = e.X - 20, Y = e.Y - 15 });
+                                if (e.Data is DockDragPayload payload)
+                                {
+                                    if (e.OutsideSourceWindow)
+                                        ctxLocal.Dispatch(new DockEjectToNewWindow { PanelId = payload.PanelId, X = e.X, Y = e.Y, ScreenX = e.ScreenX, ScreenY = e.ScreenY });
+                                    else
+                                        ctxLocal.Session?.CancelCrossWindowDrag();
+                                }
+                                else
+                                {
+                                    ctxLocal.Session?.CancelCrossWindowDrag();
+                                }
                             })
                             .Children(tabChildren.ToArray())
                             .Build(),
@@ -359,6 +374,12 @@ namespace Paper.Core.Dock
                         if (e.Data is not DockDragPayload payload) return;
                         if (payload.IsFloat)
                             ctx.Dispatch(new DockDockFloat { FloatNodeId = payload.FloatNodeId!, TargetNodeId = nodeId, Zone = zone });
+                        else if (payload.IsCrossWindow)
+                        {
+                            var reg = ctx.GetRegistration(payload.PanelId);
+                            var panel = new PanelNode { PanelId = payload.PanelId, Title = reg?.Title ?? payload.PanelId };
+                            ctx.Dispatch(new DockAcceptExternalPanel { Panel = panel, TargetNodeId = nodeId, Zone = zone });
+                        }
                         else
                             ctx.Dispatch(new DockDrop { SourcePanelId = payload.PanelId, TargetNodeId = nodeId, Zone = zone });
                     })
@@ -447,6 +468,12 @@ namespace Paper.Core.Dock
                         if (e.Data is not DockDragPayload payload) return;
                         if (payload.IsFloat)
                             ctx.Dispatch(new DockDockFloatOuter { FloatNodeId = payload.FloatNodeId!, Zone = zone });
+                        else if (payload.IsCrossWindow)
+                        {
+                            var reg = ctx.GetRegistration(payload.PanelId);
+                            var panel = new PanelNode { PanelId = payload.PanelId, Title = reg?.Title ?? payload.PanelId };
+                            ctx.Dispatch(new DockAcceptExternalPanelOuter { Panel = panel, Zone = zone });
+                        }
                         else
                             ctx.Dispatch(new DockDropOuter { SourcePanelId = payload.PanelId, Zone = zone });
                     })
@@ -632,6 +659,12 @@ namespace Paper.Core.Dock
                             dragState[4] = 1f;
                             e.Data = new DockDragPayload(panel.PanelId, floatId, IsFloat: true);
                             ctxLocal.SetDragging?.Invoke(true, panel.PanelId, floatId);
+                            if (ctxLocal.Session != null)
+                                ctxLocal.Session.BeginCrossWindowDrag(panel.PanelId, ctxLocal.WindowId, () =>
+                                {
+                                    ctxLocal.Dispatch(new DockRemoveFloat { FloatNodeId = floatId });
+                                    ctxLocal.SetDragging?.Invoke(false, null, null);
+                                });
                         })
                         .OnDrag(e =>
                         {
@@ -645,7 +678,13 @@ namespace Paper.Core.Dock
                         {
                             dragState[4] = 0f;
                             ctxLocal.SetDragging?.Invoke(false, null, null);
-                            ctxLocal.Dispatch(new DockMoveFloat { FloatNodeId = floatId, X = posState[0], Y = posState[1] });
+                            if (e.OutsideSourceWindow)
+                                ctxLocal.Dispatch(new DockEjectToNewWindow { PanelId = panel.PanelId, X = e.X, Y = e.Y, ScreenX = e.ScreenX, ScreenY = e.ScreenY });
+                            else
+                            {
+                                ctxLocal.Session?.CancelCrossWindowDrag();
+                                ctxLocal.Dispatch(new DockMoveFloat { FloatNodeId = floatId, X = posState[0], Y = posState[1] });
+                            }
                         })
                         .Children(headerChildren.ToArray())
                         .Build());
@@ -734,5 +773,7 @@ namespace Paper.Core.Dock
     public sealed record DockDragPayload(string PanelId, string? FloatNodeId, bool IsFloat)
     {
         public bool TearOff { get; init; } = false;
+        /// <summary>True when this payload was synthesised for a cross-window drag arriving from another OS window.</summary>
+        public bool IsCrossWindow { get; init; } = false;
     }
 }
