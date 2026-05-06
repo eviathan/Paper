@@ -51,6 +51,13 @@ namespace Paper.Rendering.Silk.NET
             }
             else if (_uiState.DragActive)
             {
+                // During drag, update hover so drop zone fibers show their hover style.
+                // Skip pointer-enter/leave — those are for normal hover, not drag-hover.
+                if (!ReferenceEquals(target, _uiState.Hovered))
+                {
+                    _uiState.Hovered     = target;
+                    _uiState.HoveredPath = target != null ? FiberTreeUtility.GetPathString(target) : null;
+                }
                 ApplyGlfwCursor(target?.ComputedStyle.Cursor ?? Paper.Core.Styles.Cursor.Default);
                 MarkDirty();
             }
