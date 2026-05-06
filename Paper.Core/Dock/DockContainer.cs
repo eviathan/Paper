@@ -368,6 +368,10 @@ namespace Paper.Core.Dock
                         BorderRadius  = 3,
                         PointerEvents = PointerEvents.Auto,
                     }))
+                    .HoverStyle(new StyleSheet
+                    {
+                        Background = zone == DropZone.Center ? theme.DropCenterHover : theme.DropZoneHover,
+                    })
                     .OnDragOver(e => e.StopPropagation())
                     .OnDrop(e =>
                     {
@@ -462,6 +466,7 @@ namespace Paper.Core.Dock
                         PointerEvents = PointerEvents.Auto,
                         ZIndex        = 90,
                     }))
+                    .HoverStyle(new StyleSheet { Background = theme.DropZoneHover })
                     .OnDragOver(e => e.StopPropagation())
                     .OnDrop(e =>
                     {

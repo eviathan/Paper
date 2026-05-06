@@ -187,6 +187,124 @@ namespace Paper.Rendering.Silk.NET
             MarkDirty();
         }
 
+        // Called each render frame when another window has a cross-window drag active.
+        // macOS GLFW implicit grab means this window never receives OnMouseMove during
+        // another window's drag, so we inject a synthetic move from the session's last
+        // known screen-space cursor position to keep drop zones highlighted.
+        internal void SyntheticCrossWindowDragMove()
+        {
+            if (_dockSession == null || !_dockSession.IsCrossWindowDragActive) return;
+            if (_uiState.DragActive) return;
+            if (_window == null || _reconciler?.Root == null) return;
+
+            var screenPos = _window.Position;
+            float localX = _dockSession.CrossDragCursorScreenX - screenPos.X;
+            float localY = _dockSession.CrossDragCursorScreenY - screenPos.Y;
+
+            var crossData = GetCrossWindowDragData();
+            if (crossData == null) return;
+
+            var target = HitTestAll(localX, localY);
+
+            // Update hover state so the zone under cursor shows its hover style.
+            if (!ReferenceEquals(target, _uiState.Hovered))
+            {
+                _uiState.Hovered     = target;
+                _uiState.HoveredPath = target != null ? FiberTreeUtility.GetPathString(target) : null;
+                MarkDirty();
+            }
+
+            _uiState.CrossWindowDragData = crossData;
+            _uiState.CrossWindowDragX = localX;
+            _uiState.CrossWindowDragY = localY;
+
+            if (!_uiState.CrossWindowDragActive)
+            {
+                _uiState.CrossWindowDragActive = true;
+                if (target != null)
+                {
+                    DispatchDrag(target, new DragEvent
+                    {
+                        Type = DragEventType.DragEnter, X = localX, Y = localY, Data = crossData,
+                        LocalX = localX - target.Layout.AbsoluteX, LocalY = localY - target.Layout.AbsoluteY,
+                        TargetWidth = target.Layout.Width, TargetHeight = target.Layout.Height,
+                    });
+                    _uiState.CrossWindowDragOver     = target;
+                    _uiState.CrossWindowDragOverPath = FiberTreeUtility.GetPathString(target);
+                }
+            }
+            else if (!ReferenceEquals(target, _uiState.CrossWindowDragOver))
+            {
+                if (_uiState.CrossWindowDragOver != null)
+                    DispatchDrag(_uiState.CrossWindowDragOver, new DragEvent
+                    {
+                        Type = DragEventType.DragLeave, X = localX, Y = localY, Data = crossData,
+                        LocalX = localX - _uiState.CrossWindowDragOver.Layout.AbsoluteX,
+                        LocalY = localY - _uiState.CrossWindowDragOver.Layout.AbsoluteY,
+                        TargetWidth = _uiState.CrossWindowDragOver.Layout.Width,
+                        TargetHeight = _uiState.CrossWindowDragOver.Layout.Height,
+                    });
+                if (target != null)
+                    DispatchDrag(target, new DragEvent
+                    {
+                        Type = DragEventType.DragEnter, X = localX, Y = localY, Data = crossData,
+                        LocalX = localX - target.Layout.AbsoluteX, LocalY = localY - target.Layout.AbsoluteY,
+                        TargetWidth = target.Layout.Width, TargetHeight = target.Layout.Height,
+                    });
+                _uiState.CrossWindowDragOver     = target;
+                _uiState.CrossWindowDragOverPath = target != null ? FiberTreeUtility.GetPathString(target) : null;
+            }
+            else if (target != null)
+            {
+                DispatchDrag(target, new DragEvent
+                {
+                    Type = DragEventType.DragOver, X = localX, Y = localY, Data = crossData,
+                    LocalX = localX - target.Layout.AbsoluteX, LocalY = localY - target.Layout.AbsoluteY,
+                    TargetWidth = target.Layout.Width, TargetHeight = target.Layout.Height,
+                });
+            }
+        }
+
+        // Called by the DockSession ExternalPanelArrived handler (macOS eject path):
+        // fire a Drop event on whichever zone fiber the synthetic cursor was hovering,
+        // then clean up cross-window state exactly as OnMouseButtonUp does.
+        internal void SyntheticCrossWindowDrop(Paper.Core.Dock.PanelNode panel)
+        {
+            if (_reconciler?.Root == null) return;
+
+            var screenPos = _window?.Position ?? default;
+            float localX = _dockSession?.CrossDragCursorScreenX - screenPos.X ?? 0;
+            float localY = _dockSession?.CrossDragCursorScreenY - screenPos.Y ?? 0;
+
+            // Build the cross-window payload from the arriving panel.
+            var crossData = new Paper.Core.Dock.DockDragPayload(panel.PanelId, null, false) { IsCrossWindow = true };
+
+            // Use the currently hovered zone fiber; fall back to a fresh hit test.
+            var dropTarget = _uiState.CrossWindowDragOver ?? HitTestAll(localX, localY);
+
+            if (dropTarget != null)
+                DispatchDrag(dropTarget, new DragEvent
+                {
+                    Type = DragEventType.Drop, X = localX, Y = localY, Data = crossData,
+                    LocalX = localX - dropTarget.Layout.AbsoluteX,
+                    LocalY = localY - dropTarget.Layout.AbsoluteY,
+                    TargetWidth = dropTarget.Layout.Width, TargetHeight = dropTarget.Layout.Height,
+                });
+
+            if (_uiState.CrossWindowDragOver != null)
+            {
+                DispatchDrag(_uiState.CrossWindowDragOver, new DragEvent
+                    { Type = DragEventType.DragLeave, X = localX, Y = localY, Data = crossData });
+                _uiState.CrossWindowDragOver     = null;
+                _uiState.CrossWindowDragOverPath = null;
+            }
+            _uiState.CrossWindowDragActive = false;
+            _uiState.CrossWindowDragData   = null;
+            _uiState.Hovered               = null;
+            _uiState.HoveredPath           = null;
+            MarkDirty();
+        }
+
         private void HandleDragAndDropMove(Fiber? target, IMouse mouse, float layoutCoordsX, float layoutCoordsY)
         {
             if (_uiState.DragSource == null || !mouse.IsButtonPressed(MouseButton.Left)) return;

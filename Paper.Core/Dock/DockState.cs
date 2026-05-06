@@ -564,7 +564,9 @@ namespace Paper.Core.Dock
         private static DockState HandleAcceptExternalOuter(DockState state, DockAcceptExternalPanelOuter a)
         {
             // If the layout is empty, just install the panel as the sole root.
-            if (state.Root == null || (state.Root is PanelNode ep && ep.PanelId == "empty"))
+            bool wasEmpty = state.Root == null || (state.Root is PanelNode ep && ep.PanelId == "empty");
+            Console.WriteLine($"[DockDbg] HandleAcceptExternalOuter: panel={a.Panel.PanelId} zone={a.Zone} wasEmpty={wasEmpty} rootType={state.Root?.GetType().Name}");
+            if (wasEmpty)
                 return state.With(root: a.Panel, clearMaximized: true);
 
             bool isFirst  = a.Zone == DropZone.Left || a.Zone == DropZone.Top;

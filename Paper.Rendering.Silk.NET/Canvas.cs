@@ -78,11 +78,28 @@ namespace Paper.Rendering.Silk.NET
             set
             {
                 if (_dockSession != null)
-                    _dockSession.DragStateChanged -= OnDockSessionDragStateChanged;
+                {
+                    _dockSession.DragStateChanged    -= OnDockSessionDragStateChanged;
+                    _dockSession.ExternalPanelArrived -= OnExternalPanelArrived;
+                }
                 _dockSession = value;
                 if (_dockSession != null)
-                    _dockSession.DragStateChanged += OnDockSessionDragStateChanged;
+                {
+                    _dockSession.DragStateChanged    += OnDockSessionDragStateChanged;
+                    _dockSession.ExternalPanelArrived += OnExternalPanelArrived;
+                }
             }
+        }
+
+        private void OnExternalPanelArrived(string targetWindowId, DockNode panel, int localX, int localY, int ww, int wh)
+        {
+            // Guard: only handle if cursor landed within our window bounds (already guaranteed by
+            // TryExternalDrop, but double-check for safety in multi-window edge cases).
+            var winSize = _window?.Size ?? default;
+            if (localX < 0 || localY < 0 || localX > winSize.X || localY > winSize.Y) return;
+            if (panel is not PanelNode panelNode) return;
+
+            SyntheticCrossWindowDrop(panelNode);
         }
 
         private void OnDockSessionDragStateChanged()

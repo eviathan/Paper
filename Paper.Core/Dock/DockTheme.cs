@@ -23,7 +23,9 @@ namespace Paper.Core.Dock
         public PaperColour TabActive    { get; init; } = new("#3a3a70");
         public PaperColour TabHover     { get; init; } = new("#2a2a55");
         public PaperColour DropZone     { get; init; } = new(0.3f, 0.5f, 1f, 0.22f);
+        public PaperColour DropZoneHover { get; init; } = new(0.4f, 0.6f, 1f, 0.50f);
         public PaperColour DropCenter   { get; init; } = new(0.3f, 0.8f, 0.5f, 0.22f);
+        public PaperColour DropCenterHover { get; init; } = new(0.3f, 0.9f, 0.5f, 0.50f);
         public PaperColour DropBorder   { get; init; } = new(0.4f, 0.6f, 1f, 0.7f);
         public PaperColour Float        { get; init; } = new("#1e1e38");
         public PaperColour FloatBorder  { get; init; } = new("#4a4a80");
@@ -53,9 +55,11 @@ namespace Paper.Core.Dock
             HandleHover = new("#8080c0"),
             TabActive   = new("#c0c0e8"),
             TabHover    = new("#d0d0e8"),
-            DropZone    = new(0.2f, 0.4f, 0.9f, 0.18f),
-            DropCenter  = new(0.2f, 0.7f, 0.4f, 0.18f),
-            DropBorder  = new(0.3f, 0.5f, 0.9f, 0.7f),
+            DropZone       = new(0.2f, 0.4f, 0.9f, 0.18f),
+            DropZoneHover  = new(0.3f, 0.5f, 0.9f, 0.45f),
+            DropCenter     = new(0.2f, 0.7f, 0.4f, 0.18f),
+            DropCenterHover = new(0.2f, 0.8f, 0.4f, 0.45f),
+            DropBorder     = new(0.3f, 0.5f, 0.9f, 0.7f),
             Float       = new("#e8e8f4"),
             FloatBorder = new("#9090c0"),
             MinStrip    = new("#d8d8ec"),

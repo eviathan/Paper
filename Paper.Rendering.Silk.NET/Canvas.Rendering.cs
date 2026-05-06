@@ -113,6 +113,12 @@ namespace Paper.Rendering.Silk.NET
                 _renderState.NeedsLayout = false;
             }
 
+            // macOS GLFW implicit grab: source window keeps all pointer events during drag,
+            // so this window never receives OnMouseMove. Inject a synthetic move from the
+            // session's last known screen cursor position so drop zones stay highlighted.
+            if (_dockSession?.IsCrossWindowDragActive == true && !_uiState.DragActive)
+                SyntheticCrossWindowDragMove();
+
             // Update horizontal scroll for single-line input so caret stays in view.
             if (_text != null && _inputState.Focused != null && _inputState.Focused.Type is string focusedType && focusedType == ElementTypes.Input)
             {

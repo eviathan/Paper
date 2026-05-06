@@ -187,22 +187,16 @@ namespace Paper.Core.Dock
                 {
                     if (sess == null || string.IsNullOrEmpty(winId)) return null;
                     bool isEmpty = IsLayoutEmpty(dockState);
+                    Console.WriteLine($"[DockDbg] IsLayoutEmpty effect: winId={winId} isEmpty={isEmpty} root={dockState.Root?.GetType().Name}({(dockState.Root as PanelNode)?.PanelId})");
                     if (isEmpty) sess.NotifyWindowEmptied(winId);
                     return null;
                 }, new object?[] { dockState, winId, sess });
 
-                // Subscribe to ExternalPanelArrived so panels dropped from other windows dock here.
-                H.UseEffect(() =>
-                {
-                    if (sess == null || string.IsNullOrEmpty(winId)) return null;
-                    Action<string, PanelNode, int, int, int, int> handler = (targetWindowId, panel, localX, localY, ww, wh) =>
-                    {
-                        if (targetWindowId != winId) return;
-                        dispatch(new DockAcceptExternalPanelOuter { Panel = panel, Zone = ComputeDropZone(localX, localY, ww, wh) });
-                    };
-                    sess.ExternalPanelArrived += handler;
-                    return () => { sess.ExternalPanelArrived -= handler; };
-                }, new object?[] { sess, winId });
+                // ExternalPanelArrived for macOS eject drops is now handled at the Canvas level
+                // via SyntheticCrossWindowDrop, which fires the Drop event on the zone fiber
+                // under the cursor — the same path as non-macOS cross-window drops.
+                // DockContainer.RenderDropTarget / RenderOuterDropZones OnDrop handlers then
+                // dispatch DockAcceptExternalPanel / DockAcceptExternalPanelOuter as normal.
 
                 // Wrap dispatch to intercept eject and cross-window drop completion.
                 Action<DockAction> wrappedDispatch = action =>
@@ -350,14 +344,60 @@ namespace Paper.Core.Dock
         private static DropZone ComputeDropZone(int localX, int localY, int ww, int wh)
         {
             if (ww <= 0 || wh <= 0) return DropZone.Right;
-            float xf = (float)localX / ww;
-            float yf = (float)localY / wh;
-            const float strip = 0.3f;
-            if (xf < strip)       return DropZone.Left;
-            if (xf > 1f - strip)  return DropZone.Right;
-            if (yf < strip)       return DropZone.Top;
-            if (yf > 1f - strip)  return DropZone.Bottom;
+            const int stripPx = 40;
+            if (localX < stripPx)        return DropZone.Left;
+            if (localX > ww - stripPx)   return DropZone.Right;
+            if (localY < stripPx)        return DropZone.Top;
+            if (localY > wh - stripPx)   return DropZone.Bottom;
             return DropZone.Right;
+        }
+
+        // Walk the DockState split tree using split ratios to find which leaf node
+        // contains (localX, localY) and compute the inner drop zone within it.
+        private static (string? nodeId, DropZone zone) HitTestDockTree(
+            DockNode? node, int x, int y, float left, float top, float width, float height)
+        {
+            if (node == null) return (null, DropZone.Right);
+
+            switch (node)
+            {
+                case PanelNode panel when panel.PanelId != "empty":
+                    return (panel.NodeId, ComputeInnerZone(x, y, left, top, width, height));
+
+                case TabGroupNode tabGroup:
+                    return (tabGroup.NodeId, ComputeInnerZone(x, y, left, top, width, height));
+
+                case SplitNode split:
+                    if (split.Direction == DockDirection.Horizontal)
+                    {
+                        float splitX = left + width * split.Ratio;
+                        return x < splitX
+                            ? HitTestDockTree(split.First,  x, y, left,   top, width * split.Ratio,        height)
+                            : HitTestDockTree(split.Second, x, y, splitX, top, width * (1f - split.Ratio), height);
+                    }
+                    else
+                    {
+                        float splitY = top + height * split.Ratio;
+                        return y < splitY
+                            ? HitTestDockTree(split.First,  x, y, left, top,    width, height * split.Ratio)
+                            : HitTestDockTree(split.Second, x, y, left, splitY, width, height * (1f - split.Ratio));
+                    }
+            }
+            return (null, DropZone.Right);
+        }
+
+        private static DropZone ComputeInnerZone(int x, int y, float left, float top, float width, float height)
+        {
+            if (width <= 0 || height <= 0) return DropZone.Center;
+            float xf = (x - left) / width;
+            float yf = (y - top)  / height;
+            // Match RenderDropTarget zone layout: L/R are 30% columns (full height);
+            // T/B/Center occupy the middle 40% column, split at 33%/67%.
+            if (xf < 0.30f)              return DropZone.Left;
+            if (xf > 0.70f)              return DropZone.Right;
+            if (yf < 0.33f)              return DropZone.Top;
+            if (yf > 0.67f)              return DropZone.Bottom;
+            return DropZone.Center;
         }
 
         // ── Auto layout builder ───────────────────────────────────────────────
