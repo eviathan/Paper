@@ -114,6 +114,12 @@ namespace Paper.Rendering.Silk.NET
             _inputContext?.Dispose();
             _inputContext = null;
 
+            // Make this canvas's GL context current before deleting its GL objects.
+            // If another window rendered last, its context is still current on this thread.
+            // GL delete calls act on the current context, so without this we would delete
+            // handles from the wrong context — corrupting the other window's VAOs/textures.
+            try { _window?.GLContext?.MakeCurrent(); } catch { }
+
             _imageLoader?.Dispose();
             _imageLoader = null;
 

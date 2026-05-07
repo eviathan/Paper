@@ -288,6 +288,7 @@ namespace Paper.Rendering.Silk.NET
 
             // Use the currently hovered zone fiber; fall back to a fresh hit test.
             var dropTarget = _uiState.CrossWindowDragOver ?? HitTestAll(localX, localY);
+            Console.WriteLine($"[DockDbg] SyntheticCrossWindowDrop: panel={panel.PanelId} winId={WindowId} local=({localX},{localY}) crossWindowDragOver={_uiState.CrossWindowDragOver != null} dropTarget={dropTarget?.Type}({dropTarget?.Props?.OnDrop != null})");
 
             if (dropTarget != null)
                 DispatchDrag(dropTarget, new DragEvent

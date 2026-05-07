@@ -62,6 +62,12 @@ namespace Paper.Rendering.Silk.NET
 
         // ── Multi-window dock session ─────────────────────────────────────────
 
+        /// <summary>
+        /// Window identifier used to route ExternalPanelArrived events to the correct canvas.
+        /// Set by DockWindowFactory.Wire for both the primary and any spawned windows.
+        /// </summary>
+        public string? WindowId { get; set; }
+
         private DockWindowSession? _dockSession;
 
         /// <summary>
@@ -93,10 +99,9 @@ namespace Paper.Rendering.Silk.NET
 
         private void OnExternalPanelArrived(string targetWindowId, DockNode panel, int localX, int localY, int ww, int wh)
         {
-            // Guard: only handle if cursor landed within our window bounds (already guaranteed by
-            // TryExternalDrop, but double-check for safety in multi-window edge cases).
-            var winSize = _window?.Size ?? default;
-            if (localX < 0 || localY < 0 || localX > winSize.X || localY > winSize.Y) return;
+            Console.WriteLine($"[DockDbg] OnExternalPanelArrived: targetWindowId={targetWindowId} thisWindowId={WindowId} panel={panel} local=({localX},{localY})");
+            // Only handle events routed to this window.
+            if (WindowId != null && targetWindowId != WindowId) return;
             if (panel is not PanelNode panelNode) return;
 
             SyntheticCrossWindowDrop(panelNode);

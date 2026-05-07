@@ -54,6 +54,7 @@ namespace Paper.Rendering.Silk.NET
             // Register the primary window so it can receive cross-window drops.
             if (primaryCanvas != null)
             {
+                primaryCanvas.WindowId = primaryWindowId;
                 windowsById[primaryWindowId] = primaryCanvas;
                 var captured = primaryCanvas;
                 session.RegisterWindowBounds(primaryWindowId, () =>
@@ -73,6 +74,7 @@ namespace Paper.Rendering.Silk.NET
                     DisableVSync    = true,
                     InitialPosition = new Vector2D<int>(x, y),
                     DockSession     = session,
+                    WindowId        = windowId,
                 };
                 configureCanvas?.Invoke(canvas);
                 canvas.Mount(_ => DockContext.Root(panels, initialState, session: session, windowId: windowId));

@@ -143,16 +143,20 @@ namespace Paper.Core.Dock
         /// </summary>
         internal bool TryExternalDrop(string sourceWindowId, PanelNode panel, int screenX, int screenY)
         {
+            Console.WriteLine($"[DockDbg] TryExternalDrop: panel={panel.PanelId} src={sourceWindowId} screen=({screenX},{screenY}) registeredWindows=[{string.Join(",", _windowBounds.Keys)}]");
             foreach (var (windowId, getBounds) in _windowBounds)
             {
                 if (windowId == sourceWindowId) continue;
                 var (wx, wy, ww, wh) = getBounds();
-                if (screenX >= wx && screenX < wx + ww && screenY >= wy && screenY < wy + wh)
+                bool hit = screenX >= wx && screenX < wx + ww && screenY >= wy && screenY < wy + wh;
+                Console.WriteLine($"[DockDbg] TryExternalDrop: checking window={windowId} bounds=({wx},{wy},{ww},{wh}) hit={hit}");
+                if (hit)
                 {
                     ExternalPanelArrived?.Invoke(windowId, panel, screenX - wx, screenY - wy, ww, wh);
                     return true;
                 }
             }
+            Console.WriteLine($"[DockDbg] TryExternalDrop: no matching window found");
             return false;
         }
 
