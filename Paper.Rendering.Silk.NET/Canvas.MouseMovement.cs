@@ -21,6 +21,19 @@ namespace Paper.Rendering.Silk.NET
             // Clean up stale drag state if the button was released while cursor was in another window.
             if (_uiState.DragActive && !mouse.IsButtonPressed(MouseButton.Left))
             {
+                // Synthesise DragEnd so component-level drag state (e.g. DockPanel dragCtx /
+                // IsDraggingPanel) is cleared — without this, drop-zone overlays stay rendered
+                // and block hit tests on panel headers, making panels appear un-draggable.
+                var (lx, ly) = PaperUtility.ToLayoutCoords(position);
+                if (_uiState.DragSource != null)
+                    DispatchDrag(_uiState.DragSource, new DragEvent
+                    {
+                        Type = DragEventType.DragEnd,
+                        X    = lx,
+                        Y    = ly,
+                        Data = _uiState.DragData,
+                        OutsideSourceWindow = false,
+                    });
                 _uiState.DragActive     = false;
                 _uiState.DragSource     = null;
                 _uiState.DragSourcePath = null;
