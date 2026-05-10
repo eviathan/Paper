@@ -60,15 +60,9 @@ namespace Paper.Rendering.Silk.NET
                 }
             };
 
-            var prevRequest = RenderScheduler.OnRenderRequested;
             _reconciler = new Reconciler();
-            var reconRequest = RenderScheduler.OnRenderRequested;
-            RenderScheduler.OnRenderRequested = () =>
-            {
-                prevRequest?.Invoke();
-                reconRequest?.Invoke();
-                _renderState.LayoutDirty = true;
-            };
+            _renderRequestedListener = () => _renderState.LayoutDirty = true;
+            RenderScheduler.AddListener(_renderRequestedListener);
             _reconciler.Mount(_rootFactory!());
             _renderState.LayoutDirty = true;
 
@@ -107,6 +101,14 @@ namespace Paper.Rendering.Silk.NET
         {
             _inputState.CaretBlinkTimer?.Dispose();
             _inputState.CaretBlinkTimer = null;
+
+            if (_renderRequestedListener != null)
+            {
+                RenderScheduler.RemoveListener(_renderRequestedListener);
+                _renderRequestedListener = null;
+            }
+            _reconciler?.Dispose();
+            _reconciler = null;
 
             _csxHotReload?.Dispose();
             _csxHotReload = null;

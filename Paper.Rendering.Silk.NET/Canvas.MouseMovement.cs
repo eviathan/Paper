@@ -40,6 +40,7 @@ namespace Paper.Rendering.Silk.NET
                 _uiState.DragData       = null;
                 if (_uiState.DragOver != null)
                     _uiState.DragOver = null;
+                _uiState.DragOverPath = null;
             }
 
             var (layoutCoordsX, layoutCoordsY) = PaperUtility.ToLayoutCoords(position);
@@ -337,9 +338,11 @@ namespace Paper.Rendering.Silk.NET
             if (!_uiState.DragActive && (deltaX * deltaX + deltaY * deltaY) >= dragThreshold * dragThreshold)
             {
                 _uiState.DragActive = true;
+                Console.WriteLine($"[DockDbg] DragActivated: source={_uiState.DragSource?.Type} path={_uiState.DragSourcePath}");
                 var startEvent = new DragEvent { Type = DragEventType.DragStart, X = layoutCoordsX, Y = layoutCoordsY };
                 DispatchDrag(_uiState.DragSource, startEvent);
                 _uiState.DragData = startEvent.Data;
+                Console.WriteLine($"[DockDbg] DragStart dispatched: hasData={_uiState.DragData != null}");
             }
 
             if (!_uiState.DragActive) return;

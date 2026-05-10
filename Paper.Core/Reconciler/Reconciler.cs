@@ -22,11 +22,12 @@ namespace Paper.Core.Reconciler
         public bool IsBoundary { get; init; }
     }
 
-    public sealed class Reconciler
+    public sealed class Reconciler : IDisposable
     {
         private Fiber? _current;
         private bool   _renderRequested;
         private readonly List<Fiber> _pendingDeletions = new();
+        private readonly Action _requestRender;
 
         public Fiber? Root => _current;
 
@@ -48,7 +49,13 @@ namespace Paper.Core.Reconciler
 
         public Reconciler()
         {
-            RenderScheduler.OnRenderRequested = () => _renderRequested = true;
+            _requestRender = () => _renderRequested = true;
+            RenderScheduler.AddListener(_requestRender);
+        }
+
+        public void Dispose()
+        {
+            RenderScheduler.RemoveListener(_requestRender);
         }
 
         public void Mount(UINode root)

@@ -43,6 +43,8 @@ namespace Paper.Rendering.Silk.NET
             while (dragCandidate != null && dragCandidate.Props.OnDragStart == null)
                 dragCandidate = dragCandidate.Parent;
 
+            Console.WriteLine($"[DockDbg] MouseDown: pos=({mouseX:F0},{mouseY:F0}) target={target?.Type}(onDragStart={target?.Props?.OnDragStart != null}) dragCandidate={dragCandidate?.Type} priorDragActive={_uiState.DragActive} priorDragSource={_uiState.DragSource?.Type}");
+
             if (button == MouseButton.Left && dragCandidate != null)
             {
                 _uiState.DragSource = dragCandidate;

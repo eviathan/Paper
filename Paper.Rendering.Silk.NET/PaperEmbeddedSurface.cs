@@ -44,6 +44,7 @@ namespace Paper.Rendering.Silk.NET
         private Func<Props, UINode>? _rootFactory;
 
         private volatile bool _renderRequested = true;
+        private readonly Action _renderRequestedListener;
         private bool _needsLayout = true;
         private int _lastStyleRegistryVersion = -1;
 
@@ -96,13 +97,8 @@ namespace Paper.Rendering.Silk.NET
             };
 
             _reconciler = new Reconciler();
-
-            var prevRequest = RenderScheduler.OnRenderRequested;
-            RenderScheduler.OnRenderRequested = () =>
-            {
-                prevRequest?.Invoke();
-                _renderRequested = true;
-            };
+            _renderRequestedListener = () => _renderRequested = true;
+            RenderScheduler.AddListener(_renderRequestedListener);
         }
 
         /// <summary>Set the root component (replaces any existing mount).</summary>
@@ -434,6 +430,8 @@ namespace Paper.Rendering.Silk.NET
 
         public void Dispose()
         {
+            RenderScheduler.RemoveListener(_renderRequestedListener);
+            _reconciler?.Dispose();
             _rects.Dispose();
         }
     }
