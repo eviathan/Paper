@@ -105,7 +105,7 @@ namespace Paper.Rendering.Silk.NET
             if (WindowId != null && targetWindowId != WindowId) return;
             if (panel is not PanelNode panelNode) return;
 
-            SyntheticCrossWindowDrop(panelNode);
+            SyntheticCrossWindowDrop(panelNode, localX, localY);
         }
 
         private void OnDockSessionDragStateChanged()

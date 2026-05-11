@@ -436,8 +436,14 @@ namespace Paper.Core.Reconciler
             // retains its old Sibling pointer from the previous render. If the child order changed
             // (e.g. keyed reorder) the old Sibling may point back to another fiber in the new list,
             // creating a cycle that causes Commit/FlushEffects to loop forever.
+            // When newChildren is empty the loop body never runs and prevSibling stays null —
+            // parent.Child must be explicitly cleared so stale children from the previous render
+            // are not left reachable in the fiber tree (they would still have non-zero layout and
+            // PointerEvents.Auto, causing hit-tests to land on invisible zones).
             if (prevSibling != null)
                 prevSibling.Sibling = null;
+            else
+                parent.Child = null;
 
             var newKeySet = new HashSet<string>(
                 newChildren.Select((n, i) => n.Key ?? $"${i}"));

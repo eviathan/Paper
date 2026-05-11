@@ -47,6 +47,13 @@ namespace Paper.Rendering.Silk.NET
 
             if (button == MouseButton.Left && dragCandidate != null)
             {
+                // A local drag is beginning — discard any stale cross-window state so it
+                // cannot intercept the upcoming mouse-up event.
+                _uiState.CrossWindowDragActive   = false;
+                _uiState.CrossWindowDragData     = null;
+                _uiState.CrossWindowDragOver     = null;
+                _uiState.CrossWindowDragOverPath = null;
+
                 _uiState.DragSource = dragCandidate;
                 _uiState.DragSourcePath = FiberTreeUtility.GetPathString(dragCandidate);
                 _uiState.DragData = null;
@@ -97,9 +104,12 @@ namespace Paper.Rendering.Silk.NET
             var (mouseX, mouseY) = PaperUtility.ToLayoutCoords(mouse.Position);
             var target = HitTestAll(mouseX, mouseY);
 
-            if (button == MouseButton.Left && _uiState.CrossWindowDragActive)
+            if (button == MouseButton.Left && _uiState.CrossWindowDragActive && !_uiState.DragActive)
             {
                 // Panel dragged from another OS window — complete the cross-window drop here.
+                // Guard: if a local drag is also active, CrossWindowDragActive is stale (leftover
+                // from a previous cross-window op that ended without SyntheticCrossWindowDrop).
+                // In that case fall through to the local drag-end branch instead.
                 var crossData = _uiState.CrossWindowDragData;
                 DispatchDrag(target, new DragEvent { Type = DragEventType.Drop, X = mouseX, Y = mouseY, Data = crossData,
                     LocalX = target != null ? mouseX - target.Layout.AbsoluteX : 0,
@@ -117,6 +127,12 @@ namespace Paper.Rendering.Silk.NET
             }
             else if (button == MouseButton.Left && _uiState.DragActive && _uiState.DragSource != null)
             {
+                // Clear any stale cross-window state that was left over from a previous operation.
+                _uiState.CrossWindowDragActive   = false;
+                _uiState.CrossWindowDragData     = null;
+                _uiState.CrossWindowDragOver     = null;
+                _uiState.CrossWindowDragOverPath = null;
+
                 bool outsideWindow = mouseX < 0 || mouseY < 0 || mouseX > _width || mouseY > _height;
                 Console.WriteLine($"[DockDbg] MouseUp: pos=({mouseX},{mouseY}) windowSize=({_width},{_height}) outsideWindow={outsideWindow} hasData={_uiState.DragData != null}");
                 var winPos = _window?.Position ?? default;

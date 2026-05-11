@@ -289,20 +289,20 @@ namespace Paper.Rendering.Silk.NET
         // Called by the DockSession ExternalPanelArrived handler (macOS eject path):
         // fire a Drop event on whichever zone fiber the synthetic cursor was hovering,
         // then clean up cross-window state exactly as OnMouseButtonUp does.
-        internal void SyntheticCrossWindowDrop(Paper.Core.Dock.PanelNode panel)
+        // localX/localY are the actual window-relative cursor coordinates at mouse-up time
+        // (passed through from TryExternalDrop, which uses DragEnd.ScreenX/Y).
+        internal void SyntheticCrossWindowDrop(Paper.Core.Dock.PanelNode panel, float localX, float localY)
         {
             if (_reconciler?.Root == null) return;
-
-            var screenPos = _window?.Position ?? default;
-            float localX = _dockSession?.CrossDragCursorScreenX - screenPos.X ?? 0;
-            float localY = _dockSession?.CrossDragCursorScreenY - screenPos.Y ?? 0;
 
             // Build the cross-window payload from the arriving panel.
             var crossData = new Paper.Core.Dock.DockDragPayload(panel.PanelId, null, false) { IsCrossWindow = true };
 
-            // Use the currently hovered zone fiber; fall back to a fresh hit test.
-            var dropTarget = _uiState.CrossWindowDragOver ?? HitTestAll(localX, localY);
-            Console.WriteLine($"[DockDbg] SyntheticCrossWindowDrop: panel={panel.PanelId} winId={WindowId} local=({localX},{localY}) crossWindowDragOver={_uiState.CrossWindowDragOver != null} dropTarget={dropTarget?.Type}({dropTarget?.Props?.OnDrop != null})");
+            // Prefer a fresh hit test at the actual cursor position over the potentially
+            // stale CrossWindowDragOver (which was set on the previous render frame).
+            var freshTarget = HitTestAll(localX, localY);
+            var dropTarget  = freshTarget ?? _uiState.CrossWindowDragOver;
+            Console.WriteLine($"[DockDbg] SyntheticCrossWindowDrop: panel={panel.PanelId} winId={WindowId} local=({localX},{localY}) crossWindowDragOver={_uiState.CrossWindowDragOver != null} freshTarget={freshTarget?.Type} dropTarget={dropTarget?.Type}({dropTarget?.Props?.OnDrop != null})");
 
             if (dropTarget != null)
                 DispatchDrag(dropTarget, new DragEvent
@@ -313,13 +313,14 @@ namespace Paper.Rendering.Silk.NET
                     TargetWidth = dropTarget.Layout.Width, TargetHeight = dropTarget.Layout.Height,
                 });
 
-            if (_uiState.CrossWindowDragOver != null)
+            // Send DragLeave to the previously hovered zone only if it differs from the drop target.
+            if (_uiState.CrossWindowDragOver != null && !ReferenceEquals(_uiState.CrossWindowDragOver, dropTarget))
             {
                 DispatchDrag(_uiState.CrossWindowDragOver, new DragEvent
                     { Type = DragEventType.DragLeave, X = localX, Y = localY, Data = crossData });
-                _uiState.CrossWindowDragOver     = null;
-                _uiState.CrossWindowDragOverPath = null;
             }
+            _uiState.CrossWindowDragOver     = null;
+            _uiState.CrossWindowDragOverPath = null;
             _uiState.CrossWindowDragActive = false;
             _uiState.CrossWindowDragData   = null;
             _uiState.Hovered               = null;
