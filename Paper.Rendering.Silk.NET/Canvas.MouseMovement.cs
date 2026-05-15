@@ -60,7 +60,7 @@ namespace Paper.Rendering.Silk.NET
                 }
                 _uiState.Hovered = target;
                 _uiState.HoveredPath = target != null ? FiberTreeUtility.GetPathString(target) : null;
-                ApplyGlfwCursor(target?.ComputedStyle.Cursor ?? Paper.Core.Styles.Cursor.Default);
+                ApplyGlfwCursor(ResolveCursor(target));
                 MarkDirty();
             }
             else if (_uiState.DragActive)
@@ -72,7 +72,7 @@ namespace Paper.Rendering.Silk.NET
                     _uiState.Hovered     = target;
                     _uiState.HoveredPath = target != null ? FiberTreeUtility.GetPathString(target) : null;
                 }
-                ApplyGlfwCursor(target?.ComputedStyle.Cursor ?? Paper.Core.Styles.Cursor.Default);
+                ApplyGlfwCursor(ResolveCursor(target));
                 MarkDirty();
             }
 
@@ -373,6 +373,22 @@ namespace Paper.Rendering.Silk.NET
                     LocalX = layoutCoordsX - target.Layout.AbsoluteX, LocalY = layoutCoordsY - target.Layout.AbsoluteY,
                     TargetWidth = target.Layout.Width, TargetHeight = target.Layout.Height });
             }
+        }
+
+        // Walks from the hovered fiber up to the root, returning the first non-Default cursor.
+        // This gives cursor:pointer inheritance so child elements (e.g. text inside a button)
+        // correctly show the parent button's cursor rather than the default arrow.
+        private static Core.Styles.Cursor ResolveCursor(Fiber? target)
+        {
+            if (target == null) return Core.Styles.Cursor.Default;
+            var path = FiberTreeUtility.PathToRoot(target);
+            for (int i = path.Count - 1; i >= 0; i--)
+            {
+                var c = path[i].ComputedStyle.Cursor;
+                if (c.HasValue && c.Value != Core.Styles.Cursor.Default)
+                    return c.Value;
+            }
+            return Core.Styles.Cursor.Default;
         }
 
         private void HandleMouseSelectionDrag(Fiber? target, IMouse mouse, float layoutCoordsX, float layoutCoordsY)
