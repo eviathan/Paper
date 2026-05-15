@@ -113,6 +113,10 @@ namespace Paper.Core.VirtualDom
         public PropsBuilder AriaControls(string ids) { _data["aria-controls"] = ids; return this; }
         public PropsBuilder AriaOrientation(string orientation) { _data["aria-orientation"] = orientation; return this; }
 
+        // ── Canvas2D ──────────────────────────────────────────────────────────
+
+        public PropsBuilder Canvas2DDraw(Action<ICanvas2DContext>? draw) { _data["canvas2dDraw"] = draw; return this; }
+
         // ── Custom ────────────────────────────────────────────────────────────
 
         public PropsBuilder Set(string key, object? value) { _data[key] = value; return this; }

@@ -201,6 +201,7 @@ namespace Paper.Rendering.Silk.NET
             }
 
             _rects!.Flush(framebufferSize.X, framebufferSize.Y);
+            _lines?.Flush(framebufferSize.X, framebufferSize.Y);
             _text?.Flush(framebufferSize.X, framebufferSize.Y);
         }
 

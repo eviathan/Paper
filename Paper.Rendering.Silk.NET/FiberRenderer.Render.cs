@@ -269,6 +269,22 @@ namespace Paper.Rendering.Silk.NET
                 return;
             }
 
+            // ── Canvas2D element ──────────────────────────────────────────────
+            if (fiber.Type is string typeCanvas && typeCanvas == ElementTypes.Canvas2D)
+            {
+                var drawCb = fiber.Props.Canvas2DDraw;
+                if (drawCb != null && _lines != null)
+                {
+                    // Flush pending rects so drawing order is correct
+                    _rects.Flush(_screenW, _screenH);
+                    var ctx = new Canvas2DContext(_lines, _rects, drawX, drawY, drawWidth, drawHeight, ScaleX, ScaleY);
+                    drawCb(ctx);
+                    _lines.Flush(_screenW, _screenH);
+                }
+                Render(fiber.Sibling, inheritedOpacity, parentPath, indexInParent + 1, scrollX, scrollY);
+                return;
+            }
+
             // ── Box shadow ────────────────────────────────────────────────────
             if (style.BoxShadow is { Length: > 0 } shadows)
             {

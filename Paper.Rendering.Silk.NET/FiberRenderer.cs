@@ -11,9 +11,10 @@ namespace Paper.Rendering.Silk.NET
     /// </summary>
     internal sealed partial class FiberRenderer
     {
-        private readonly RectBatch _rects;
+        private readonly RectBatch            _rects;
         private readonly TexturedQuadRenderer _viewports;
-        private readonly FontRegistry? _fonts;
+        private readonly LineBatch?           _lines;
+        private readonly FontRegistry?        _fonts;
         // Convenience accessor for places that only need the default (16px) atlas metrics.
         private TextBatch? _text => _fonts?.Default;
         private readonly GL? _gl;
@@ -86,15 +87,19 @@ namespace Paper.Rendering.Silk.NET
 
         public FiberRenderer(RectBatch rects, TexturedQuadRenderer viewports,
                              FontRegistry? fonts, float screenW, float screenH,
-                             GL? gl = null)
+                             GL? gl = null, LineBatch? lines = null)
         {
-            _rects = rects;
+            _rects     = rects;
             _viewports = viewports;
-            _fonts = fonts;
-            _gl = gl;
-            _screenW = screenW;
-            _screenH = screenH;
+            _lines     = lines;
+            _fonts     = fonts;
+            _gl        = gl;
+            _screenW   = screenW;
+            _screenH   = screenH;
         }
+
+        /// <summary>Flush the LineBatch — call after the main render pass alongside _rects.Flush().</summary>
+        public void FlushLines(float screenW, float screenH) => _lines?.Flush(screenW, screenH);
 
         /// <summary>Update the screen dimensions (call each frame if the window has been resized).</summary>
         public void SetScreenSize(float w, float h) { _screenW = w; _screenH = h; }

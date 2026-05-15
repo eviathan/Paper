@@ -482,7 +482,11 @@ namespace Paper.Core.Reconciler
         private static void UnmountFiber(Fiber fiber)
         {
             foreach (var slot in fiber.HookSlots)
-                slot.Cleanup?.Invoke();
+            {
+                try { slot.Cleanup?.Invoke(); }
+                catch (Exception ex) { Console.Error.WriteLine("[Paper] Cleanup error during unmount: " + ex); }
+                slot.Cleanup = null;
+            }
 
             var child = fiber.Child;
             while (child != null)
@@ -500,7 +504,9 @@ namespace Paper.Core.Reconciler
             {
                 if (slot.PendingLayoutEffect != null)
                 {
-                    slot.Cleanup?.Invoke();
+                    try { slot.Cleanup?.Invoke(); }
+                    catch (Exception ex) { Console.Error.WriteLine("[Paper] LayoutEffect cleanup error: " + ex); }
+                    slot.Cleanup = null;
                     try
                     {
                         var cleanup = slot.PendingLayoutEffect();
@@ -510,7 +516,6 @@ namespace Paper.Core.Reconciler
                     {
                         OnError?.Invoke(new ReconcilerError { Exception = ex, Phase = ReconcilerErrorPhase.Effect, IsBoundary = false });
                         Console.Error.WriteLine("[Paper] LayoutEffect error: " + ex.ToString());
-                        slot.Cleanup = null;
                     }
                     slot.PendingLayoutEffect = null;
                 }
@@ -528,8 +533,9 @@ namespace Paper.Core.Reconciler
             {
                 if (slot.PendingEffect != null)
                 {
-                    slot.Cleanup?.Invoke();
-                    
+                    try { slot.Cleanup?.Invoke(); }
+                    catch (Exception ex) { Console.Error.WriteLine("[Paper] Effect cleanup error: " + ex); }
+                    slot.Cleanup = null;
                     try
                     {
                         var cleanup = slot.PendingEffect();
@@ -539,7 +545,6 @@ namespace Paper.Core.Reconciler
                     {
                         OnError?.Invoke(new ReconcilerError { Exception = ex, Phase = ReconcilerErrorPhase.Effect, IsBoundary = false });
                         Console.Error.WriteLine("[Paper] Effect error: " + ex.ToString());
-                        slot.Cleanup = null;
                     }
                     slot.PendingEffect = null;
                 }

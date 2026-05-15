@@ -241,6 +241,17 @@ namespace Paper.Core.VirtualDom
                 .Style(style ?? StyleSheet.Empty)
                 .Build(), key);
 
+        /// <summary>
+        /// An immediate-mode 2D drawing surface. <paramref name="draw"/> is called every frame
+        /// with an <see cref="ICanvas2DContext"/> whose coordinates are element-local pixels.
+        /// Use for curve editors, graphs, and custom visualisations.
+        /// </summary>
+        public static UINode Canvas2D(Action<ICanvas2DContext> draw, StyleSheet? style = null, string? key = null) =>
+            new(ElementTypes.Canvas2D, new PropsBuilder()
+                .Canvas2DDraw(draw)
+                .Style(style ?? StyleSheet.Empty)
+                .Build(), key);
+
         // ── Primitive components ──────────────────────────────────────────────
 
         /// <summary>

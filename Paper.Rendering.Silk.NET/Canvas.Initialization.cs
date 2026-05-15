@@ -16,7 +16,8 @@ namespace Paper.Rendering.Silk.NET
         private void OnWindowLoad()
         {
             _gl = GL.GetApi(_window!);
-            _rects = new RectBatch(_gl);
+            _rects     = new RectBatch(_gl);
+            _lines     = new LineBatch(_gl);
             _viewports = new TexturedQuadRenderer(_gl);
             _imageLoader = new ImageTextureLoader(_gl);
             _layout = new LayoutEngine();
@@ -35,7 +36,7 @@ namespace Paper.Rendering.Silk.NET
                 _measurer = new SilkTextMeasurer(fontRegistry);
             }
 
-            _renderer = new FiberRenderer(_rects!, _viewports!, _fontSet, _width, _height, _gl)
+            _renderer = new FiberRenderer(_rects!, _viewports!, _fontSet, _width, _height, _gl, _lines)
             {
                 GetScrollOffset = path =>
                     _scrollState.ScrollOffsets.TryGetValue(path, out var value) ? value : (0f, 0f),

@@ -35,5 +35,12 @@ namespace Paper.Core.VirtualDom
         /// Use for modals, tooltips, dropdowns, and toasts.
         /// </summary>
         public const string Portal = "portal";
+
+        /// <summary>
+        /// An immediate-mode 2D drawing surface. The <c>canvas2dDraw</c> prop holds an
+        /// <c>Action&lt;ICanvas2DContext&gt;</c> called each frame with the element's draw context.
+        /// Use for curve editors, graphs, and custom visualisations.
+        /// </summary>
+        public const string Canvas2D = "canvas2d";
     }
 }

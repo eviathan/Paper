@@ -33,6 +33,7 @@ namespace Paper.Rendering.Silk.NET
         private IWindow? _window;
         private GL? _gl;
         private RectBatch? _rects;
+        private LineBatch? _lines;
         private TexturedQuadRenderer? _viewports;
         private FontRegistry? _fontSet;
         private TextBatch? _text => _fontSet?.Default;
