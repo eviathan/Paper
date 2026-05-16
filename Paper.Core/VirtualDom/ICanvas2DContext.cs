@@ -22,5 +22,8 @@ namespace Paper.Core.VirtualDom
 
         /// <summary>Filled rectangle — useful for dope sheet diamonds and selection rects.</summary>
         void FillRect(float x, float y, float w, float h, PaperColour color, float cornerRadius = 0f);
+
+        /// <summary>Draws text at element-local (x, y) where y is the top of the text bounding box.</summary>
+        void DrawText(string text, float x, float y, float fontSize, PaperColour color);
     }
 }

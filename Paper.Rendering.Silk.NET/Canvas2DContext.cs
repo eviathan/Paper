@@ -1,5 +1,6 @@
 using Paper.Core.Styles;
 using Paper.Core.VirtualDom;
+using Paper.Rendering.Silk.NET.Text;
 
 namespace Paper.Rendering.Silk.NET
 {
@@ -9,8 +10,9 @@ namespace Paper.Rendering.Silk.NET
     /// </summary>
     internal sealed class Canvas2DContext : ICanvas2DContext
     {
-        private readonly LineBatch  _lines;
-        private readonly RectBatch  _rects;
+        private readonly LineBatch   _lines;
+        private readonly RectBatch   _rects;
+        private readonly TextBatch?  _text;
 
         // Element's screen-space top-left (already scaled)
         private readonly float _ox;
@@ -21,12 +23,13 @@ namespace Paper.Rendering.Silk.NET
         public float Width  { get; }
         public float Height { get; }
 
-        public Canvas2DContext(LineBatch lines, RectBatch rects,
+        public Canvas2DContext(LineBatch lines, RectBatch rects, TextBatch? text,
             float drawX, float drawY, float drawW, float drawH,
             float scaleX, float scaleY)
         {
             _lines  = lines;
             _rects  = rects;
+            _text   = text;
             _ox     = drawX;
             _oy     = drawY;
             _scaleX = scaleX;
@@ -76,6 +79,17 @@ namespace Paper.Rendering.Silk.NET
                 (float)color.R, (float)color.G, (float)color.B, (float)color.A,
                 0f, 0f, 0f, 0f, 0f,
                 r, r, r, r);
+        }
+
+        public void DrawText(string text, float x, float y, float fontSize, PaperColour color)
+        {
+            if (_text == null || string.IsNullOrEmpty(text)) return;
+            float baseSize = _text.Atlas.BaseSize > 0 ? _text.Atlas.BaseSize : 16f;
+            float scale    = fontSize * _scaleX / baseSize;
+            float sx       = _ox + x * _scaleX;
+            float sy       = _oy + (y + fontSize * 0.82f) * _scaleY; // convert top-left y to baseline
+            _text.Add(text.AsSpan(), sx, sy,
+                (float)color.R, (float)color.G, (float)color.B, (float)color.A, scale);
         }
     }
 }
