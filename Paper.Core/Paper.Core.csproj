@@ -8,4 +8,9 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
   </PropertyGroup>
 
+  <ItemGroup>
+    <!-- Allow the rendering backend to construct TextureHandle via its internal constructor. -->
+    <InternalsVisibleTo Include="Paper.Rendering.Silk.NET" />
+  </ItemGroup>
+
 </Project>

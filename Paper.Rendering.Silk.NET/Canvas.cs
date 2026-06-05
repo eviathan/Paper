@@ -47,6 +47,8 @@ namespace Paper.Rendering.Silk.NET
         private Core.Reconciler.Fiber? _pointerDownFiber;
         private string? _pointerDownFiberPath;
         private Action? _renderRequestedListener;
+        private bool    _hasFirstFrameRendered;
+        private GlTextureFactory? _textureFactory;
 
         private ClickState _clickState { get; set; } = new();
         private GLFWState _glfwState { get; set; } = new();
@@ -132,6 +134,13 @@ namespace Paper.Rendering.Silk.NET
 
         /// <summary>Ratio of physical framebuffer pixels to logical window pixels (e.g. 2 on Retina). Updated each frame.</summary>
         public float DpiScale { get; private set; } = 1f;
+
+        /// <summary>
+        /// Factory for creating GPU-backed textures for use inside <c>Canvas2D</c> draw callbacks.
+        /// Available after <see cref="InitializeWindow"/> (or <see cref="Run"/>) returns.
+        /// All factory methods must be called on the UI / render thread.
+        /// </summary>
+        public Paper.Core.Rendering.ITextureFactory? TextureFactory => _textureFactory;
 
         /// <summary>Global style registry for this surface.</summary>
         public StyleRegistry Styles { get; } = new();
@@ -280,6 +289,11 @@ namespace Paper.Rendering.Silk.NET
 
             _window.DoUpdate();
             if (_window.IsClosing) return false;
+
+            // Drain actions posted by background threads (audio, I/O, analysis).
+            // Must happen before the render check so that state changes posted via UiThread.Post
+            // are processed and trigger reconcile/layout in the same frame.
+            Paper.Core.Threading.UiThread.DrainQueue();
 
             var utcNow = DateTime.UtcNow.Ticks / (double)TimeSpan.TicksPerSecond;
             bool isAnimating = utcNow < _renderState.AnimationDeadline;

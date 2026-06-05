@@ -15,13 +15,17 @@ namespace Paper.Rendering.Silk.NET
     {
         private void OnWindowLoad()
         {
+            // Register this thread as the Paper UI thread so UiThread.Post/Send can route correctly.
+            Paper.Core.Threading.UiThread.RegisterCurrentThread();
+
             _gl = GL.GetApi(_window!);
-            _rects     = new RectBatch(_gl);
-            _lines     = new LineBatch(_gl);
-            _viewports = new TexturedQuadRenderer(_gl);
-            _imageLoader = new ImageTextureLoader(_gl);
-            _layout = new LayoutEngine();
-            _measurer = new FallbackLayoutMeasurer();
+            _rects          = new RectBatch(_gl);
+            _lines          = new LineBatch(_gl);
+            _viewports      = new TexturedQuadRenderer(_gl);
+            _imageLoader    = new ImageTextureLoader(_gl);
+            _textureFactory = new GlTextureFactory(_gl);
+            _layout         = new LayoutEngine();
+            _measurer       = new FallbackLayoutMeasurer();
 
             _gl.Enable(EnableCap.Blend);
             _gl.BlendFuncSeparate(
@@ -125,6 +129,8 @@ namespace Paper.Rendering.Silk.NET
 
             _imageLoader?.Dispose();
             _imageLoader = null;
+
+            _textureFactory = null; // GlTextureFactory has no disposable state of its own
 
             _rects?.Dispose();
             _rects = null;

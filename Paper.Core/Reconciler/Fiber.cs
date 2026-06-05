@@ -89,5 +89,22 @@ namespace Paper.Core.Reconciler
 
         /// <summary>The interaction state that was in effect when ComputedStyle was last computed.</summary>
         public InteractionState CachedInteractionState { get; set; }
+
+        // ── Dirty-rect rendering ──────────────────────────────────────────────
+
+        /// <summary>
+        /// True when this fiber's visual output changed this frame — either because the reconciler
+        /// re-rendered it, its interaction state changed, or its layout position/size moved.
+        /// Set per-frame and cleared at the end of <see cref="Canvas.LayoutAndDraw"/>.
+        /// Used to accumulate the per-frame dirty screen rect so only changed regions are redrawn.
+        /// </summary>
+        public bool VisuallyDirty { get; set; }
+
+        /// <summary>
+        /// The <see cref="Layout"/> box from the previous frame, snapshotted before the current
+        /// layout pass runs.  Used alongside the new <see cref="Layout"/> to compute the union
+        /// dirty rect when an element moves or resizes.
+        /// </summary>
+        public LayoutBox PreviousLayout { get; set; }
     }
 }

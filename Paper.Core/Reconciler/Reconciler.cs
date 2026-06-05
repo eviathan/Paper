@@ -91,6 +91,7 @@ namespace Paper.Core.Reconciler
                 Commit(wip);
                 CommitDeletions();
                 _current = wip;
+                MarkVisuallyDirtyAfterCommit(_current);
                 FlushLayoutEffects(_current);
                 FlushEffects(_current);
                 AfterCommit?.Invoke();
@@ -112,7 +113,7 @@ namespace Paper.Core.Reconciler
 
         public bool NeedsUpdate() => _renderRequested;
 
-        private Fiber Render(UINode node, Fiber? current, Fiber? parent)
+        private Fiber Render(UINode node, Fiber? current, Fiber? parent, bool forceReconcile = false)
         {
             var fiber = new Fiber
             {
@@ -178,7 +179,7 @@ namespace Paper.Core.Reconciler
                     }
                 }
 
-                ReconcileChildren(fiber, children, current);
+                ReconcileChildren(fiber, children, current, forceReconcile);
             }
             finally
             {
@@ -300,7 +301,7 @@ namespace Paper.Core.Reconciler
                     return current;
                 }
 
-                return Render(node, current, parent);
+                return Render(node, current, parent, forceReconcile);
             }
             else
             {
@@ -310,7 +311,7 @@ namespace Paper.Core.Reconciler
                     _pendingDeletions.Add(current);
                 }
 
-                return Render(node, null, parent);
+                return Render(node, null, parent, forceReconcile);
             }
         }
 
@@ -380,7 +381,7 @@ namespace Paper.Core.Reconciler
             return true;
         }
 
-        private void ReconcileChildren(Fiber parent, List<UINode> newChildren, Fiber? currentFiber)
+        private void ReconcileChildren(Fiber parent, List<UINode> newChildren, Fiber? currentFiber, bool forceReconcile = false)
         {
             var oldChildren = FlattenChildren(currentFiber);
             var keyedOld = BuildKeyedMap(oldChildren);
@@ -398,7 +399,7 @@ namespace Paper.Core.Reconciler
                 {
                     try
                     {
-                        newFiber = Reconcile(oldChild, childNode, parent);
+                        newFiber = Reconcile(oldChild, childNode, parent, forceReconcile);
                         parent.CaughtError = null; // subtree rendered successfully; clear any prior error
                     }
                     catch (Exception ex)
@@ -410,7 +411,7 @@ namespace Paper.Core.Reconciler
                         var fallback = ((Components.IErrorBoundary)parent.Instance!).RenderFallback(ex);
                         parent.Child    = null;
                         prevSibling     = null;
-                        newFiber        = Render(fallback, null, parent);
+                        newFiber        = Render(fallback, null, parent, forceReconcile);
                         newFiber.Index  = 0;
                         parent.Child    = newFiber;
                         return; // skip remaining children
@@ -418,7 +419,7 @@ namespace Paper.Core.Reconciler
                 }
                 else
                 {
-                    newFiber = Reconcile(oldChild, childNode, parent);
+                    newFiber = Reconcile(oldChild, childNode, parent, forceReconcile);
                 }
 
                 newFiber.Index = index;
@@ -585,6 +586,23 @@ namespace Paper.Core.Reconciler
                 map[key] = children[i];
             }
             return map;
+        }
+
+        /// <summary>
+        /// Walk the committed tree and set <see cref="Fiber.VisuallyDirty"/> on every fiber whose
+        /// <see cref="EffectTag"/> is not <see cref="EffectTag.None"/>, i.e. the reconciler actually
+        /// re-rendered or placed it this frame.  This seeds the per-frame dirty screen rect
+        /// computation in the host before layout and draw run.
+        /// </summary>
+        private static void MarkVisuallyDirtyAfterCommit(Fiber? fiber)
+        {
+            while (fiber != null)
+            {
+                if (fiber.EffectTag != EffectTag.None)
+                    fiber.VisuallyDirty = true;
+                MarkVisuallyDirtyAfterCommit(fiber.Child);
+                fiber = fiber.Sibling;
+            }
         }
     }
 }

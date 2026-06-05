@@ -277,7 +277,10 @@ namespace Paper.Rendering.Silk.NET
                 {
                     // Flush pending rects so drawing order is correct
                     _rects.Flush(_screenW, _screenH);
-                    var ctx = new Canvas2DContext(_lines, _rects, _text, drawX, drawY, drawWidth, drawHeight, ScaleX, ScaleY);
+                    var ctx = new Canvas2DContext(
+                        _lines, _rects, _text, _viewports,
+                        drawX, drawY, drawWidth, drawHeight,
+                        ScaleX, ScaleY, _screenW, _screenH);
                     drawCb(ctx);
                     _lines.Flush(_screenW, _screenH);
                     _text?.Flush(_screenW, _screenH);

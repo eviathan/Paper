@@ -208,6 +208,14 @@ namespace Paper.Rendering.Silk.NET
         public List<Paper.Core.Reconciler.Fiber>? PortalRoots { get; set; }
 
         /// <summary>
+        /// When set, only fibers whose screen-space bounds intersect this rect will be drawn.
+        /// The rect is in framebuffer pixel space (origin top-left, Y down) matching
+        /// <see cref="_screenW"/> / <see cref="_screenH"/>.  Null means draw everything (full frame).
+        /// Set by the host after computing the per-frame dirty region; reset to null after render.
+        /// </summary>
+        public (float X, float Y, float W, float H)? DirtyRect { get; set; }
+
+        /// <summary>
         /// Renders <paramref name="fiber"/> and its subtree at the cursor position as a translucent
         /// drag ghost. Call this after the main <see cref="Render"/> pass; flush batches afterwards.
         /// <paramref name="cursorX"/>/<paramref name="cursorY"/> are in layout (window) pixel space.
@@ -290,7 +298,24 @@ namespace Paper.Rendering.Silk.NET
             _frameDt = _lastFrameTime < 0.0 ? 0f : (float)(now - _lastFrameTime);
             _lastFrameTime = now;
 
-            _cullRect = (0, 0, _screenW, _screenH);
+            // When a dirty rect is provided, restrict the initial cull rect to that region.
+            // The existing viewport-culling code in the recursive Render() already skips any
+            // fiber whose bounds don't intersect _cullRect, so this one change propagates the
+            // dirty-rect optimisation through the entire tree without further modifications.
+            if (DirtyRect.HasValue)
+            {
+                var dr = DirtyRect.Value;
+                _cullRect = (
+                    Math.Max(0f, dr.X),
+                    Math.Max(0f, dr.Y),
+                    Math.Min(_screenW, dr.X + dr.W) - Math.Max(0f, dr.X),
+                    Math.Min(_screenH, dr.Y + dr.H) - Math.Max(0f, dr.Y)
+                );
+            }
+            else
+            {
+                _cullRect = (0, 0, _screenW, _screenH);
+            }
 
             RenderedScrollbars.Clear();
             _zIndexedList.Clear();

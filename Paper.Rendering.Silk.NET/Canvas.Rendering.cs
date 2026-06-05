@@ -97,6 +97,12 @@ namespace Paper.Rendering.Silk.NET
 
             if (_renderState.NeedsLayout)
             {
+                // Snapshot layout boxes before layout overwrites them — used for dirty rect.
+                SavePreviousLayouts(root);
+                if (_reconciler?.PortalRoots is { Count: > 0 } portalsForSnapshot)
+                    foreach (var portal in portalsForSnapshot)
+                        SavePreviousLayouts(portal);
+
                 _layout.GetImageSize = path =>
                 {
                     var resolved = PaperUtility.ResolveImagePath(path);
@@ -150,9 +156,6 @@ namespace Paper.Rendering.Silk.NET
 
             _gl!.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
             _gl.Viewport(0, 0, (uint)framebufferSize.X, (uint)framebufferSize.Y);
-            _gl.ClearColor(0.07f, 0.07f, 0.12f, 1f);
-            _gl.ClearStencil(0);
-            _gl.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.StencilBufferBit);
 
             // Reset blend state — game render (TickFrame) may leave additive or other
             // non-standard blending active (particles, lighting post-process, etc.).
@@ -160,12 +163,89 @@ namespace Paper.Rendering.Silk.NET
             _gl.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
             _gl.Disable(EnableCap.DepthTest);
 
+            // ── Dirty-rect optimisation ───────────────────────────────────────
+            // When possible, only clear + redraw the region of the framebuffer that actually
+            // changed this frame.  The existing framebuffer content (previous frame) is preserved
+            // outside the dirty rect, which is valid on all major desktop GL drivers (macOS, Windows,
+            // Linux) that retain the back buffer after SwapBuffers.
+            //
+            // Fall back to a full clear when:
+            //   • this is the first frame (no previous buffer content)
+            //   • CSS transitions are animating (FiberRenderer owns those dirty regions internally)
+            //   • a scrollbar is fading out (same reason)
+            //   • drag ghost is being drawn (always covers an arbitrary region)
+            //   • dirty rect covers ≥ 80% of the framebuffer (full clear is cheaper)
+            float fbW = framebufferSize.X;
+            float fbH = framebufferSize.Y;
+            float dpiScale = _width > 0 ? fbW / _width : 1f;
+
+            bool dragActive = _uiState.DragActive && _uiState.DragSource != null;
+            bool crossWindowDrag = _dockSession?.IsCrossWindowDragActive == true && !_uiState.DragActive;
+            bool canUseDirtyRect =
+                _hasFirstFrameRendered
+                && !(_renderer?.HasActiveTransitions == true)
+                && !HasActiveScrollbarFade()
+                && !dragActive
+                && !crossWindowDrag;
+
+            (float X, float Y, float W, float H)? dirtyRect = null;
+            if (canUseDirtyRect)
+            {
+                dirtyRect = ComputeDirtyScreenRect(root, dpiScale, dpiScale, fbW, fbH);
+
+                // Include portal dirty regions.
+                if (dirtyRect.HasValue && _reconciler?.PortalRoots is { Count: > 0 } dirtyPortals)
+                {
+                    foreach (var portal in dirtyPortals)
+                    {
+                        var pr = ComputeDirtyScreenRect(portal, dpiScale, dpiScale, fbW, fbH);
+                        if (pr.HasValue)
+                        {
+                            if (!dirtyRect.HasValue)
+                                dirtyRect = pr;
+                            else
+                            {
+                                float x1 = Math.Min(dirtyRect.Value.X, pr.Value.X);
+                                float y1 = Math.Min(dirtyRect.Value.Y, pr.Value.Y);
+                                float x2 = Math.Max(dirtyRect.Value.X + dirtyRect.Value.W, pr.Value.X + pr.Value.W);
+                                float y2 = Math.Max(dirtyRect.Value.Y + dirtyRect.Value.H, pr.Value.Y + pr.Value.H);
+                                dirtyRect = (x1, y1, x2 - x1, y2 - y1);
+                            }
+                        }
+                    }
+                }
+
+                // If the dirty rect covers most of the screen a full clear is simpler and no slower.
+                if (dirtyRect.HasValue && dirtyRect.Value.W * dirtyRect.Value.H >= fbW * fbH * 0.8f)
+                    dirtyRect = null;
+            }
+
+            _gl.ClearColor(0.07f, 0.07f, 0.12f, 1f);
+            _gl.ClearStencil(0);
+            if (dirtyRect.HasValue)
+            {
+                var dr = dirtyRect.Value;
+                // GL scissor origin is bottom-left; Y must be flipped.
+                int glX = (int)Math.Floor(dr.X);
+                int glY = (int)Math.Floor(fbH - dr.Y - dr.H);
+                int glW = Math.Max(1, (int)Math.Ceiling(dr.W));
+                int glH = Math.Max(1, (int)Math.Ceiling(dr.H));
+                _gl.Enable(EnableCap.ScissorTest);
+                _gl.Scissor(glX, glY, (uint)glW, (uint)glH);
+                _gl.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.StencilBufferBit);
+                _gl.Disable(EnableCap.ScissorTest);
+            }
+            else
+            {
+                _gl.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.StencilBufferBit);
+            }
+
             var renderer = _renderer!;
-            renderer.SetScreenSize(framebufferSize.X, framebufferSize.Y);
-            renderer.DpiScale = _width > 0 ? framebufferSize.X / (float)_width : 1f;
-            renderer.ScaleX = renderer.DpiScale;
-            renderer.ScaleY = renderer.DpiScale;
-            DpiScale = renderer.DpiScale;
+            renderer.SetScreenSize(fbW, fbH);
+            renderer.DpiScale = dpiScale;
+            renderer.ScaleX   = dpiScale;
+            renderer.ScaleY   = dpiScale;
+            DpiScale = dpiScale;
             renderer.FocusedInputPath = _inputState.Focused != null && InputTextUtility.IsTextInput(_inputState.Focused.Type as string)
                 ? FiberTreeUtility.GetPathString(_inputState.Focused)
                 : _inputState.FocusedPath;
@@ -178,31 +258,40 @@ namespace Paper.Rendering.Silk.NET
             renderer.FocusedInputScrollX = _inputState.InputScrollX;
             renderer.HoveredPath = _uiState.Hovered != null ? FiberTreeUtility.GetPathString(_uiState.Hovered) : null;
             renderer.PortalRoots = _reconciler?.PortalRoots;
+            renderer.DirtyRect   = dirtyRect;
             renderer.Render(root);
 
-            if (_uiState.DragActive && _uiState.DragSource != null)
+            if (dragActive)
             {
                 if (_uiState.DragData is Paper.Core.Dock.DockDragPayload)
                     renderer.RenderPanelGhost(_uiState.DragCursorX, _uiState.DragCursorY);
                 else
                     renderer.RenderGhost(_uiState.DragSource, _uiState.DragCursorX, _uiState.DragCursorY, 0.5f);
             }
-            else if (_dockSession?.IsCrossWindowDragActive == true && !_uiState.DragActive && _window != null)
+            else if (crossWindowDrag && _window != null)
             {
                 // macOS GLFW implicit grab: source window keeps all mouse events, so this window
                 // never receives OnMouseMove. Read the screen cursor coords the source window wrote
                 // into the session on each of its own mouse-move events, then convert to local coords.
                 var screenPos = _window.Position;
                 var winSize   = _window.Size;
-                float localX  = _dockSession.CrossDragCursorScreenX - screenPos.X;
-                float localY  = _dockSession.CrossDragCursorScreenY - screenPos.Y;
+                float localX  = _dockSession!.CrossDragCursorScreenX - screenPos.X;
+                float localY  = _dockSession.CrossDragCursorScreenY  - screenPos.Y;
                 if (localX >= 0 && localY >= 0 && localX <= winSize.X && localY <= winSize.Y)
                     renderer.RenderPanelGhost(localX, localY);
             }
 
-            _rects!.Flush(framebufferSize.X, framebufferSize.Y);
-            _lines?.Flush(framebufferSize.X, framebufferSize.Y);
-            _text?.Flush(framebufferSize.X, framebufferSize.Y);
+            _rects!.Flush(fbW, fbH);
+            _lines?.Flush(fbW, fbH);
+            _text?.Flush(fbW, fbH);
+
+            // Reset dirty flags for the next frame.
+            ClearVisuallyDirty(root);
+            if (_reconciler?.PortalRoots is { Count: > 0 } cleanPortals)
+                foreach (var portal in cleanPortals)
+                    ClearVisuallyDirty(portal);
+
+            _hasFirstFrameRendered = true;
         }
 
         private static Fiber? FindAutoFocus(Fiber? fiber)
@@ -234,6 +323,139 @@ namespace Paper.Rendering.Silk.NET
                 _window?.DoRender();
         }
 
+        // ── Dirty-rect helpers ────────────────────────────────────────────────
+
+        /// <summary>
+        /// Snapshot each fiber's current layout box into <see cref="Fiber.PreviousLayout"/> before
+        /// the layout pass runs.  Called once per frame so the dirty rect computation can union the
+        /// old and new positions of elements that moved.
+        /// </summary>
+        private static void SavePreviousLayouts(Fiber? fiber)
+        {
+            while (fiber != null)
+            {
+                fiber.PreviousLayout = fiber.Layout;
+                SavePreviousLayouts(fiber.Child);
+                fiber = fiber.Sibling;
+            }
+        }
+
+        /// <summary>
+        /// Walk the committed tree after layout and compute the union of the screen-space bounds of
+        /// every <see cref="Fiber.VisuallyDirty"/> fiber.  For fibers that moved, the union includes
+        /// both the old (<see cref="Fiber.PreviousLayout"/>) and new (<see cref="Fiber.Layout"/>)
+        /// positions so the vacated region is cleared as well.
+        ///
+        /// Also marks any fiber whose layout box changed since last frame as
+        /// <see cref="Fiber.VisuallyDirty"/> — this catches elements that moved purely because a
+        /// parent was resized, without going through the reconciler.
+        ///
+        /// Returns null when no dirty fibers were found (nothing to redraw).
+        /// The returned rect is in framebuffer pixel space (origin top-left, Y increasing downward),
+        /// expanded by <paramref name="padding"/> pixels to cover sub-pixel edges.
+        /// </summary>
+        private static (float X, float Y, float W, float H)? ComputeDirtyScreenRect(
+            Fiber?  root,
+            float   scaleX,
+            float   scaleY,
+            float   fbW,
+            float   fbH,
+            float   padding = 2f)
+        {
+            float minX = float.MaxValue, minY = float.MaxValue;
+            float maxX = float.MinValue, maxY = float.MinValue;
+
+            AccumulateDirtyBounds(root, scaleX, scaleY, ref minX, ref minY, ref maxX, ref maxY);
+
+            if (minX > maxX || minY > maxY)
+                return null;
+
+            float x = Math.Max(0f,  minX - padding);
+            float y = Math.Max(0f,  minY - padding);
+            float x2 = Math.Min(fbW, maxX + padding);
+            float y2 = Math.Min(fbH, maxY + padding);
+            return (x, y, x2 - x, y2 - y);
+        }
+
+        private static void AccumulateDirtyBounds(
+            Fiber? fiber,
+            float  scaleX, float scaleY,
+            ref float minX, ref float minY,
+            ref float maxX, ref float maxY)
+        {
+            while (fiber != null)
+            {
+                // Detect fibers that moved or resized due to layout changes (e.g. window resize).
+                var cur  = fiber.Layout;
+                var prev = fiber.PreviousLayout;
+                if (cur.AbsoluteX != prev.AbsoluteX || cur.AbsoluteY != prev.AbsoluteY ||
+                    cur.Width     != prev.Width      || cur.Height    != prev.Height)
+                {
+                    fiber.VisuallyDirty = true;
+                }
+
+                if (fiber.VisuallyDirty)
+                {
+                    // Current position
+                    UnionRect(cur.AbsoluteX * scaleX, cur.AbsoluteY * scaleY,
+                              cur.Width     * scaleX, cur.Height    * scaleY,
+                              ref minX, ref minY, ref maxX, ref maxY);
+
+                    // Previous position (needed to clear the vacated region when element moved)
+                    if (prev.Width > 0 && prev.Height > 0)
+                    {
+                        UnionRect(prev.AbsoluteX * scaleX, prev.AbsoluteY * scaleY,
+                                  prev.Width     * scaleX, prev.Height    * scaleY,
+                                  ref minX, ref minY, ref maxX, ref maxY);
+                    }
+                }
+
+                AccumulateDirtyBounds(fiber.Child, scaleX, scaleY, ref minX, ref minY, ref maxX, ref maxY);
+                fiber = fiber.Sibling;
+            }
+        }
+
+        private static void UnionRect(float x, float y, float w, float h,
+                                      ref float minX, ref float minY,
+                                      ref float maxX, ref float maxY)
+        {
+            if (x     < minX) minX = x;
+            if (y     < minY) minY = y;
+            if (x + w > maxX) maxX = x + w;
+            if (y + h > maxY) maxY = y + h;
+        }
+
+        /// <summary>Reset all <see cref="Fiber.VisuallyDirty"/> flags after the frame has been drawn.</summary>
+        private static void ClearVisuallyDirty(Fiber? fiber)
+        {
+            while (fiber != null)
+            {
+                fiber.VisuallyDirty = false;
+                ClearVisuallyDirty(fiber.Child);
+                fiber = fiber.Sibling;
+            }
+        }
+
+        /// <summary>
+        /// Returns true when any tracked scroll container currently has a visible (non-zero opacity)
+        /// scrollbar.  While scrollbars are fading out the full frame must be redrawn because the
+        /// fade affects the rendered scrollbar geometry inside the container bounds, which we do not
+        /// separately track as dirty fibers.
+        /// </summary>
+        private bool HasActiveScrollbarFade()
+        {
+            if (_scrollState.ScrollbarLastActive.Count == 0) return false;
+            double utcNow = DateTime.UtcNow.Ticks / (double)TimeSpan.TicksPerSecond;
+            const double visibleSeconds = 1.2, fadeSeconds = 0.4;
+            foreach (var lastActiveTime in _scrollState.ScrollbarLastActive.Values)
+            {
+                double elapsed = utcNow - lastActiveTime;
+                if (elapsed < visibleSeconds + fadeSeconds)
+                    return true;
+            }
+            return false;
+        }
+
         private void ApplyComputedStyles(Fiber fiber)
         {
             if (fiber == null) return;
@@ -247,6 +469,17 @@ namespace Paper.Rendering.Silk.NET
                 fiber.ComputedStyle = StyleResolver.Resolve(fiber.Type, fiber.Props, Styles, interactionState, fiber);
                 fiber.StyleDirty = false;
                 fiber.CachedInteractionState = interactionState;
+                // Interaction-state change means a visual change (hover highlight, focus ring, etc.)
+                // even if the reconciler didn't re-render this fiber.
+                fiber.VisuallyDirty = true;
+            }
+
+            // Canvas2D and Viewport elements invoke user callbacks whose output can change
+            // every frame without going through reconcile.  Always include them in the dirty rect.
+            if (fiber.Type is string ft &&
+                (ft == ElementTypes.Canvas2D || ft == ElementTypes.Viewport))
+            {
+                fiber.VisuallyDirty = true;
             }
 
             var child = fiber.Child;
