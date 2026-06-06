@@ -295,6 +295,84 @@ UINode App() {
       </Box>
 
       {/* ═══════════════════════════════════════════════════════════════════════
+          ICONS
+          ═══════════════════════════════════════════════════════════════════════ */}
+
+      {/* ── Icons ───────────────────────────────────────────────────────────── */}
+      <Box className="section">
+        <Text className="section-label">react-icons — 50,388 icons from 31 sets</Text>
+        <Box className="demo-col-panel" style={{ gap: 14, padding: 14 }}>
+
+          <Text style={{ color: '#a0a0b8', fontSize: 12 }}>Sizes — 16 · 24 · 32 · 48 px</Text>
+          <Box style={{ display: 'flex', flexDirection: 'row', gap: 16, alignItems: 'center' }}>
+            {UI.Icon(IconSets.Fa.FaHome, 16, new PaperColour(0.55f, 0.78f, 1f, 1f))}
+            {UI.Icon(IconSets.Fa.FaHome, 24, new PaperColour(0.55f, 0.78f, 1f, 1f))}
+            {UI.Icon(IconSets.Fa.FaHome, 32, new PaperColour(0.55f, 0.78f, 1f, 1f))}
+            {UI.Icon(IconSets.Fa.FaHome, 48, new PaperColour(0.55f, 0.78f, 1f, 1f))}
+          </Box>
+
+          <Text style={{ color: '#a0a0b8', fontSize: 12 }}>Font Awesome (fa)</Text>
+          <Box style={{ display: 'flex', flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+            {UI.Icon(IconSets.Fa.FaHome,     24, new PaperColour(0.55f, 0.78f, 1f,  1f))}
+            {UI.Icon(IconSets.Fa.FaGithub,   24, new PaperColour(0.8f,  0.8f,  0.8f, 1f))}
+            {UI.Icon(IconSets.Fa.FaStar,     24, new PaperColour(1f,    0.82f, 0.1f, 1f))}
+            {UI.Icon(IconSets.Fa.FaHeart,    24, new PaperColour(0.9f,  0.3f,  0.3f, 1f))}
+            {UI.Icon(IconSets.Fa.FaSearch,   24, new PaperColour(0.7f,  0.7f,  0.9f, 1f))}
+            {UI.Icon(IconSets.Fa.FaCog,      24, new PaperColour(0.6f,  0.6f,  0.7f, 1f))}
+            {UI.Icon(IconSets.Fa.FaEnvelope, 24, new PaperColour(0.4f,  0.85f, 0.55f, 1f))}
+            {UI.Icon(IconSets.Fa.FaFolder,   24, new PaperColour(0.95f, 0.7f,  0.2f, 1f))}
+            {UI.Icon(IconSets.Fa.FaBell,     24, new PaperColour(1f,    0.85f, 0.35f, 1f))}
+            {UI.Icon(IconSets.Fa.FaCode,     24, new PaperColour(0.5f,  0.9f,  0.7f, 1f))}
+            {UI.Icon(IconSets.Fa.FaUser,     24, new PaperColour(0.75f, 0.6f,  1f,   1f))}
+            {UI.Icon(IconSets.Fa.FaCamera,   24, new PaperColour(0.9f,  0.55f, 0.55f, 1f))}
+          </Box>
+
+          <Text style={{ color: '#a0a0b8', fontSize: 12 }}>Material Design (md)</Text>
+          <Box style={{ display: 'flex', flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+            {UI.Icon(IconSets.Md.MdSettings,      24, new PaperColour(0.4f,  0.8f,  0.4f, 1f))}
+            {UI.Icon(IconSets.Md.MdDashboard,     24, new PaperColour(0.4f,  0.65f, 1f,   1f))}
+            {UI.Icon(IconSets.Md.MdPerson,        24, new PaperColour(0.8f,  0.65f, 1f,   1f))}
+            {UI.Icon(IconSets.Md.MdNotifications, 24, new PaperColour(1f,    0.75f, 0.2f, 1f))}
+            {UI.Icon(IconSets.Md.MdSearch,        24, new PaperColour(0.6f,  0.85f, 0.95f, 1f))}
+            {UI.Icon(IconSets.Md.MdEdit,          24, new PaperColour(0.9f,  0.6f,  0.9f, 1f))}
+            {UI.Icon(IconSets.Md.MdCode,          24, new PaperColour(0.45f, 0.95f, 0.65f, 1f))}
+            {UI.Icon(IconSets.Md.MdFolder,        24, new PaperColour(0.95f, 0.72f, 0.25f, 1f))}
+          </Box>
+
+          <Text style={{ color: '#a0a0b8', fontSize: 12 }}>Bootstrap · Feather · Lucide · Remix · Heroicons · Tabler</Text>
+          <Box style={{ display: 'flex', flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+            {UI.Icon(IconSets.Bs.BsStarFill,      24, new PaperColour(1f,    0.8f,  0.2f, 1f))}
+            {UI.Icon(IconSets.Bs.BsHouse,         24, new PaperColour(0.55f, 0.75f, 1f,   1f))}
+            {UI.Icon(IconSets.Bs.BsGithub,        24, new PaperColour(0.8f,  0.8f,  0.85f, 1f))}
+            {UI.Icon(IconSets.Bs.BsBell,          24, new PaperColour(1f,    0.85f, 0.35f, 1f))}
+            {UI.Icon(IconSets.Fi.FiDownload,      24, new PaperColour(0.6f,  0.9f,  0.6f, 1f))}
+            {UI.Icon(IconSets.Fi.FiCode,          24, new PaperColour(0.45f, 0.95f, 0.65f, 1f))}
+            {UI.Icon(IconSets.Fi.FiSettings,      24, new PaperColour(0.65f, 0.65f, 0.75f, 1f))}
+            {UI.Icon(IconSets.Fi.FiGithub,        24, new PaperColour(0.8f,  0.8f,  0.8f, 1f))}
+            {UI.Icon(IconSets.Lu.LuSearch,        24, new PaperColour(0.8f,  0.6f,  1f,   1f))}
+            {UI.Icon(IconSets.Ri.RiAlarmLine,     24, new PaperColour(1f,    0.4f,  0.6f, 1f))}
+            {UI.Icon(IconSets.Hi.HiHeart,         24, new PaperColour(0.9f,  0.3f,  0.3f, 1f))}
+            {UI.Icon(IconSets.Tb.TbBrandGithub,   24, new PaperColour(0.9f,  0.5f,  0.2f, 1f))}
+          </Box>
+
+          <Text style={{ color: '#a0a0b8', fontSize: 12 }}>Flat Color (fc) — full multi-colour SVG rasterization</Text>
+          <Box style={{ display: 'flex', flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+            {UI.Icon(IconSets.Fc.FcSettings,    32)}
+            {UI.Icon(IconSets.Fc.FcHome,        32)}
+            {UI.Icon(IconSets.Fc.FcInfo,        32)}
+            {UI.Icon(IconSets.Fc.FcOk,          32)}
+            {UI.Icon(IconSets.Fc.FcSearch,      32)}
+            {UI.Icon(IconSets.Fc.FcApproval,    32)}
+            {UI.Icon(IconSets.Fc.FcCalendar,    32)}
+            {UI.Icon(IconSets.Fc.FcBookmark,    32)}
+            {UI.Icon(IconSets.Fc.FcFile,        32)}
+            {UI.Icon(IconSets.Fc.FcBullish,     32)}
+          </Box>
+
+        </Box>
+      </Box>
+
+      {/* ═══════════════════════════════════════════════════════════════════════
           LAYOUT DEMOS
           ═══════════════════════════════════════════════════════════════════════ */}
 

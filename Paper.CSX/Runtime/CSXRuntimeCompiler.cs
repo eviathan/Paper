@@ -52,6 +52,7 @@ using Paper.Core.Styles;
 using Paper.Core.Hooks;
 using Paper.Core.Context;
 using Paper.Core.Components;
+using Paper.Icons;
 {{extraUsingsBlock}}
 {{hoistedClasses}}
 public static class {{componentClassName}}

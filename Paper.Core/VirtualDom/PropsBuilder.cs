@@ -116,6 +116,7 @@ namespace Paper.Core.VirtualDom
         // ── Canvas2D ──────────────────────────────────────────────────────────
 
         public PropsBuilder Canvas2DDraw(Action<ICanvas2DContext>? draw) { _data["canvas2dDraw"] = draw; return this; }
+        public PropsBuilder Icon(IconRef icon) { _data["icon"] = icon; return this; }
 
         // ── Custom ────────────────────────────────────────────────────────────
 

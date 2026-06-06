@@ -138,6 +138,32 @@ UINode DemoApp() {
                 Toggle Accent ({(usePurple ? "Purple" : "Blue")})
             </Button>
         </Box>
+
+        <Box style={{
+            display: 'flex',
+            flexDirection: 'column',
+            background: '#161b22',
+            padding: 20,
+            borderRadius: 8,
+            gap: 12,
+            width: '100%'
+        }}>
+            <Text style={{ fontSize: 16, color: '#c9d1d9' }}>
+                react-icons — 50,388 icons from 31 sets
+            </Text>
+            <Box style={{ display: 'flex', flexDirection: 'row', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+                {UI.Icon(IconSets.Fa.FaHome,          24, new PaperColour(0.55f, 0.78f, 1f, 1f))}
+                {UI.Icon(IconSets.Fa.FaGithub,        24, new PaperColour(0.8f,  0.8f,  0.8f, 1f))}
+                {UI.Icon(IconSets.Md.MdSettings,      24, new PaperColour(0.4f,  0.8f,  0.4f, 1f))}
+                {UI.Icon(IconSets.Bs.BsStarFill,      24, new PaperColour(1f,    0.8f,  0.2f, 1f))}
+                {UI.Icon(IconSets.Hi.HiHeart,         24, new PaperColour(0.9f,  0.3f,  0.3f, 1f))}
+                {UI.Icon(IconSets.Fi.FiDownload,      24, new PaperColour(0.6f,  0.9f,  0.6f, 1f))}
+                {UI.Icon(IconSets.Lu.LuSearch,        24, new PaperColour(0.8f,  0.6f,  1f,   1f))}
+                {UI.Icon(IconSets.Tb.TbBrandGithub,   24, new PaperColour(0.9f,  0.5f,  0.2f, 1f))}
+                {UI.Icon(IconSets.Ri.RiAlarmLine,     24, new PaperColour(1f,    0.4f,  0.6f, 1f))}
+                {UI.Icon(IconSets.Fc.FcSettings,      32)}
+            </Box>
+        </Box>
     </Box>
   );
 }

@@ -22,7 +22,8 @@ namespace Paper.Rendering.Silk.NET
             _rects          = new RectBatch(_gl);
             _lines          = new LineBatch(_gl);
             _viewports      = new TexturedQuadRenderer(_gl);
-            _imageLoader    = new ImageTextureLoader(_gl);
+            _imageLoader       = new ImageTextureLoader(_gl);
+            _iconTextureCache  = new Paper.Icons.IconTextureCache(_gl);
             _textureFactory = new GlTextureFactory(_gl);
             _layout         = new LayoutEngine();
             _measurer       = new FallbackLayoutMeasurer();
@@ -62,7 +63,9 @@ namespace Paper.Rendering.Silk.NET
                 {
                     var result = _imageLoader != null ? _imageLoader.GetOrLoad(PaperUtility.ResolveImagePath(path)) : default;
                     return result.Handle != 0 ? (result.Handle, result.Width, result.Height) : (0u, 0, 0);
-                }
+                },
+                GetIconTexture = (iconRef, sizePx, r, g, b, a) =>
+                    _iconTextureCache?.GetTexture(iconRef, sizePx, r, g, b, a) ?? 0u
             };
 
             _reconciler = new Reconciler();
@@ -95,6 +98,8 @@ namespace Paper.Rendering.Silk.NET
                 keyboard.KeyUp += OnKeyUp;
                 keyboard.KeyChar += OnKeyChar;
             }
+
+            _window.FileDrop += paths => FileDrop?.Invoke(paths);
 
             OnLoad?.Invoke(_gl, inputContext, _width, _height);
 
@@ -129,6 +134,9 @@ namespace Paper.Rendering.Silk.NET
 
             _imageLoader?.Dispose();
             _imageLoader = null;
+
+            _iconTextureCache?.Dispose();
+            _iconTextureCache = null;
 
             _textureFactory = null; // GlTextureFactory has no disposable state of its own
 

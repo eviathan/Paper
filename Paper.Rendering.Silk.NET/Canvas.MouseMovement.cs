@@ -87,7 +87,12 @@ namespace Paper.Rendering.Silk.NET
                     Button = 0,
                     LocalX = layoutCoordsX - layoutBox.AbsoluteX,
                     LocalY = layoutCoordsY - layoutBox.AbsoluteY,
+                    TargetWidth = layoutBox.Width,
+                    TargetHeight = layoutBox.Height,
                 });
+                // The pointer-move handler may have changed component state (e.g. slider drag).
+                // RequestRender ensures a reconcile runs this frame so the visual updates immediately.
+                RequestRender();
             }
             else if (target != null)
             {
@@ -425,13 +430,20 @@ namespace Paper.Rendering.Silk.NET
             var target = HitTestAll(mouseX, mouseY);
             if (target == null) return;
 
+            bool shiftHeld = _inputContext?.Keyboards.Any(
+                k => k.IsKeyPressed(Key.ShiftLeft) || k.IsKeyPressed(Key.ShiftRight)) ?? false;
+            bool ctrlHeld = _inputContext?.Keyboards.Any(
+                k => k.IsKeyPressed(Key.ControlLeft) || k.IsKeyPressed(Key.ControlRight)) ?? false;
+
             var wheelEvent = new PointerEvent
             {
-                Type = PointerEventType.Wheel,
-                X = mouseX,
-                Y = mouseY,
+                Type        = PointerEventType.Wheel,
+                X           = mouseX,
+                Y           = mouseY,
                 WheelDeltaX = wheel.X,
                 WheelDeltaY = wheel.Y,
+                Shift       = shiftHeld,
+                Ctrl        = ctrlHeld,
             };
 
             var pathToRoot = FiberTreeUtility.PathToRoot(target);

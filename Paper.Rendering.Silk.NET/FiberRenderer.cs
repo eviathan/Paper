@@ -65,6 +65,13 @@ namespace Paper.Rendering.Silk.NET
         /// <summary>Optional: returns texture handle for an image path (used when GetImageResult is not set).</summary>
         public Func<string?, uint>? GetImageTexture { get; set; }
 
+        /// <summary>
+        /// Optional: returns an OpenGL texture handle for a react-icons SVG icon rasterized at <c>sizePx</c>
+        /// with the given RGBA color channels [0,1]. Returns 0 if not available or icon not found.
+        /// Wire up via <c>Paper.Icons.IconTextureCache.GetTexture</c>.
+        /// </summary>
+        public Func<Paper.Core.VirtualDom.IconRef, int, float, float, float, float, uint>? GetIconTexture { get; set; }
+
         /// <summary>Optional: returns (handle, width, height) for object-fit and background-image (cover/contain).</summary>
         public Func<string?, (uint handle, int w, int h)>? GetImageResult { get; set; }
 

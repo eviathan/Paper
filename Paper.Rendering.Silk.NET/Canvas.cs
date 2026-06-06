@@ -43,6 +43,7 @@ namespace Paper.Rendering.Silk.NET
         private IInputContext? _inputContext;
         private CSXHotReload? _csxHotReload;
         private ImageTextureLoader? _imageLoader;
+        private Paper.Icons.IconTextureCache? _iconTextureCache;
         private FiberRenderer? _renderer;
         private Core.Reconciler.Fiber? _pointerDownFiber;
         private string? _pointerDownFiberPath;
@@ -167,6 +168,12 @@ namespace Paper.Rendering.Silk.NET
         /// <summary>Called at the start of each render frame, before Paper renders its UI.</summary>
         public Action<double>? PreRender { get; set; }
 
+        /// <summary>
+        /// Raised on the UI thread when the user drops files from the OS onto the window.
+        /// Receives the full paths of the dropped files.
+        /// </summary>
+        public event Action<string[]>? FileDrop;
+
         public Canvas(string title = "Paper", int width = 1280, int height = 720)
         {
             _title = title;
@@ -202,6 +209,12 @@ namespace Paper.Rendering.Silk.NET
             {
                 Console.WriteLine($"Mounting {csxFilePath} hot reload.");
                 scopeId ??= Path.GetFileNameWithoutExtension(csxFilePath);
+
+                // Ensure Paper.Icons is loaded into the AppDomain before the Roslyn
+                // runtime compiler scans GetAssemblies() — it's only loaded lazily on
+                // first GL use otherwise, which is too late for the initial hot-reload compile.
+                Paper.CSX.Runtime.CSXRuntimeCompiler.AddReferences(
+                    typeof(Paper.Icons.IconSets).Assembly);
 
                 _csxHotReload?.Dispose();
                 _csxHotReload = new CSXHotReload(this, csxPath, scopeId);

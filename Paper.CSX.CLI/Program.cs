@@ -181,6 +181,7 @@ namespace Paper.CSX.CLI
             sb.AppendLine("using Paper.Core.Styles;");
             sb.AppendLine("using Paper.Core.Hooks;");
             sb.AppendLine("using Paper.Core.Context;");
+            sb.AppendLine("using Paper.Icons;");
             foreach (var usingLine in hoistedUsings.OrderBy(u => u))
                 sb.AppendLine(usingLine);
             sb.AppendLine();

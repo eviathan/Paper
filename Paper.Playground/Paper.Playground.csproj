@@ -29,6 +29,7 @@
     <ProjectReference Include="..\Paper.Layout\Paper.Layout.csproj" />
     <ProjectReference Include="..\Paper.CSX\Paper.CSX.csproj" />
     <ProjectReference Include="..\Paper.Rendering.Silk.NET\Paper.Rendering.Silk.NET.csproj" />
+    <ProjectReference Include="..\Paper.Icons\Paper.Icons.csproj" />
   </ItemGroup>
 
   <ItemGroup>

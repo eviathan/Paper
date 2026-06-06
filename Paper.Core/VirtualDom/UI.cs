@@ -557,5 +557,31 @@ namespace Paper.Core.VirtualDom
                 new PropsBuilder().Text(codepoint).Style(iconStyle).Build(),
                 key);
         }
+
+        /// <summary>
+        /// Renders a react-icons SVG icon at the given size and color.
+        /// Obtain <paramref name="icon"/> from the generated <c>Icons.*</c> classes in <c>Paper.Icons</c>
+        /// (e.g. <c>Icons.Fa.FaHome</c>, <c>Icons.Md.MdSettings</c>).
+        /// Colored icon sets (Fc) ignore <paramref name="color"/> and use their embedded fill colors.
+        /// </summary>
+        public static UINode Icon(
+            IconRef icon,
+            float size = 24f,
+            Paper.Core.Styles.PaperColour? color = null,
+            StyleSheet? style = null,
+            string? key = null)
+        {
+            var iconStyle = new StyleSheet
+            {
+                Width   = Paper.Core.Styles.Length.Px(size),
+                Height  = Paper.Core.Styles.Length.Px(size),
+                Display = Paper.Core.Styles.Display.InlineFlex,
+                Color   = color,
+            }.Merge(style ?? StyleSheet.Empty);
+
+            return new UINode(ElementTypes.Icon,
+                new PropsBuilder().Icon(icon).Style(iconStyle).Build(),
+                key);
+        }
     }
 }

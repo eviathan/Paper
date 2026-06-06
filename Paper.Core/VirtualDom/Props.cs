@@ -40,6 +40,7 @@ namespace Paper.Core.VirtualDom
         public uint                  TextureHandle    => Get<uint>("textureHandle");
         public Action<int, int>?     OnViewportSize   => Get<Action<int, int>>("onViewportSize");
         public Action<ICanvas2DContext>? Canvas2DDraw => Get<Action<ICanvas2DContext>>("canvas2dDraw");
+        public IconRef               Icon         => Get<IconRef>("icon");
 
         // ── Children ─────────────────────────────────────────────────────────
 

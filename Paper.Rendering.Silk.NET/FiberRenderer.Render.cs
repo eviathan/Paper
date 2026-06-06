@@ -179,6 +179,23 @@ namespace Paper.Rendering.Silk.NET
                 return;
             }
 
+            // ── Icon element ──────────────────────────────────────────────────
+            if (fiber.Type is string typeIco && typeIco == ElementTypes.Icon)
+            {
+                var iconRef = fiber.Props.Icon;
+                if (iconRef.Set != null && GetIconTexture != null)
+                {
+                    _rects.Flush(_screenW, _screenH);
+                    var col  = style.Color ?? new Paper.Core.Styles.PaperColour(0f, 0f, 0f, 1f);
+                    int sizePx = Math.Max(1, (int)MathF.Round(Math.Max(drawWidth, drawHeight)));
+                    uint tex = GetIconTexture(iconRef, sizePx, col.R, col.G, col.B, col.A * opacity);
+                    if (tex != 0)
+                        _viewports.Draw(drawX, drawY, drawWidth, drawHeight, tex, _screenW, _screenH);
+                }
+                Render(fiber.Sibling, inheritedOpacity, parentPath, indexInParent + 1, scrollX, scrollY);
+                return;
+            }
+
             // ── Checkbox element ──────────────────────────────────────────────
             if (fiber.Type is string typeCb && typeCb == ElementTypes.Checkbox)
             {
@@ -282,6 +299,9 @@ namespace Paper.Rendering.Silk.NET
                         drawX, drawY, drawWidth, drawHeight,
                         ScaleX, ScaleY, _screenW, _screenH);
                     drawCb(ctx);
+                    // Flush in back-to-front order so that the draw-call sequence within the
+                    // callback determines z-order: rects (background) → lines → text (foreground).
+                    _rects.Flush(_screenW, _screenH);
                     _lines.Flush(_screenW, _screenH);
                     _text?.Flush(_screenW, _screenH);
                 }

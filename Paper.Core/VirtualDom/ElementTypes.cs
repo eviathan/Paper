@@ -42,5 +42,11 @@ namespace Paper.Core.VirtualDom
         /// Use for curve editors, graphs, and custom visualisations.
         /// </summary>
         public const string Canvas2D = "canvas2d";
+
+        /// <summary>
+        /// A react-icons SVG icon rasterized at the element's layout size.
+        /// Use <c>UI.Icon(IconRef, size, color)</c> to create; set the <c>icon</c> prop to an <see cref="IconRef"/>.
+        /// </summary>
+        public const string Icon = "icon";
     }
 }
