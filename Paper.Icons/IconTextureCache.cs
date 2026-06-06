@@ -62,11 +62,24 @@ public sealed class IconTextureCache : IDisposable
         uint handle = _gl.GenTexture();
         _gl.BindTexture(TextureTarget.Texture2D, handle);
 
-        fixed (byte* ptr = bitmap.Bytes)
+        int w = bitmap.Width;
+        int h = bitmap.Height;
+        int stride = bitmap.RowBytes;
+
+        // SkiaSharp stores rows top-to-bottom; OpenGL expects bottom-to-top — flip rows.
+        var pixels = new byte[h * stride];
+        fixed (byte* dst = pixels)
+        {
+            var src = (byte*)bitmap.GetPixels().ToPointer();
+            for (int y = 0; y < h; y++)
+                System.Buffer.MemoryCopy(src + (long)(h - 1 - y) * stride, dst + (long)y * stride, stride, stride);
+        }
+
+        fixed (byte* ptr = pixels)
         {
             _gl.TexImage2D(TextureTarget.Texture2D, 0,
                 InternalFormat.Rgba,
-                (uint)bitmap.Width, (uint)bitmap.Height, 0,
+                (uint)w, (uint)h, 0,
                 PixelFormat.Rgba, PixelType.UnsignedByte, ptr);
         }
 
