@@ -14,6 +14,12 @@ namespace Paper.Rendering.Silk.NET
 
             var (mouseX, mouseY) = PaperUtility.ToLayoutCoords(mouse.Position);
 
+            // A new press always supersedes any prior scrollbar drag that ended without a MouseUp
+            // (e.g. button released outside the window). Clear it so OnMouseButtonUp below does not
+            // hit the early-return guard and swallow the upcoming click.
+            if (_scrollState.ScrollbarDragPath != null)
+                _scrollState.ScrollbarDragPath = null;
+
             if (_renderer != null)
             {
                 foreach (var kvp in _renderer.RenderedScrollbars)
@@ -25,6 +31,7 @@ namespace Paper.Rendering.Silk.NET
                         _scrollState.ScrollbarDragPath = kvp.Key;
                         _scrollState.ScrollbarDragAnchorY = mouseY;
                         _scrollState.ScrollbarDragAnchorScroll = _scrollState.ScrollOffsets.TryGetValue(kvp.Key, out var savedScroll) ? savedScroll.scrollY : 0f;
+                        Console.WriteLine($"[ClickDbg] MouseDown intercepted by scrollbar at ({mouseX:F0},{mouseY:F0}) path={kvp.Key} — PressedPath will NOT be set (prior value: {_uiState.PressedPath})");
                         return;
                     }
                 }
@@ -99,7 +106,12 @@ namespace Paper.Rendering.Silk.NET
         {
             if (_reconciler?.Root == null || _window == null) return;
 
-            if (_scrollState.ScrollbarDragPath != null) { _scrollState.ScrollbarDragPath = null; return; }
+            if (_scrollState.ScrollbarDragPath != null)
+            {
+                Console.WriteLine($"[ClickDbg] MouseUp: scrollbar drag ended, skipping click check (no click will fire)");
+                _scrollState.ScrollbarDragPath = null;
+                return;
+            }
 
             var (mouseX, mouseY) = PaperUtility.ToLayoutCoords(mouse.Position);
             var target = HitTestAll(mouseX, mouseY);
@@ -183,8 +195,22 @@ namespace Paper.Rendering.Silk.NET
                 Button = button == MouseButton.Left ? 0 : button == MouseButton.Right ? 1 : 2,
             });
 
+            string upTargetPath = FiberTreeUtility.GetPathString(target);
             bool sameControl = target != null && _uiState.PressedPath != null &&
-                               FiberTreeUtility.GetPathString(target) == _uiState.PressedPath;
+                               upTargetPath == _uiState.PressedPath;
+
+            if (!sameControl && button == MouseButton.Left)
+            {
+                // Log when a click is rejected so the cause can be identified.
+                string targetDesc = target != null ? $"{target.Type}[{upTargetPath}]" : "null";
+                Console.WriteLine($"[ClickDbg] Click rejected at ({mouseX:F0},{mouseY:F0}): upTarget={targetDesc} pressedPath={_uiState.PressedPath ?? "null"}");
+                if (target != null && _uiState.PressedPath != null && upTargetPath != _uiState.PressedPath)
+                    Console.WriteLine($"[ClickDbg]   → path mismatch: fiber tree changed between down and up, or different element was hit");
+                else if (target == null)
+                    Console.WriteLine($"[ClickDbg]   → hit-test returned null (possible invisible overlay or out-of-bounds click)");
+                else if (_uiState.PressedPath == null)
+                    Console.WriteLine($"[ClickDbg]   → PressedPath is null (mouse-down was swallowed by scrollbar or not recorded)");
+            }
 
             if (button == MouseButton.Left && target != null && sameControl)
             {

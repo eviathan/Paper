@@ -18,6 +18,12 @@ namespace Paper.Rendering.Silk.NET
                 return;
             }
 
+            // Clean up stale scrollbar drag state if the button was released outside the window.
+            // Without this, ScrollbarDragPath stays set and every subsequent OnMouseButtonUp returns
+            // early, swallowing all clicks until the app is restarted.
+            if (_scrollState.ScrollbarDragPath != null && !mouse.IsButtonPressed(MouseButton.Left))
+                _scrollState.ScrollbarDragPath = null;
+
             // Clean up stale drag state if the button was released while cursor was in another window.
             if (_uiState.DragActive && !mouse.IsButtonPressed(MouseButton.Left))
             {
