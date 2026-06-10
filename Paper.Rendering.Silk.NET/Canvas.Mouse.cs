@@ -8,6 +8,23 @@ namespace Paper.Rendering.Silk.NET
 {
     public sealed partial class Canvas
     {
+        // Read the three standard modifier keys from all keyboards at event time.
+        private (bool Shift, bool Ctrl, bool Alt, bool Meta) ReadModifiers()
+        {
+            bool shift = false, ctrl = false, alt = false, meta = false;
+            if (_inputContext != null)
+            {
+                foreach (var kb in _inputContext.Keyboards)
+                {
+                    shift |= kb.IsKeyPressed(Key.ShiftLeft)   || kb.IsKeyPressed(Key.ShiftRight);
+                    ctrl  |= kb.IsKeyPressed(Key.ControlLeft) || kb.IsKeyPressed(Key.ControlRight);
+                    alt   |= kb.IsKeyPressed(Key.AltLeft)     || kb.IsKeyPressed(Key.AltRight);
+                    meta  |= kb.IsKeyPressed(Key.SuperLeft)   || kb.IsKeyPressed(Key.SuperRight);
+                }
+            }
+            return (shift, ctrl, alt, meta);
+        }
+
         private void OnMouseButtonDown(IMouse mouse, MouseButton button)
         {
             if (_reconciler?.Root == null || _window == null) return;
@@ -76,12 +93,17 @@ namespace Paper.Rendering.Silk.NET
                 _uiState.DragActive = false;
             }
 
+            var (shiftD, ctrlD, altD, metaD) = ReadModifiers();
             DispatchPointer(target, new PointerEvent
             {
-                Type = PointerEventType.Down,
-                X = mouseX,
-                Y = mouseY,
+                Type  = PointerEventType.Down,
+                X     = mouseX,
+                Y     = mouseY,
                 Button = button == MouseButton.Left ? 0 : button == MouseButton.Right ? 1 : 2,
+                Shift = shiftD,
+                Ctrl  = ctrlD,
+                Alt   = altD,
+                Meta  = metaD,
             });
 
             Fiber? focusTarget = InputTextUtility.GetInputAncestorOrSelf(target) ?? target;
@@ -175,24 +197,33 @@ namespace Paper.Rendering.Silk.NET
                 _uiState.DragActive = false;
             }
 
+            var (shiftU, ctrlU, altU, metaU) = ReadModifiers();
             if ((button == MouseButton.Left || button == MouseButton.Middle) && _pointerDownFiber != null && !ReferenceEquals(_pointerDownFiber, target))
             {
                 DispatchPointer(_pointerDownFiber, new PointerEvent
                 {
-                    Type = PointerEventType.Up,
-                    X = mouseX,
-                    Y = mouseY,
+                    Type  = PointerEventType.Up,
+                    X     = mouseX,
+                    Y     = mouseY,
                     Button = 0,
+                    Shift = shiftU,
+                    Ctrl  = ctrlU,
+                    Alt   = altU,
+                    Meta  = metaU,
                 });
             }
             if (button == MouseButton.Left || button == MouseButton.Middle) { _pointerDownFiber = null; _pointerDownFiberPath = null; }
 
             DispatchPointer(target, new PointerEvent
             {
-                Type = PointerEventType.Up,
-                X = mouseX,
-                Y = mouseY,
+                Type  = PointerEventType.Up,
+                X     = mouseX,
+                Y     = mouseY,
                 Button = button == MouseButton.Left ? 0 : button == MouseButton.Right ? 1 : 2,
+                Shift = shiftU,
+                Ctrl  = ctrlU,
+                Alt   = altU,
+                Meta  = metaU,
             });
 
             string upTargetPath = FiberTreeUtility.GetPathString(target);

@@ -37,6 +37,7 @@ namespace Paper.Core.Events
         public bool Shift { get; init; }
         public bool Ctrl  { get; init; }
         public bool Alt   { get; init; }
+        public bool Meta  { get; init; }  // Cmd on macOS, Super/Win on Windows
     }
 }
 

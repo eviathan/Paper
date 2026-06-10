@@ -221,6 +221,12 @@ namespace Paper.Rendering.Silk.NET
         [System.Runtime.InteropServices.DllImport("/usr/lib/libobjc.dylib")]
         private static extern IntPtr objc_msgSend(IntPtr receiver, IntPtr selector);
 
+        /// <summary>
+        /// The macOS NSView* of the main window's content view, suitable for embedding native subviews.
+        /// Only set on macOS; IntPtr.Zero on other platforms.
+        /// </summary>
+        public static IntPtr MainNSContentView { get; private set; }
+
         // Selectors
         private static readonly IntPtr sel_setTitlebarAppearsTransparent = sel_registerName("setTitlebarAppearsTransparent:");
         private static readonly IntPtr sel_setTitleVisibility = sel_registerName("setTitleVisibility:");
@@ -309,6 +315,10 @@ namespace Paper.Rendering.Silk.NET
 
                 // Enable full-screen auxiliary
                 objc_msgSend(nsWindow, sel_setCollectionBehavior, (UIntPtr)NSWindowCollectionBehaviorFullScreenAuxiliary);
+
+                // Cache the content view handle for native subview embedding
+                IntPtr sel_contentView = sel_registerName("contentView");
+                MainNSContentView = objc_msgSend(nsWindow, sel_contentView);
 
                 Console.WriteLine("[macOS] Unified title bar applied successfully.");
             }

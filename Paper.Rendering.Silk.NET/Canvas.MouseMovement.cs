@@ -85,16 +85,21 @@ namespace Paper.Rendering.Silk.NET
             if ((mouse.IsButtonPressed(MouseButton.Left) || mouse.IsButtonPressed(MouseButton.Middle)) && _pointerDownFiber != null)
             {
                 var layoutBox = _pointerDownFiber.Layout;
+                var (shiftM, ctrlM, altM, metaM) = ReadModifiers();
                 DispatchPointer(_pointerDownFiber, new PointerEvent
                 {
-                    Type = PointerEventType.Move,
-                    X = layoutCoordsX,
-                    Y = layoutCoordsY,
-                    Button = 0,
-                    LocalX = layoutCoordsX - layoutBox.AbsoluteX,
-                    LocalY = layoutCoordsY - layoutBox.AbsoluteY,
+                    Type        = PointerEventType.Move,
+                    X           = layoutCoordsX,
+                    Y           = layoutCoordsY,
+                    Button      = 0,
+                    LocalX      = layoutCoordsX - layoutBox.AbsoluteX,
+                    LocalY      = layoutCoordsY - layoutBox.AbsoluteY,
                     TargetWidth = layoutBox.Width,
                     TargetHeight = layoutBox.Height,
+                    Shift       = shiftM,
+                    Ctrl        = ctrlM,
+                    Alt         = altM,
+                    Meta        = metaM,
                 });
                 // The pointer-move handler may have changed component state (e.g. slider drag).
                 // RequestRender ensures a reconcile runs this frame so the visual updates immediately.
@@ -102,7 +107,18 @@ namespace Paper.Rendering.Silk.NET
             }
             else if (target != null)
             {
-                DispatchPointer(target, new PointerEvent { Type = PointerEventType.Move, X = layoutCoordsX, Y = layoutCoordsY, Button = -1 });
+                var (shiftH, ctrlH, altH, metaH) = ReadModifiers();
+                DispatchPointer(target, new PointerEvent
+                {
+                    Type  = PointerEventType.Move,
+                    X     = layoutCoordsX,
+                    Y     = layoutCoordsY,
+                    Button = -1,
+                    Shift = shiftH,
+                    Ctrl  = ctrlH,
+                    Alt   = altH,
+                    Meta  = metaH,
+                });
             }
 
             HandleDragAndDropMove(target, mouse, layoutCoordsX, layoutCoordsY);
@@ -436,11 +452,7 @@ namespace Paper.Rendering.Silk.NET
             var target = HitTestAll(mouseX, mouseY);
             if (target == null) return;
 
-            bool shiftHeld = _inputContext?.Keyboards.Any(
-                k => k.IsKeyPressed(Key.ShiftLeft) || k.IsKeyPressed(Key.ShiftRight)) ?? false;
-            bool ctrlHeld = _inputContext?.Keyboards.Any(
-                k => k.IsKeyPressed(Key.ControlLeft) || k.IsKeyPressed(Key.ControlRight)) ?? false;
-
+            var (shiftW, ctrlW, altW, metaW) = ReadModifiers();
             var wheelEvent = new PointerEvent
             {
                 Type        = PointerEventType.Wheel,
@@ -448,8 +460,10 @@ namespace Paper.Rendering.Silk.NET
                 Y           = mouseY,
                 WheelDeltaX = wheel.X,
                 WheelDeltaY = wheel.Y,
-                Shift       = shiftHeld,
-                Ctrl        = ctrlHeld,
+                Shift       = shiftW,
+                Ctrl        = ctrlW,
+                Alt         = altW,
+                Meta        = metaW,
             };
 
             var pathToRoot = FiberTreeUtility.PathToRoot(target);
