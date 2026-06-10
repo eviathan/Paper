@@ -611,8 +611,11 @@ namespace Paper.Rendering.Silk.NET
                 float rawScrollY = GetScrollOffset != null ? GetScrollOffset(path).scrollY : 0f;
                 float rawScrollX = GetScrollOffset != null ? GetScrollOffset(path).scrollX : 0f;
                 var (_, padRightPx, padBottomPx, _) = BoxModel.PaddingPixels(style, layoutBox.Width, layoutBox.Height);
-                float contentH = (ComputeChildrenContentHeight(fiber.Child) + padBottomPx) * ScaleY;
-                float contentW = (ComputeChildrenContentWidth(fiber.Child) + padRightPx) * ScaleX;
+                // Subtract the container's own absolute position so content dimensions are
+                // relative to the container, not the root. Without this, containers not at X=0
+                // (e.g. a right-side panel) always have contentW >> drawWidth → phantom scrollbar.
+                float contentH = (ComputeChildrenContentHeight(fiber.Child) + padBottomPx - layoutBox.AbsoluteY) * ScaleY;
+                float contentW = (ComputeChildrenContentWidth(fiber.Child) + padRightPx - layoutBox.AbsoluteX) * ScaleX;
                 float sbOpacity = GetScrollbarOpacity != null ? GetScrollbarOpacity(path) : 0f;
                 if (sbOpacity > 0f)
                 {
