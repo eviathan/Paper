@@ -220,6 +220,7 @@ namespace Paper.Rendering.Silk.NET
                     prev.LoadContext.Unload();
                 }
 
+                _surface.OnCSXReloaded?.Invoke();
                 _surface.RequestRender();
             }
             catch (Exception ex)

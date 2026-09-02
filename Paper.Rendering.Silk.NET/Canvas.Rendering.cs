@@ -55,7 +55,11 @@ namespace Paper.Rendering.Silk.NET
                     _inputState.Focused = liveFocused;
                     if (liveFocused.Type is string liveType && InputTextUtility.IsTextInput(liveType))
                     {
-                        _inputState.InputText = liveFocused.Props.Text ?? "";
+                        // Use ??= so user-typed text is never overwritten by a stale Props.Text
+                        // from a reconcile cycle that hasn't yet picked up the mutable model change.
+                        // SetFocus() initialises InputText to null→Props.Text when focus is first set,
+                        // so the first render after focus-in still gets the correct seed value.
+                        _inputState.InputText ??= liveFocused.Props.Text ?? "";
                         InputTextUtility.ClampInputIndices(_inputState.InputText.Length, ref _inputState.InputCaret, ref _inputState.InputSelStart, ref _inputState.InputSelEnd);
                     }
                 }
@@ -157,11 +161,12 @@ namespace Paper.Rendering.Silk.NET
             _gl!.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
             _gl.Viewport(0, 0, (uint)framebufferSize.X, (uint)framebufferSize.Y);
 
-            // Reset blend state — game render (TickFrame) may leave additive or other
-            // non-standard blending active (particles, lighting post-process, etc.).
+            // Reset GL state — game render may leave non-standard state active.
             _gl.Enable(EnableCap.Blend);
             _gl.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
             _gl.Disable(EnableCap.DepthTest);
+            _gl.Disable(EnableCap.StencilTest);
+            _gl.ColorMask(true, true, true, true);
 
             // ── Dirty-rect optimisation ───────────────────────────────────────
             // When possible, only clear + redraw the region of the framebuffer that actually

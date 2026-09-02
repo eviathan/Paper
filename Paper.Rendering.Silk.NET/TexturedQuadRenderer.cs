@@ -84,9 +84,15 @@ namespace Paper.Rendering.Silk.NET
             _gl.ActiveTexture(GLEnum.Texture0);
             _gl.BindTexture(GLEnum.Texture2D, textureHandle);
 
+            // Game viewport is always fully opaque — use One,Zero so the FBO content
+            // replaces whatever is behind it, regardless of alpha in the texture.
+            _gl.BlendFunc(BlendingFactor.One, BlendingFactor.Zero);
+
             _gl.BindVertexArray(_vao);
             _gl.DrawArrays(PrimitiveType.Triangles, 0, 6);
             _gl.BindVertexArray(0);
+
+            _gl.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
 
             _gl.BindTexture(GLEnum.Texture2D, 0);
         }

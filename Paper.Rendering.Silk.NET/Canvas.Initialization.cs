@@ -17,6 +17,7 @@ namespace Paper.Rendering.Silk.NET
         {
             // Register this thread as the Paper UI thread so UiThread.Post/Send can route correctly.
             Paper.Core.Threading.UiThread.RegisterCurrentThread();
+            WindowIconHelper.Apply(_window, IconPath);
 
             _gl = GL.GetApi(_window!);
             _rects          = new RectBatch(_gl);

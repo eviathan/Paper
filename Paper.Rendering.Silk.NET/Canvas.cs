@@ -65,6 +65,9 @@ namespace Paper.Rendering.Silk.NET
         /// </summary>
         public bool AlwaysRender { get; set; } = false;
 
+        /// <summary>Called after each successful CSX hot-reload compile. Wire up cache-clearing here.</summary>
+        public Action? OnCSXReloaded { get; set; }
+
         // ── Multi-window dock session ─────────────────────────────────────────
 
         /// <summary>
@@ -155,6 +158,12 @@ namespace Paper.Rendering.Silk.NET
         /// <summary>Window border type. Default is Resizable.</summary>
         public WindowBorder WindowBorder { get; set; } = WindowBorder.Resizable;
 
+        /// <summary>
+        /// Path to the window icon file. Set before calling <see cref="Run"/> or <see cref="InitializeWindow"/>.
+        /// Accepts <c>.icns</c> on macOS and <c>.png</c> on Windows/Linux.
+        /// </summary>
+        public string? IconPath { get; set; }
+
         /// <summary>Convenience: set true for a frameless window (sets WindowBorder to Hidden). Default false.</summary>
         public bool Frameless
         {
@@ -202,7 +211,11 @@ namespace Paper.Rendering.Silk.NET
         /// <summary>Development helper: mount a CSX file and enable hot reload while running.</summary>
         public void MountCSXHotReload(string csxFilePath, string? scopeId = null)
         {
-            var csxPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, $"../../../{csxFilePath}"));
+            // Dev: source lives 3 dirs above the bin output (bin/Debug/net10.0 → project root)
+            var devPath       = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, $"../../../{csxFilePath}"));
+            // Published: files are copied alongside the binary (CopyToOutputDirectory)
+            var publishedPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, csxFilePath));
+            var csxPath       = File.Exists(devPath) ? devPath : publishedPath;
             Console.WriteLine($"Paper.Playground: Loading {csxPath}");
 
             if (File.Exists(csxPath))

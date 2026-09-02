@@ -58,15 +58,22 @@ namespace Paper.Core.Hooks
     /// </summary>
     public static class KeyboardShortcutRegistry
     {
-        private static readonly Dictionary<int, List<(KeyboardShortcut shortcut, Action handler)>> _shortcuts = new();
+        private static readonly Dictionary<int, List<(KeyboardShortcut shortcut, Action handler, bool allowInTextInput)>> _shortcuts = new();
         private static int _nextId = 1;
 
-        public static int Register(KeyboardShortcut shortcut, Action handler)
+        /// <param name="allowInTextInput">
+        /// Whether this shortcut fires when a text input has keyboard focus.
+        /// Defaults to <c>true</c> when the shortcut uses a modifier key (Ctrl/Meta/Alt),
+        /// <c>false</c> for plain-key shortcuts (Backspace, Delete, Enter, Space, etc.) so
+        /// they don't intercept text-editing keystrokes.
+        /// </param>
+        public static int Register(KeyboardShortcut shortcut, Action handler, bool? allowInTextInput = null)
         {
+            bool effective = allowInTextInput ?? (shortcut.Modifiers != ShortcutModifiers.None);
             int id = _nextId++;
             if (!_shortcuts.ContainsKey(id))
-                _shortcuts[id] = new List<(KeyboardShortcut, Action)>();
-            _shortcuts[id].Add((shortcut, handler));
+                _shortcuts[id] = new List<(KeyboardShortcut, Action, bool)>();
+            _shortcuts[id].Add((shortcut, handler, effective));
             return id;
         }
 
@@ -75,19 +82,19 @@ namespace Paper.Core.Hooks
             _shortcuts.Remove(id);
         }
 
-        public static bool TryDispatch(string key, bool ctrl, bool alt, bool shift, bool meta, out bool handled)
+        public static bool TryDispatch(string key, bool ctrl, bool alt, bool shift, bool meta,
+                                       bool textInputFocused, out bool handled)
         {
             handled = false;
             foreach (var list in _shortcuts.Values)
             {
-                foreach (var (shortcut, handler) in list)
+                foreach (var (shortcut, handler, allowInTextInput) in list)
                 {
-                    if (shortcut.Matches(key, ctrl, alt, shift, meta))
-                    {
-                        handler();
-                        handled = true;
-                        return true;
-                    }
+                    if (!shortcut.Matches(key, ctrl, alt, shift, meta)) continue;
+                    if (textInputFocused && !allowInTextInput) continue;
+                    handler();
+                    handled = true;
+                    return true;
                 }
             }
             return false;

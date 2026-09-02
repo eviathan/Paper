@@ -37,6 +37,8 @@ namespace Paper.Core.Reconciler
         /// Reset at the start of each <see cref="Update"/> / <see cref="Mount"/> call.
         /// </summary>
         public List<Fiber> PortalRoots { get; } = new();
+        private readonly List<Fiber> _prevPortalRoots = new();
+        private int _portalIdx;
 
         public event Action? AfterCommit;
 
@@ -60,7 +62,9 @@ namespace Paper.Core.Reconciler
 
         public void Mount(UINode root)
         {
+            _prevPortalRoots.Clear();
             PortalRoots.Clear();
+            _portalIdx = 0;
             _pendingDeletions.Clear();
             try
             {
@@ -83,7 +87,11 @@ namespace Paper.Core.Reconciler
         /// <param name="forceReconcile">When true, always re-run all components (e.g. for hot reload).</param>
         public void Update(UINode root, bool forceReconcile = false)
         {
+            // Swap portal root lists — this update will reconcile portals against _prevPortalRoots
+            _prevPortalRoots.Clear();
+            _prevPortalRoots.AddRange(PortalRoots);
             PortalRoots.Clear();
+            _portalIdx = 0;
             _pendingDeletions.Clear();
             try
             {
@@ -153,7 +161,7 @@ namespace Paper.Core.Reconciler
             }
             try
             {
-                var children = ExpandNode(node, fiber);
+                var children = ExpandNode(node, fiber, forceReconcile);
 
                 foreach (var (slotIndex, effect, deps) in HookContext.PendingEffects)
                 {
@@ -189,20 +197,31 @@ namespace Paper.Core.Reconciler
             return fiber;
         }
 
-        private List<UINode> ExpandNode(UINode node, Fiber fiber)
+        private List<UINode> ExpandNode(UINode node, Fiber fiber, bool forceReconcile = false)
         {
             // Errors propagate up — caught by the nearest error boundary's ReconcileChildren,
             // or by the top-level Mount/Update catch.
 
             if (node.Type is string s2 && s2 == ElementTypes.Portal)
             {
-                // Portal: reconcile children normally but attach fibers to PortalRoots so the
-                // renderer can flush them in a separate top-most pass.
-                foreach (var child in node.Children)
+                // Portal: reconcile children against previous portal fibers (by index) so hooks,
+                // state, and memos survive hot-reload and re-renders. Stale previous fibers are
+                // scheduled for deletion via CommitDeletions.
+                for (int pi = 0; pi < node.Children.Count; pi++)
                 {
-                    var portalFiber = Render(child, null, null);
+                    Fiber? prevPortal = (_portalIdx + pi) < _prevPortalRoots.Count
+                        ? _prevPortalRoots[_portalIdx + pi]
+                        : null;
+                    var portalFiber = Render(node.Children[pi], prevPortal, null, forceReconcile);
                     PortalRoots.Add(portalFiber);
                 }
+
+                // If fewer portals this render, schedule stale fibers for deletion
+                int prevCount = _prevPortalRoots.Count - _portalIdx;
+                for (int si = node.Children.Count; si < prevCount; si++)
+                    _pendingDeletions.Add(_prevPortalRoots[_portalIdx + si]);
+
+                _portalIdx += node.Children.Count;
                 return new List<UINode>(); // portal itself has no layout children
             }
 
