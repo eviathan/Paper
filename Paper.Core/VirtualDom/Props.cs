@@ -29,6 +29,9 @@ namespace Paper.Core.VirtualDom
         public string?               Id           => Get<string>("id");
         public string?               Text         => Get<string>("text");
         public string?               Src          => Get<string>("src");   // image source
+        public int                   FrameIndex   => Get<int>("frameIndex");   // sprite: flat row-major frame index into the sheet
+        public float                 FrameWidth   => Get<float>("frameWidth");  // sprite: cell width in the sheet, px
+        public float                 FrameHeight  => Get<float>("frameHeight"); // sprite: cell height in the sheet, px
         public bool                  Checked      => Get<bool>("checked");
         public Action<bool>?         OnCheckedChange => Get<Action<bool>>("onCheckedChange");
         public int? Rows => _data.TryGetValue("rows", out var v) && v is int i ? i : null;

@@ -1,0 +1,20 @@
+<Project>
+  <!--
+    Shared NuGet package metadata applied to all packable Paper projects.
+    Individual projects opt in by setting <IsPackable>true</IsPackable> and
+    adding a <Description>. Mirrors Prism Engine's own Directory.Build.props.
+  -->
+  <PropertyGroup>
+    <Authors>Paper</Authors>
+    <Company>Paper</Company>
+    <Product>Paper</Product>
+    <Version>1.0.0</Version>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+</Project>

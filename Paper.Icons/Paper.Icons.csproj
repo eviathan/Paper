@@ -22,6 +22,8 @@
     <Nullable>enable</Nullable>
     <LangVersion>13</LangVersion>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <IsPackable>true</IsPackable>
+    <Description>50,000+ vector icons ported from react-icons (Font Awesome, Material Design, Bootstrap, Feather, Lucide and 26 more sets), rasterized on demand via SkiaSharp at whatever size they're drawn at.</Description>
   </PropertyGroup>
 
 </Project>

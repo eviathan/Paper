@@ -1,4 +1,5 @@
 using Paper.Rendering.Silk.NET;
+using Paper.Rendering.Silk.NET.HotReload;
 using Paper.Core.Dock;
 using Paper.Core.VirtualDom;
 

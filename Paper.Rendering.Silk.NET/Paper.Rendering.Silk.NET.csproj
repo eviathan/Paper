@@ -3,15 +3,12 @@
   <ItemGroup>
     <ProjectReference Include="..\Paper.Core\Paper.Core.csproj" />
     <ProjectReference Include="..\Paper.Layout\Paper.Layout.csproj" />
-    <ProjectReference Include="..\Paper.CSX\Paper.CSX.csproj" />
-    <ProjectReference Include="..\Paper.CSSS\Paper.CSSS.csproj" />
     <ProjectReference Include="..\Paper.Icons\Paper.Icons.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="FreeTypeSharp" Version="3.1.0" />
     <PackageReference Include="StbImageSharp" Version="2.27.14" />
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.10.0" />
     <PackageReference Include="Silk.NET.Input" Version="2.23.0" />
     <PackageReference Include="Silk.NET.OpenGL" Version="2.23.0" />
     <PackageReference Include="Silk.NET.GLFW" Version="2.23.0" />
@@ -24,6 +21,8 @@
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <LangVersion>13</LangVersion>
+    <IsPackable>true</IsPackable>
+    <Description>Renders Paper UI via OpenGL (Silk.NET): the desktop-window Canvas, and PaperEmbeddedSurface for embedding Paper's UI into a host that owns its own window/GL context (e.g. a game engine).</Description>
   </PropertyGroup>
 
 </Project>

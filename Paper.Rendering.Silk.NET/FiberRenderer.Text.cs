@@ -142,11 +142,26 @@ namespace Paper.Rendering.Silk.NET
                     _ => label,
                 };
 
-            var (batch, batchScale) = _fonts.Get(fontPx * DpiScale, fam, weight, fontStyle);
+            float dpiScale = DpiScale > 0f ? DpiScale : 1f;
+            var (batch, batchScale) = _fonts.Get(fontPx * dpiScale, fam, weight, fontStyle);
             float atlasLineH = _fonts.LineHeight(fontPx, fam, weight, fontStyle);
 
             if (_fonts.WillUseSyntheticItalic(fam, weight, fontStyle))
                 batch.ItalicSkew = 0.21f;
+
+            // Width measurements below MUST come from this exact (batch, batchScale) pair — the
+            // one Add(...) will actually draw with — rather than a fresh _fonts.MeasureWidth(fontPx)
+            // lookup. That helper re-resolves its own nearest atlas from the *unscaled* fontPx,
+            // which can legitimately be a different baked size than the DpiScale-aware one selected
+            // here (e.g. a 12px request picks a 16px atlas for layout/measurement, but a 24px atlas
+            // for rendering on a 2x display) — two atlases baked from the same font at different
+            // pixel sizes don't have perfectly proportional per-glyph advances (integer pixel
+            // rounding during baking), so the two measurements can disagree by a few px, growing
+            // with string length. That's what let right-aligned values render a few px past their
+            // own box — self-consistent per this function, but not with what was actually drawn.
+            // Dividing by DpiScale converts the render batch's physical-pixel width back to the
+            // logical units everything else in this method (baseline, xLayout, layoutBox) uses.
+            float MeasureLogical(ReadOnlySpan<char> s) => batch.MeasureWidth(s, batchScale) / dpiScale;
 
             var (padTop, padRight, padBottom, padLeft) = BoxModel.PaddingPixels(style, layoutBox.Width, layoutBox.Height);
 
@@ -162,7 +177,7 @@ namespace Paper.Rendering.Silk.NET
                 baseline = layoutBox.AbsoluteY + padTop + (atlasLineH * 0.8f);
             }
 
-            float textW = _fonts.MeasureWidth(label.AsSpan(), fontPx, fam, weight, fontStyle);
+            float textW = MeasureLogical(label.AsSpan());
             float contentW = layoutBox.Width - padLeft - padRight;
 
             ReadOnlySpan<char> drawSpan = label.AsSpan();
@@ -170,7 +185,7 @@ namespace Paper.Rendering.Silk.NET
                 (style.TextOverflow ?? TextOverflow.Clip) == TextOverflow.Ellipsis)
             {
                 const string ellipsis = "…";
-                float ellipsisW = _fonts.MeasureWidth(ellipsis.AsSpan(), fontPx, fam, weight, fontStyle);
+                float ellipsisW = MeasureLogical(ellipsis.AsSpan());
                 float available = contentW - ellipsisW;
                 if (available > 0)
                 {
@@ -178,13 +193,13 @@ namespace Paper.Rendering.Silk.NET
                     while (searchLow < searchHigh)
                     {
                         int mid = (searchLow + searchHigh + 1) / 2;
-                        if (_fonts.MeasureWidth(label.AsSpan(0, mid), fontPx, fam, weight, fontStyle) <= available)
+                        if (MeasureLogical(label.AsSpan(0, mid)) <= available)
                             searchLow = mid;
                         else
                             searchHigh = mid - 1;
                     }
                     label = label[..searchLow] + ellipsis;
-                    textW = _fonts.MeasureWidth(label.AsSpan(), fontPx, fam, weight, fontStyle);
+                    textW = MeasureLogical(label.AsSpan());
                 }
                 else
                 {
@@ -198,7 +213,7 @@ namespace Paper.Rendering.Silk.NET
                           contentW > 0 && textW > contentW;
             if (doWrap)
             {
-                float spaceW = _fonts.MeasureWidth(" ".AsSpan(), fontPx, fam, weight, fontStyle);
+                float spaceW = MeasureLogical(" ".AsSpan());
                 if (spaceW <= 0) spaceW = atlasLineH * 0.3f;
                 float lineSpacing = atlasLineH * Math.Max(0.5f, style.LineHeight ?? 1.4f);
                 float wrapBaseline = layoutBox.AbsoluteY + padTop + (atlasLineH * 0.8f);
@@ -210,7 +225,7 @@ namespace Paper.Rendering.Silk.NET
 
                 foreach (var word in words)
                 {
-                    float wordW = _fonts.MeasureWidth(word.AsSpan(), fontPx, fam, weight, fontStyle);
+                    float wordW = MeasureLogical(word.AsSpan());
                     if (lineWords.Count > 0 && lineW + spaceW + wordW > contentW)
                     {
                         float lineDrawX = (xOrigin - scrollX) * ScaleX;

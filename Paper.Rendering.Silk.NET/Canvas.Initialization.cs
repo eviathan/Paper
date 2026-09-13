@@ -121,9 +121,6 @@ namespace Paper.Rendering.Silk.NET
             _reconciler?.Dispose();
             _reconciler = null;
 
-            _csxHotReload?.Dispose();
-            _csxHotReload = null;
-
             _inputContext?.Dispose();
             _inputContext = null;
 

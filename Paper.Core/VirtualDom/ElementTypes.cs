@@ -13,6 +13,12 @@ namespace Paper.Core.VirtualDom
         public const string Box = "box";
         public const string Text = "text";
         public const string Image = "image";
+        /// <summary>
+        /// A sub-rect ("frame") of a shared image, addressed by a flat row-major index into a
+        /// uniform grid of <c>frameWidth</c>×<c>frameHeight</c> cells — for drawing one icon out of
+        /// a shared sprite sheet/texture atlas. Use <c>UI.Sprite(src, frameIndex, frameWidth, frameHeight)</c>.
+        /// </summary>
+        public const string Sprite = "sprite";
         public const string Input = "input";
         public const string Button = "button";
         public const string Scroll = "scroll";

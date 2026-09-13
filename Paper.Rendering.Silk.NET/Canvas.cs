@@ -41,7 +41,6 @@ namespace Paper.Rendering.Silk.NET
         private LayoutEngine? _layout;
         private ILayoutMeasurer? _measurer;
         private IInputContext? _inputContext;
-        private CSXHotReload? _csxHotReload;
         private ImageTextureLoader? _imageLoader;
         private Paper.Icons.IconTextureCache? _iconTextureCache;
         private FiberRenderer? _renderer;
@@ -64,9 +63,6 @@ namespace Paper.Rendering.Silk.NET
         /// For production UI, prefer false so updates are event/state driven.
         /// </summary>
         public bool AlwaysRender { get; set; } = false;
-
-        /// <summary>Called after each successful CSX hot-reload compile. Wire up cache-clearing here.</summary>
-        public Action? OnCSXReloaded { get; set; }
 
         // ── Multi-window dock session ─────────────────────────────────────────
 
@@ -208,38 +204,6 @@ namespace Paper.Rendering.Silk.NET
             _rootFactory = () => new UINode(rootComponent, Props.Empty);
         }
 
-        /// <summary>Development helper: mount a CSX file and enable hot reload while running.</summary>
-        public void MountCSXHotReload(string csxFilePath, string? scopeId = null)
-        {
-            // Dev: source lives 3 dirs above the bin output (bin/Debug/net10.0 → project root)
-            var devPath       = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, $"../../../{csxFilePath}"));
-            // Published: files are copied alongside the binary (CopyToOutputDirectory)
-            var publishedPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, csxFilePath));
-            var csxPath       = File.Exists(devPath) ? devPath : publishedPath;
-            Console.WriteLine($"Paper.Playground: Loading {csxPath}");
-
-            if (File.Exists(csxPath))
-            {
-                Console.WriteLine($"Mounting {csxFilePath} hot reload.");
-                scopeId ??= Path.GetFileNameWithoutExtension(csxFilePath);
-
-                // Ensure Paper.Icons is loaded into the AppDomain before the Roslyn
-                // runtime compiler scans GetAssemblies() — it's only loaded lazily on
-                // first GL use otherwise, which is too late for the initial hot-reload compile.
-                Paper.CSX.Runtime.CSXRuntimeCompiler.AddReferences(
-                    typeof(Paper.Icons.IconSets).Assembly);
-
-                _csxHotReload?.Dispose();
-                _csxHotReload = new CSXHotReload(this, csxPath, scopeId);
-                _csxHotReload.Start();
-
-                Mount(_csxHotReload.RootComponent);
-            }
-            else
-            {
-                throw new InvalidOperationException($"Could not properly mount {csxFilePath}");
-            }
-        }
 
         /// <summary>
         /// Optional initial screen position (in logical pixels) applied when the window is created.

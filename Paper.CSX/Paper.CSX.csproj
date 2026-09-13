@@ -2,7 +2,14 @@
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
-    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <!--
+      false only when packed for analyzer-style consumption (Prism.Engine.Editor references this
+      project directly with OutputItemType="Analyzer", which doesn't go through NuGet packing at
+      all, so this has never mattered there). Paper.Rendering.Silk.NET.HotReload needs the
+      opposite: CSXRuntimeCompiler is called at runtime, so its package has to actually ship the
+      compiled DLL like a normal library.
+    -->
+    <IncludeBuildOutput>true</IncludeBuildOutput>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsRoslynComponent>false</IsRoslynComponent>
@@ -11,6 +18,8 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
     <NoWarn>$(NoWarn);RS1035;RS1041</NoWarn>
+    <IsPackable>true</IsPackable>
+    <Description>Compiles .csx UI script source into Paper components at runtime (Roslyn-based). Also usable as a design-time analyzer via ProjectReference with OutputItemType="Analyzer".</Description>
   </PropertyGroup>
 
   <ItemGroup>

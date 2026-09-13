@@ -99,6 +99,13 @@ namespace Paper.Rendering.Silk.NET
 
             if (_layout == null || _measurer == null) return;
 
+            // Computed before layout (not just before render) so that if layout runs this frame,
+            // it measures text against the same DPI-scaled font atlas DrawText will later render
+            // with — see SilkTextMeasurer.DpiScale's remarks. A stale measurer DpiScale here would
+            // mean layout allocates boxes sized for the *previous* frame's DPI.
+            float earlyDpiScale = _width > 0 ? framebufferSize.X / (float)_width : 1f;
+            if (_measurer is Text.SilkTextMeasurer earlyStm) earlyStm.DpiScale = earlyDpiScale;
+
             if (_renderState.NeedsLayout)
             {
                 // Snapshot layout boxes before layout overwrites them — used for dirty rect.

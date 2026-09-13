@@ -21,6 +21,13 @@ namespace Paper.Core.VirtualDom
 
         public PropsBuilder Text(string text) { _data["text"] = text; return this; }
         public PropsBuilder Src(string src) { _data["src"] = src; return this; }
+        public PropsBuilder Frame(int index, float width, float height)
+        {
+            _data["frameIndex"] = index;
+            _data["frameWidth"] = width;
+            _data["frameHeight"] = height;
+            return this;
+        }
 
         // ── Children ─────────────────────────────────────────────────────────
 

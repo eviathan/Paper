@@ -46,6 +46,19 @@ namespace Paper.Core.VirtualDom
                 .Build(), key);
 
         /// <summary>
+        /// Draws one frame of a shared sprite sheet — a sub-rect of <paramref name="src"/> addressed by
+        /// a flat row-major <paramref name="frameIndex"/> into a uniform grid of
+        /// <paramref name="frameWidth"/>×<paramref name="frameHeight"/> px cells. Always give the element
+        /// an explicit size via <paramref name="style"/> (no aspect-ratio inference, matching <see cref="Icon(IconRef, float, PaperColour, StyleSheet?, string?)"/>).
+        /// </summary>
+        public static UINode Sprite(string src, int frameIndex, float frameWidth, float frameHeight, StyleSheet? style = null, string? key = null) =>
+            new(ElementTypes.Sprite, new PropsBuilder()
+                .Src(src)
+                .Frame(frameIndex, frameWidth, frameHeight)
+                .Style(style ?? StyleSheet.Empty)
+                .Build(), key);
+
+        /// <summary>
         /// Multiline text input (value, onChange, optional rows).
         /// </summary>
         public static UINode Textarea(
