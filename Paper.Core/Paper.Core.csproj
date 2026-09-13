@@ -6,6 +6,13 @@
     <Nullable>enable</Nullable>
     <LangVersion>13</LangVersion>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <IsPackable>true</IsPackable>
+    <Description>Paper's core virtual-DOM API: declarative UI nodes, the fiber reconciler, styles, hooks and events. Rendering-backend-agnostic.</Description>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Allow the rendering backend to construct TextureHandle via its internal constructor. -->
+    <InternalsVisibleTo Include="Paper.Rendering.Silk.NET" />
+  </ItemGroup>
 
 </Project>

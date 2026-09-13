@@ -11,7 +11,30 @@ namespace Paper.Rendering.Silk.NET.Text
         private const float ApproxCharWidthFactor   = 0.6f;
         private const float DefaultLineHeightFactor = 1.2f;
 
+        /// <summary>
+        /// Kept in sync with the owning renderer's own DpiScale (see Canvas.Rendering.cs /
+        /// PaperEmbeddedSurface's per-frame DpiScale assignment). Layout runs in logical units and
+        /// has no render context of its own, but the actual glyph rendering in
+        /// FiberRenderer.Text.cs's DrawText selects its font atlas by fontPx * DpiScale — a
+        /// *different* pre-baked atlas than a plain fontPx lookup would pick whenever DpiScale != 1
+        /// (e.g. any non-1x display). Different-sized bitmap atlases baked from the same font don't
+        /// have perfectly proportional per-glyph advances (integer-pixel rounding at each bake
+        /// size), so measuring here without the same DPI-aware atlas selection systematically
+        /// under-measures text width — invisibly for short strings, growing with length — which is
+        /// exactly what let flex children (e.g. a right-aligned stat value) get allocated a layout
+        /// box a few px too narrow for what DrawText, using the correct atlas, actually renders.
+        /// </summary>
+        public float DpiScale { get; set; } = 1f;
+
         public SilkTextMeasurer(FontRegistry fonts) => _fonts = fonts;
+
+        /// <summary>Measures at the same (fontPx * DpiScale)-selected atlas DrawText renders with,
+        /// then divides back down to logical units — mirrors DrawText's own MeasureLogical.</summary>
+        private float MeasureWidthDpiAware(ReadOnlySpan<char> text, float fontPx, string? fam, FontWeight? weight, FontStyle? fontStyle)
+        {
+            float dpi = DpiScale > 0f ? DpiScale : 1f;
+            return _fonts.MeasureWidth(text, fontPx * dpi, fam, weight, fontStyle) / dpi;
+        }
 
         public (float width, float height) MeasureText(string text, StyleSheet style, float? maxWidth = null)
         {
@@ -31,7 +54,7 @@ namespace Paper.Rendering.Silk.NET.Text
             float spaceW = 0f;
             if (doWrap)
             {
-                spaceW = _fonts.MeasureWidth(" ".AsSpan(), fontPx, fam, weight, fontStyle);
+                spaceW = MeasureWidthDpiAware(" ".AsSpan(), fontPx, fam, weight, fontStyle);
                 if (spaceW <= 0) spaceW = fontPx * 0.3f;
             }
 
@@ -44,7 +67,7 @@ namespace Paper.Rendering.Silk.NET.Text
             {
                 if (logLine.Length == 0) { totalVisualLines++; continue; }
 
-                float lineW = _fonts.MeasureWidth(logLine.AsSpan(), fontPx, fam, weight, fontStyle);
+                float lineW = MeasureWidthDpiAware(logLine.AsSpan(), fontPx, fam, weight, fontStyle);
                 if (lineW <= 0) lineW = logLine.Length * fontPx * ApproxCharWidthFactor;
 
                 if (doWrap && lineW > maxWidth!.Value)
@@ -53,7 +76,7 @@ namespace Paper.Rendering.Silk.NET.Text
                     float curW = 0f;
                     foreach (var word in logLine.Split(' '))
                     {
-                        float wordW = _fonts.MeasureWidth(word.AsSpan(), fontPx, fam, weight, fontStyle);
+                        float wordW = MeasureWidthDpiAware(word.AsSpan(), fontPx, fam, weight, fontStyle);
                         if (wordW <= 0) wordW = word.Length * fontPx * ApproxCharWidthFactor;
                         if (curW > 0 && curW + spaceW + wordW > maxWidth!.Value) { subLines++; curW = wordW; }
                         else curW += (curW > 0 ? spaceW : 0) + wordW;

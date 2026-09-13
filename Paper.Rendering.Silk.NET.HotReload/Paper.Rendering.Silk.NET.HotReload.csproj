@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Paper.Core\Paper.Core.csproj" />
+    <ProjectReference Include="..\Paper.Rendering.Silk.NET\Paper.Rendering.Silk.NET.csproj" />
+    <ProjectReference Include="..\Paper.Icons\Paper.Icons.csproj" />
+    <ProjectReference Include="..\Paper.CSX\Paper.CSX.csproj" />
+    <ProjectReference Include="..\Paper.CSSS\Paper.CSSS.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.10.0" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>13</LangVersion>
+    <IsPackable>true</IsPackable>
+    <Description>Optional live-reload for Canvas: mount a .csx file (plus co-located/imported .csss stylesheets) and recompile it in place whenever it changes on disk. Pulls in Roslyn — kept separate from Paper.Rendering.Silk.NET so consumers who just want to render UI aren't forced to take that dependency.</Description>
+  </PropertyGroup>
+
+</Project>

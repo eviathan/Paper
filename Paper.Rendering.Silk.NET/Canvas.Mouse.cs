@@ -8,11 +8,34 @@ namespace Paper.Rendering.Silk.NET
 {
     public sealed partial class Canvas
     {
+        // Read the three standard modifier keys from all keyboards at event time.
+        private (bool Shift, bool Ctrl, bool Alt, bool Meta) ReadModifiers()
+        {
+            bool shift = false, ctrl = false, alt = false, meta = false;
+            if (_inputContext != null)
+            {
+                foreach (var kb in _inputContext.Keyboards)
+                {
+                    shift |= kb.IsKeyPressed(Key.ShiftLeft)   || kb.IsKeyPressed(Key.ShiftRight);
+                    ctrl  |= kb.IsKeyPressed(Key.ControlLeft) || kb.IsKeyPressed(Key.ControlRight);
+                    alt   |= kb.IsKeyPressed(Key.AltLeft)     || kb.IsKeyPressed(Key.AltRight);
+                    meta  |= kb.IsKeyPressed(Key.SuperLeft)   || kb.IsKeyPressed(Key.SuperRight);
+                }
+            }
+            return (shift, ctrl, alt, meta);
+        }
+
         private void OnMouseButtonDown(IMouse mouse, MouseButton button)
         {
             if (_reconciler?.Root == null || _window == null) return;
 
             var (mouseX, mouseY) = PaperUtility.ToLayoutCoords(mouse.Position);
+
+            // A new press always supersedes any prior scrollbar drag that ended without a MouseUp
+            // (e.g. button released outside the window). Clear it so OnMouseButtonUp below does not
+            // hit the early-return guard and swallow the upcoming click.
+            if (_scrollState.ScrollbarDragPath != null)
+                _scrollState.ScrollbarDragPath = null;
 
             if (_renderer != null)
             {
@@ -25,6 +48,7 @@ namespace Paper.Rendering.Silk.NET
                         _scrollState.ScrollbarDragPath = kvp.Key;
                         _scrollState.ScrollbarDragAnchorY = mouseY;
                         _scrollState.ScrollbarDragAnchorScroll = _scrollState.ScrollOffsets.TryGetValue(kvp.Key, out var savedScroll) ? savedScroll.scrollY : 0f;
+                        Console.WriteLine($"[ClickDbg] MouseDown intercepted by scrollbar at ({mouseX:F0},{mouseY:F0}) path={kvp.Key} — PressedPath will NOT be set (prior value: {_uiState.PressedPath})");
                         return;
                     }
                 }
@@ -43,8 +67,17 @@ namespace Paper.Rendering.Silk.NET
             while (dragCandidate != null && dragCandidate.Props.OnDragStart == null)
                 dragCandidate = dragCandidate.Parent;
 
+            Console.WriteLine($"[DockDbg] MouseDown: pos=({mouseX:F0},{mouseY:F0}) target={target?.Type}(onDragStart={target?.Props?.OnDragStart != null}) dragCandidate={dragCandidate?.Type} priorDragActive={_uiState.DragActive} priorDragSource={_uiState.DragSource?.Type}");
+
             if (button == MouseButton.Left && dragCandidate != null)
             {
+                // A local drag is beginning — discard any stale cross-window state so it
+                // cannot intercept the upcoming mouse-up event.
+                _uiState.CrossWindowDragActive   = false;
+                _uiState.CrossWindowDragData     = null;
+                _uiState.CrossWindowDragOver     = null;
+                _uiState.CrossWindowDragOverPath = null;
+
                 _uiState.DragSource = dragCandidate;
                 _uiState.DragSourcePath = FiberTreeUtility.GetPathString(dragCandidate);
                 _uiState.DragData = null;
@@ -60,12 +93,17 @@ namespace Paper.Rendering.Silk.NET
                 _uiState.DragActive = false;
             }
 
+            var (shiftD, ctrlD, altD, metaD) = ReadModifiers();
             DispatchPointer(target, new PointerEvent
             {
-                Type = PointerEventType.Down,
-                X = mouseX,
-                Y = mouseY,
+                Type  = PointerEventType.Down,
+                X     = mouseX,
+                Y     = mouseY,
                 Button = button == MouseButton.Left ? 0 : button == MouseButton.Right ? 1 : 2,
+                Shift = shiftD,
+                Ctrl  = ctrlD,
+                Alt   = altD,
+                Meta  = metaD,
             });
 
             Fiber? focusTarget = InputTextUtility.GetInputAncestorOrSelf(target) ?? target;
@@ -90,18 +128,56 @@ namespace Paper.Rendering.Silk.NET
         {
             if (_reconciler?.Root == null || _window == null) return;
 
-            if (_scrollState.ScrollbarDragPath != null) { _scrollState.ScrollbarDragPath = null; return; }
+            if (_scrollState.ScrollbarDragPath != null)
+            {
+                Console.WriteLine($"[ClickDbg] MouseUp: scrollbar drag ended, skipping click check (no click will fire)");
+                _scrollState.ScrollbarDragPath = null;
+                return;
+            }
 
             var (mouseX, mouseY) = PaperUtility.ToLayoutCoords(mouse.Position);
             var target = HitTestAll(mouseX, mouseY);
 
-            if (button == MouseButton.Left && _uiState.DragActive && _uiState.DragSource != null)
+            if (button == MouseButton.Left && _uiState.CrossWindowDragActive && !_uiState.DragActive)
             {
+                // Panel dragged from another OS window — complete the cross-window drop here.
+                // Guard: if a local drag is also active, CrossWindowDragActive is stale (leftover
+                // from a previous cross-window op that ended without SyntheticCrossWindowDrop).
+                // In that case fall through to the local drag-end branch instead.
+                var crossData = _uiState.CrossWindowDragData;
+                DispatchDrag(target, new DragEvent { Type = DragEventType.Drop, X = mouseX, Y = mouseY, Data = crossData,
+                    LocalX = target != null ? mouseX - target.Layout.AbsoluteX : 0,
+                    LocalY = target != null ? mouseY - target.Layout.AbsoluteY : 0,
+                    TargetWidth = target?.Layout.Width ?? 0, TargetHeight = target?.Layout.Height ?? 0 });
+                if (_uiState.CrossWindowDragOver != null)
+                {
+                    DispatchDrag(_uiState.CrossWindowDragOver, new DragEvent { Type = DragEventType.DragLeave, X = mouseX, Y = mouseY, Data = crossData });
+                    _uiState.CrossWindowDragOver     = null;
+                    _uiState.CrossWindowDragOverPath = null;
+                }
+                _uiState.CrossWindowDragActive = false;
+                _uiState.CrossWindowDragData   = null;
+                MarkDirty();
+            }
+            else if (button == MouseButton.Left && _uiState.DragActive && _uiState.DragSource != null)
+            {
+                // Clear any stale cross-window state that was left over from a previous operation.
+                _uiState.CrossWindowDragActive   = false;
+                _uiState.CrossWindowDragData     = null;
+                _uiState.CrossWindowDragOver     = null;
+                _uiState.CrossWindowDragOverPath = null;
+
+                bool outsideWindow = mouseX < 0 || mouseY < 0 || mouseX > _width || mouseY > _height;
+                Console.WriteLine($"[DockDbg] MouseUp: pos=({mouseX},{mouseY}) windowSize=({_width},{_height}) outsideWindow={outsideWindow} hasData={_uiState.DragData != null}");
+                var winPos = _window?.Position ?? default;
+                int screenX = winPos.X + (int)mouseX;
+                int screenY = winPos.Y + (int)mouseY;
                 DispatchDrag(target, new DragEvent { Type = DragEventType.Drop, X = mouseX, Y = mouseY, Data = _uiState.DragData,
                     LocalX = target != null ? mouseX - target.Layout.AbsoluteX : 0,
                     LocalY = target != null ? mouseY - target.Layout.AbsoluteY : 0,
                     TargetWidth = target?.Layout.Width ?? 0, TargetHeight = target?.Layout.Height ?? 0 });
-                DispatchDrag(_uiState.DragSource, new DragEvent { Type = DragEventType.DragEnd, X = mouseX, Y = mouseY, Data = _uiState.DragData });
+                DispatchDrag(_uiState.DragSource, new DragEvent { Type = DragEventType.DragEnd, X = mouseX, Y = mouseY, Data = _uiState.DragData,
+                    OutsideSourceWindow = outsideWindow, ScreenX = screenX, ScreenY = screenY });
 
                 if (_uiState.DragOver != null)
                 {
@@ -121,28 +197,51 @@ namespace Paper.Rendering.Silk.NET
                 _uiState.DragActive = false;
             }
 
+            var (shiftU, ctrlU, altU, metaU) = ReadModifiers();
             if ((button == MouseButton.Left || button == MouseButton.Middle) && _pointerDownFiber != null && !ReferenceEquals(_pointerDownFiber, target))
             {
                 DispatchPointer(_pointerDownFiber, new PointerEvent
                 {
-                    Type = PointerEventType.Up,
-                    X = mouseX,
-                    Y = mouseY,
+                    Type  = PointerEventType.Up,
+                    X     = mouseX,
+                    Y     = mouseY,
                     Button = 0,
+                    Shift = shiftU,
+                    Ctrl  = ctrlU,
+                    Alt   = altU,
+                    Meta  = metaU,
                 });
             }
             if (button == MouseButton.Left || button == MouseButton.Middle) { _pointerDownFiber = null; _pointerDownFiberPath = null; }
 
             DispatchPointer(target, new PointerEvent
             {
-                Type = PointerEventType.Up,
-                X = mouseX,
-                Y = mouseY,
+                Type  = PointerEventType.Up,
+                X     = mouseX,
+                Y     = mouseY,
                 Button = button == MouseButton.Left ? 0 : button == MouseButton.Right ? 1 : 2,
+                Shift = shiftU,
+                Ctrl  = ctrlU,
+                Alt   = altU,
+                Meta  = metaU,
             });
 
+            string upTargetPath = FiberTreeUtility.GetPathString(target);
             bool sameControl = target != null && _uiState.PressedPath != null &&
-                               FiberTreeUtility.GetPathString(target) == _uiState.PressedPath;
+                               upTargetPath == _uiState.PressedPath;
+
+            if (!sameControl && button == MouseButton.Left)
+            {
+                // Log when a click is rejected so the cause can be identified.
+                string targetDesc = target != null ? $"{target.Type}[{upTargetPath}]" : "null";
+                Console.WriteLine($"[ClickDbg] Click rejected at ({mouseX:F0},{mouseY:F0}): upTarget={targetDesc} pressedPath={_uiState.PressedPath ?? "null"}");
+                if (target != null && _uiState.PressedPath != null && upTargetPath != _uiState.PressedPath)
+                    Console.WriteLine($"[ClickDbg]   → path mismatch: fiber tree changed between down and up, or different element was hit");
+                else if (target == null)
+                    Console.WriteLine($"[ClickDbg]   → hit-test returned null (possible invisible overlay or out-of-bounds click)");
+                else if (_uiState.PressedPath == null)
+                    Console.WriteLine($"[ClickDbg]   → PressedPath is null (mouse-down was swallowed by scrollbar or not recorded)");
+            }
 
             if (button == MouseButton.Left && target != null && sameControl)
             {

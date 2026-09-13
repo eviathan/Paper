@@ -4,21 +4,45 @@ using Paper.Core.Reconciler;
 using Paper.Core.VirtualDom;
 using Paper.Rendering.Silk.NET.Utilities;
 using Silk.NET.Input;
+using System.Runtime.InteropServices;
 
 namespace Paper.Rendering.Silk.NET
 {
     public sealed partial class Canvas
     {
+        // Query the real OS CapsLock state via CoreGraphics (macOS only).
+        // kCGEventSourceStateHIDSystemState = 0, kCGEventFlagMaskAlphaShift = 0x10000.
+        [DllImport("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")]
+        private static extern ulong CGEventSourceFlagsState(int stateID);
+
+        private static void RefreshCapsLock()
+        {
+            try   { GlobalKeyFilter.CapsLockActive = (CGEventSourceFlagsState(0) & 0x10000UL) != 0; }
+            catch { /* non-macOS or unavailable — leave CapsLockActive as-is */ }
+        }
+
         private void OnKeyDown(IKeyboard keyboard, Key key, int _)
         {
+            // Refresh the actual OS CapsLock state before every key event so the
+            // musical keyboard activates/deactivates in sync with the system indicator light.
+            RefreshCapsLock();
+
             string keyName = key.ToString();
+
+            bool textInputFocused = _inputState.Focused?.Type is string ft
+                                    && InputTextUtility.IsTextInput(ft);
+
+            // Global pre-filter (e.g. musical keyboard). Skip when a text input is focused
+            // so that typing in a text field is never consumed by the musical keyboard filter.
+            if (!textInputFocused && GlobalKeyFilter.KeyDown?.Invoke(keyName) == true) return;
+
             bool ctrl = keyboard.IsKeyPressed(Key.ControlLeft) || keyboard.IsKeyPressed(Key.ControlRight);
             bool cmd = keyboard.IsKeyPressed(Key.SuperLeft) || keyboard.IsKeyPressed(Key.SuperRight);
             bool alt = keyboard.IsKeyPressed(Key.AltLeft) || keyboard.IsKeyPressed(Key.AltRight);
             bool shortcutMod = ctrl || cmd;
             bool shift = keyboard.IsKeyPressed(Key.ShiftLeft) || keyboard.IsKeyPressed(Key.ShiftRight);
-
-            if (KeyboardShortcutRegistry.TryDispatch(keyName, ctrl, alt, shift, cmd, out bool shortcutHandled) && shortcutHandled)
+            if (KeyboardShortcutRegistry.TryDispatch(keyName, ctrl, alt, shift, cmd,
+                    textInputFocused, out bool shortcutHandled) && shortcutHandled)
                 return;
 
             var target = _inputState.Focused;
@@ -258,9 +282,14 @@ namespace Paper.Rendering.Silk.NET
 
         private void OnKeyUp(IKeyboard keyboard, Key key, int _)
         {
+            RefreshCapsLock();
+            string keyName = key.ToString();
+            bool textInputFocused = _inputState.Focused?.Type is string ft
+                                    && InputTextUtility.IsTextInput(ft);
+            if (!textInputFocused && GlobalKeyFilter.KeyUp?.Invoke(keyName) == true) return;
+
             var target = _inputState.Focused;
             if (target == null) return;
-            string keyName = key.ToString();
             target.Props.OnKeyUp?.Invoke(keyName);
             DispatchKey(target, new KeyEvent { Type = KeyEventType.Up, Key = keyName });
         }

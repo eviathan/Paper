@@ -60,8 +60,10 @@ namespace Paper.Rendering.Silk.NET
                 _inputState.InputText = next.Props.Text ?? "";
                 int textLength = _inputState.InputText.Length;
                 _inputState.InputCaret = textLength;
-                _inputState.InputSelStart = textLength;
-                _inputState.InputSelEnd = textLength;
+                // AutoFocus (keyboard-triggered rename) → select all so typing immediately replaces.
+                // Click-triggered focus → no selection; mouse handler sets caret to click position.
+                _inputState.InputSelStart = next.Props.AutoFocus ? 0 : textLength;
+                _inputState.InputSelEnd   = textLength;
                 _inputState.LastInputActivityTicks = Environment.TickCount64;
                 StartCaretBlinkTimer();
             }

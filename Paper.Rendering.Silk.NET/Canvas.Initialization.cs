@@ -15,12 +15,19 @@ namespace Paper.Rendering.Silk.NET
     {
         private void OnWindowLoad()
         {
+            // Register this thread as the Paper UI thread so UiThread.Post/Send can route correctly.
+            Paper.Core.Threading.UiThread.RegisterCurrentThread();
+            WindowIconHelper.Apply(_window, IconPath);
+
             _gl = GL.GetApi(_window!);
-            _rects = new RectBatch(_gl);
-            _viewports = new TexturedQuadRenderer(_gl);
-            _imageLoader = new ImageTextureLoader(_gl);
-            _layout = new LayoutEngine();
-            _measurer = new FallbackLayoutMeasurer();
+            _rects          = new RectBatch(_gl);
+            _lines          = new LineBatch(_gl);
+            _viewports      = new TexturedQuadRenderer(_gl);
+            _imageLoader       = new ImageTextureLoader(_gl);
+            _iconTextureCache  = new Paper.Icons.IconTextureCache(_gl);
+            _textureFactory = new GlTextureFactory(_gl);
+            _layout         = new LayoutEngine();
+            _measurer       = new FallbackLayoutMeasurer();
 
             _gl.Enable(EnableCap.Blend);
             _gl.BlendFuncSeparate(
@@ -35,7 +42,7 @@ namespace Paper.Rendering.Silk.NET
                 _measurer = new SilkTextMeasurer(fontRegistry);
             }
 
-            _renderer = new FiberRenderer(_rects!, _viewports!, _fontSet, _width, _height, _gl)
+            _renderer = new FiberRenderer(_rects!, _viewports!, _fontSet, _width, _height, _gl, _lines)
             {
                 GetScrollOffset = path =>
                     _scrollState.ScrollOffsets.TryGetValue(path, out var value) ? value : (0f, 0f),
@@ -57,17 +64,14 @@ namespace Paper.Rendering.Silk.NET
                 {
                     var result = _imageLoader != null ? _imageLoader.GetOrLoad(PaperUtility.ResolveImagePath(path)) : default;
                     return result.Handle != 0 ? (result.Handle, result.Width, result.Height) : (0u, 0, 0);
-                }
+                },
+                GetIconTexture = (iconRef, sizePx, r, g, b, a) =>
+                    _iconTextureCache?.GetTexture(iconRef, sizePx, r, g, b, a) ?? 0u
             };
 
             _reconciler = new Reconciler();
-
-            var prevRequest = RenderScheduler.OnRenderRequested;
-            RenderScheduler.OnRenderRequested = () =>
-            {
-                prevRequest?.Invoke();
-                _renderState.LayoutDirty = true;
-            };
+            _renderRequestedListener = () => _renderState.LayoutDirty = true;
+            RenderScheduler.AddListener(_renderRequestedListener);
             _reconciler.Mount(_rootFactory!());
             _renderState.LayoutDirty = true;
 
@@ -96,6 +100,8 @@ namespace Paper.Rendering.Silk.NET
                 keyboard.KeyChar += OnKeyChar;
             }
 
+            _window.FileDrop += paths => FileDrop?.Invoke(paths);
+
             OnLoad?.Invoke(_gl, inputContext, _width, _height);
 
             // Apply macOS unified title bar style after window creation
@@ -107,14 +113,30 @@ namespace Paper.Rendering.Silk.NET
             _inputState.CaretBlinkTimer?.Dispose();
             _inputState.CaretBlinkTimer = null;
 
-            _csxHotReload?.Dispose();
-            _csxHotReload = null;
+            if (_renderRequestedListener != null)
+            {
+                RenderScheduler.RemoveListener(_renderRequestedListener);
+                _renderRequestedListener = null;
+            }
+            _reconciler?.Dispose();
+            _reconciler = null;
 
             _inputContext?.Dispose();
             _inputContext = null;
 
+            // Make this canvas's GL context current before deleting its GL objects.
+            // If another window rendered last, its context is still current on this thread.
+            // GL delete calls act on the current context, so without this we would delete
+            // handles from the wrong context — corrupting the other window's VAOs/textures.
+            try { _window?.GLContext?.MakeCurrent(); } catch { }
+
             _imageLoader?.Dispose();
             _imageLoader = null;
+
+            _iconTextureCache?.Dispose();
+            _iconTextureCache = null;
+
+            _textureFactory = null; // GlTextureFactory has no disposable state of its own
 
             _rects?.Dispose();
             _rects = null;
@@ -196,6 +218,12 @@ namespace Paper.Rendering.Silk.NET
 
         [System.Runtime.InteropServices.DllImport("/usr/lib/libobjc.dylib")]
         private static extern IntPtr objc_msgSend(IntPtr receiver, IntPtr selector);
+
+        /// <summary>
+        /// The macOS NSView* of the main window's content view, suitable for embedding native subviews.
+        /// Only set on macOS; IntPtr.Zero on other platforms.
+        /// </summary>
+        public static IntPtr MainNSContentView { get; private set; }
 
         // Selectors
         private static readonly IntPtr sel_setTitlebarAppearsTransparent = sel_registerName("setTitlebarAppearsTransparent:");
@@ -285,6 +313,10 @@ namespace Paper.Rendering.Silk.NET
 
                 // Enable full-screen auxiliary
                 objc_msgSend(nsWindow, sel_setCollectionBehavior, (UIntPtr)NSWindowCollectionBehaviorFullScreenAuxiliary);
+
+                // Cache the content view handle for native subview embedding
+                IntPtr sel_contentView = sel_registerName("contentView");
+                MainNSContentView = objc_msgSend(nsWindow, sel_contentView);
 
                 Console.WriteLine("[macOS] Unified title bar applied successfully.");
             }

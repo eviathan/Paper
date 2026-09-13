@@ -10,6 +10,8 @@
     <Nullable>enable</Nullable>
     <LangVersion>13</LangVersion>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <IsPackable>true</IsPackable>
+    <Description>Paper's flexbox-style layout engine.</Description>
   </PropertyGroup>
 
 </Project>

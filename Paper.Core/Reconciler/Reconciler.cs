@@ -22,11 +22,12 @@ namespace Paper.Core.Reconciler
         public bool IsBoundary { get; init; }
     }
 
-    public sealed class Reconciler
+    public sealed class Reconciler : IDisposable
     {
         private Fiber? _current;
         private bool   _renderRequested;
         private readonly List<Fiber> _pendingDeletions = new();
+        private readonly Action _requestRender;
 
         public Fiber? Root => _current;
 
@@ -36,6 +37,8 @@ namespace Paper.Core.Reconciler
         /// Reset at the start of each <see cref="Update"/> / <see cref="Mount"/> call.
         /// </summary>
         public List<Fiber> PortalRoots { get; } = new();
+        private readonly List<Fiber> _prevPortalRoots = new();
+        private int _portalIdx;
 
         public event Action? AfterCommit;
 
@@ -48,12 +51,20 @@ namespace Paper.Core.Reconciler
 
         public Reconciler()
         {
-            RenderScheduler.OnRenderRequested = () => _renderRequested = true;
+            _requestRender = () => _renderRequested = true;
+            RenderScheduler.AddListener(_requestRender);
+        }
+
+        public void Dispose()
+        {
+            RenderScheduler.RemoveListener(_requestRender);
         }
 
         public void Mount(UINode root)
         {
+            _prevPortalRoots.Clear();
             PortalRoots.Clear();
+            _portalIdx = 0;
             _pendingDeletions.Clear();
             try
             {
@@ -76,7 +87,11 @@ namespace Paper.Core.Reconciler
         /// <param name="forceReconcile">When true, always re-run all components (e.g. for hot reload).</param>
         public void Update(UINode root, bool forceReconcile = false)
         {
+            // Swap portal root lists — this update will reconcile portals against _prevPortalRoots
+            _prevPortalRoots.Clear();
+            _prevPortalRoots.AddRange(PortalRoots);
             PortalRoots.Clear();
+            _portalIdx = 0;
             _pendingDeletions.Clear();
             try
             {
@@ -84,6 +99,7 @@ namespace Paper.Core.Reconciler
                 Commit(wip);
                 CommitDeletions();
                 _current = wip;
+                MarkVisuallyDirtyAfterCommit(_current);
                 FlushLayoutEffects(_current);
                 FlushEffects(_current);
                 AfterCommit?.Invoke();
@@ -105,7 +121,7 @@ namespace Paper.Core.Reconciler
 
         public bool NeedsUpdate() => _renderRequested;
 
-        private Fiber Render(UINode node, Fiber? current, Fiber? parent)
+        private Fiber Render(UINode node, Fiber? current, Fiber? parent, bool forceReconcile = false)
         {
             var fiber = new Fiber
             {
@@ -145,7 +161,7 @@ namespace Paper.Core.Reconciler
             }
             try
             {
-                var children = ExpandNode(node, fiber);
+                var children = ExpandNode(node, fiber, forceReconcile);
 
                 foreach (var (slotIndex, effect, deps) in HookContext.PendingEffects)
                 {
@@ -171,7 +187,7 @@ namespace Paper.Core.Reconciler
                     }
                 }
 
-                ReconcileChildren(fiber, children, current);
+                ReconcileChildren(fiber, children, current, forceReconcile);
             }
             finally
             {
@@ -181,20 +197,31 @@ namespace Paper.Core.Reconciler
             return fiber;
         }
 
-        private List<UINode> ExpandNode(UINode node, Fiber fiber)
+        private List<UINode> ExpandNode(UINode node, Fiber fiber, bool forceReconcile = false)
         {
             // Errors propagate up — caught by the nearest error boundary's ReconcileChildren,
             // or by the top-level Mount/Update catch.
 
             if (node.Type is string s2 && s2 == ElementTypes.Portal)
             {
-                // Portal: reconcile children normally but attach fibers to PortalRoots so the
-                // renderer can flush them in a separate top-most pass.
-                foreach (var child in node.Children)
+                // Portal: reconcile children against previous portal fibers (by index) so hooks,
+                // state, and memos survive hot-reload and re-renders. Stale previous fibers are
+                // scheduled for deletion via CommitDeletions.
+                for (int pi = 0; pi < node.Children.Count; pi++)
                 {
-                    var portalFiber = Render(child, null, null);
+                    Fiber? prevPortal = (_portalIdx + pi) < _prevPortalRoots.Count
+                        ? _prevPortalRoots[_portalIdx + pi]
+                        : null;
+                    var portalFiber = Render(node.Children[pi], prevPortal, null, forceReconcile);
                     PortalRoots.Add(portalFiber);
                 }
+
+                // If fewer portals this render, schedule stale fibers for deletion
+                int prevCount = _prevPortalRoots.Count - _portalIdx;
+                for (int si = node.Children.Count; si < prevCount; si++)
+                    _pendingDeletions.Add(_prevPortalRoots[_portalIdx + si]);
+
+                _portalIdx += node.Children.Count;
                 return new List<UINode>(); // portal itself has no layout children
             }
 
@@ -293,7 +320,7 @@ namespace Paper.Core.Reconciler
                     return current;
                 }
 
-                return Render(node, current, parent);
+                return Render(node, current, parent, forceReconcile);
             }
             else
             {
@@ -303,7 +330,7 @@ namespace Paper.Core.Reconciler
                     _pendingDeletions.Add(current);
                 }
 
-                return Render(node, null, parent);
+                return Render(node, null, parent, forceReconcile);
             }
         }
 
@@ -373,7 +400,7 @@ namespace Paper.Core.Reconciler
             return true;
         }
 
-        private void ReconcileChildren(Fiber parent, List<UINode> newChildren, Fiber? currentFiber)
+        private void ReconcileChildren(Fiber parent, List<UINode> newChildren, Fiber? currentFiber, bool forceReconcile = false)
         {
             var oldChildren = FlattenChildren(currentFiber);
             var keyedOld = BuildKeyedMap(oldChildren);
@@ -391,7 +418,7 @@ namespace Paper.Core.Reconciler
                 {
                     try
                     {
-                        newFiber = Reconcile(oldChild, childNode, parent);
+                        newFiber = Reconcile(oldChild, childNode, parent, forceReconcile);
                         parent.CaughtError = null; // subtree rendered successfully; clear any prior error
                     }
                     catch (Exception ex)
@@ -403,7 +430,7 @@ namespace Paper.Core.Reconciler
                         var fallback = ((Components.IErrorBoundary)parent.Instance!).RenderFallback(ex);
                         parent.Child    = null;
                         prevSibling     = null;
-                        newFiber        = Render(fallback, null, parent);
+                        newFiber        = Render(fallback, null, parent, forceReconcile);
                         newFiber.Index  = 0;
                         parent.Child    = newFiber;
                         return; // skip remaining children
@@ -411,7 +438,7 @@ namespace Paper.Core.Reconciler
                 }
                 else
                 {
-                    newFiber = Reconcile(oldChild, childNode, parent);
+                    newFiber = Reconcile(oldChild, childNode, parent, forceReconcile);
                 }
 
                 newFiber.Index = index;
@@ -429,8 +456,14 @@ namespace Paper.Core.Reconciler
             // retains its old Sibling pointer from the previous render. If the child order changed
             // (e.g. keyed reorder) the old Sibling may point back to another fiber in the new list,
             // creating a cycle that causes Commit/FlushEffects to loop forever.
+            // When newChildren is empty the loop body never runs and prevSibling stays null —
+            // parent.Child must be explicitly cleared so stale children from the previous render
+            // are not left reachable in the fiber tree (they would still have non-zero layout and
+            // PointerEvents.Auto, causing hit-tests to land on invisible zones).
             if (prevSibling != null)
                 prevSibling.Sibling = null;
+            else
+                parent.Child = null;
 
             var newKeySet = new HashSet<string>(
                 newChildren.Select((n, i) => n.Key ?? $"${i}"));
@@ -469,7 +502,11 @@ namespace Paper.Core.Reconciler
         private static void UnmountFiber(Fiber fiber)
         {
             foreach (var slot in fiber.HookSlots)
-                slot.Cleanup?.Invoke();
+            {
+                try { slot.Cleanup?.Invoke(); }
+                catch (Exception ex) { Console.Error.WriteLine("[Paper] Cleanup error during unmount: " + ex); }
+                slot.Cleanup = null;
+            }
 
             var child = fiber.Child;
             while (child != null)
@@ -487,7 +524,9 @@ namespace Paper.Core.Reconciler
             {
                 if (slot.PendingLayoutEffect != null)
                 {
-                    slot.Cleanup?.Invoke();
+                    try { slot.Cleanup?.Invoke(); }
+                    catch (Exception ex) { Console.Error.WriteLine("[Paper] LayoutEffect cleanup error: " + ex); }
+                    slot.Cleanup = null;
                     try
                     {
                         var cleanup = slot.PendingLayoutEffect();
@@ -497,7 +536,6 @@ namespace Paper.Core.Reconciler
                     {
                         OnError?.Invoke(new ReconcilerError { Exception = ex, Phase = ReconcilerErrorPhase.Effect, IsBoundary = false });
                         Console.Error.WriteLine("[Paper] LayoutEffect error: " + ex.ToString());
-                        slot.Cleanup = null;
                     }
                     slot.PendingLayoutEffect = null;
                 }
@@ -515,8 +553,9 @@ namespace Paper.Core.Reconciler
             {
                 if (slot.PendingEffect != null)
                 {
-                    slot.Cleanup?.Invoke();
-                    
+                    try { slot.Cleanup?.Invoke(); }
+                    catch (Exception ex) { Console.Error.WriteLine("[Paper] Effect cleanup error: " + ex); }
+                    slot.Cleanup = null;
                     try
                     {
                         var cleanup = slot.PendingEffect();
@@ -526,7 +565,6 @@ namespace Paper.Core.Reconciler
                     {
                         OnError?.Invoke(new ReconcilerError { Exception = ex, Phase = ReconcilerErrorPhase.Effect, IsBoundary = false });
                         Console.Error.WriteLine("[Paper] Effect error: " + ex.ToString());
-                        slot.Cleanup = null;
                     }
                     slot.PendingEffect = null;
                 }
@@ -567,6 +605,23 @@ namespace Paper.Core.Reconciler
                 map[key] = children[i];
             }
             return map;
+        }
+
+        /// <summary>
+        /// Walk the committed tree and set <see cref="Fiber.VisuallyDirty"/> on every fiber whose
+        /// <see cref="EffectTag"/> is not <see cref="EffectTag.None"/>, i.e. the reconciler actually
+        /// re-rendered or placed it this frame.  This seeds the per-frame dirty screen rect
+        /// computation in the host before layout and draw run.
+        /// </summary>
+        private static void MarkVisuallyDirtyAfterCommit(Fiber? fiber)
+        {
+            while (fiber != null)
+            {
+                if (fiber.EffectTag != EffectTag.None)
+                    fiber.VisuallyDirty = true;
+                MarkVisuallyDirtyAfterCommit(fiber.Child);
+                fiber = fiber.Sibling;
+            }
         }
     }
 }

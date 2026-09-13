@@ -179,6 +179,60 @@ namespace Paper.Rendering.Silk.NET
                 return;
             }
 
+            // ── Sprite element (one frame of a shared sprite sheet) ─────────────
+            if (fiber.Type is string typeSprite && typeSprite == ElementTypes.Sprite)
+            {
+                _rects.Flush(_screenW, _screenH);
+                (uint spriteTex, int sheetW, int sheetH) = GetImageResult != null
+                    ? GetImageResult(fiber.Props.Src)
+                    : (0u, 0, 0);
+                float frameW = fiber.Props.FrameWidth;
+                float frameH = fiber.Props.FrameHeight;
+                if (spriteTex != 0 && sheetW > 0 && sheetH > 0 && frameW > 0 && frameH > 0)
+                {
+                    int columns = Math.Max(1, (int)(sheetW / frameW));
+                    int frameIndex = fiber.Props.FrameIndex;
+                    int col = frameIndex % columns;
+                    int row = frameIndex / columns;
+                    float u0 = (col * frameW) / sheetW;
+                    float v0 = (row * frameH) / sheetH;
+                    float u1 = ((col + 1) * frameW) / sheetW;
+                    float v1 = ((row + 1) * frameH) / sheetH;
+                    // Blended, not DrawWithUV's opaque-replace: a sprite-sheet frame can very
+                    // plausibly have transparent pixels around the art (this one's test sheet
+                    // happens not to, but the element shouldn't assume that in general).
+                    _viewports.DrawWithUVBlended(drawX, drawY, drawWidth, drawHeight, u0, v0, u1, v1, spriteTex, _screenW, _screenH);
+                }
+                else
+                {
+                    DrawRect(drawX, drawY, drawWidth, drawHeight, 0.35f, 0.35f, 0.4f, 1f * opacity, 0, 0, 0, 0, 0, 0);
+                }
+                Render(fiber.Sibling, inheritedOpacity, parentPath, indexInParent + 1, scrollX, scrollY);
+                return;
+            }
+
+            // ── Icon element ──────────────────────────────────────────────────
+            if (fiber.Type is string typeIco && typeIco == ElementTypes.Icon)
+            {
+                var iconRef = fiber.Props.Icon;
+                if (iconRef.Set != null && GetIconTexture != null)
+                {
+                    _rects.Flush(_screenW, _screenH);
+                    var col  = style.Color ?? new Paper.Core.Styles.PaperColour(0f, 0f, 0f, 1f);
+                    int sizePx = Math.Max(1, (int)MathF.Round(Math.Max(drawWidth, drawHeight)));
+                    uint tex = GetIconTexture(iconRef, sizePx, col.R, col.G, col.B, col.A * opacity);
+                    if (tex != 0)
+                        // Blended, not Draw/DrawWithUV's opaque-replace (that mode is for
+                        // compositing a fully-opaque embedded game viewport, not icons) — an
+                        // SVG-rasterized icon is mostly transparent outside its glyph, and
+                        // opaque-replace was drawing those transparent pixels as a solid black
+                        // square rather than letting the button's own background show through.
+                        _viewports.DrawWithUVBlended(drawX, drawY, drawWidth, drawHeight, 0f, 0f, 1f, 1f, tex, _screenW, _screenH);
+                }
+                Render(fiber.Sibling, inheritedOpacity, parentPath, indexInParent + 1, scrollX, scrollY);
+                return;
+            }
+
             // ── Checkbox element ──────────────────────────────────────────────
             if (fiber.Type is string typeCb && typeCb == ElementTypes.Checkbox)
             {
@@ -252,6 +306,7 @@ namespace Paper.Rendering.Silk.NET
             if (fiber.Type is string typeViewport && typeViewport == ElementTypes.Viewport)
             {
                 _rects.Flush(_screenW, _screenH);
+                fiber.Props.OnViewportSize?.Invoke((int)layoutBox.Width, (int)layoutBox.Height);
                 uint texHandle = fiber.Props.TextureHandle;
                 if (texHandle != 0)
                 {
@@ -263,6 +318,29 @@ namespace Paper.Rendering.Silk.NET
                     DrawRect(drawX, drawY, drawWidth, drawHeight,
                         viewportFill.R, viewportFill.G, viewportFill.B, viewportFill.A * opacity,
                         0, 0, 0, 0, 0, style.BorderRadius * ScaleX);
+                }
+                Render(fiber.Sibling, inheritedOpacity, parentPath, indexInParent + 1, scrollX, scrollY);
+                return;
+            }
+
+            // ── Canvas2D element ──────────────────────────────────────────────
+            if (fiber.Type is string typeCanvas && typeCanvas == ElementTypes.Canvas2D)
+            {
+                var drawCb = fiber.Props.Canvas2DDraw;
+                if (drawCb != null && _lines != null)
+                {
+                    // Flush pending rects so drawing order is correct
+                    _rects.Flush(_screenW, _screenH);
+                    var ctx = new Canvas2DContext(
+                        _lines, _rects, _text, _viewports,
+                        drawX, drawY, drawWidth, drawHeight,
+                        ScaleX, ScaleY, _screenW, _screenH);
+                    drawCb(ctx);
+                    // Flush in back-to-front order so that the draw-call sequence within the
+                    // callback determines z-order: rects (background) → lines → text (foreground).
+                    _rects.Flush(_screenW, _screenH);
+                    _lines.Flush(_screenW, _screenH);
+                    _text?.Flush(_screenW, _screenH);
                 }
                 Render(fiber.Sibling, inheritedOpacity, parentPath, indexInParent + 1, scrollX, scrollY);
                 return;
@@ -570,8 +648,11 @@ namespace Paper.Rendering.Silk.NET
                 float rawScrollY = GetScrollOffset != null ? GetScrollOffset(path).scrollY : 0f;
                 float rawScrollX = GetScrollOffset != null ? GetScrollOffset(path).scrollX : 0f;
                 var (_, padRightPx, padBottomPx, _) = BoxModel.PaddingPixels(style, layoutBox.Width, layoutBox.Height);
-                float contentH = (ComputeChildrenContentHeight(fiber.Child) + padBottomPx) * ScaleY;
-                float contentW = (ComputeChildrenContentWidth(fiber.Child) + padRightPx) * ScaleX;
+                // Subtract the container's own absolute position so content dimensions are
+                // relative to the container, not the root. Without this, containers not at X=0
+                // (e.g. a right-side panel) always have contentW >> drawWidth → phantom scrollbar.
+                float contentH = (ComputeChildrenContentHeight(fiber.Child) + padBottomPx - layoutBox.AbsoluteY) * ScaleY;
+                float contentW = (ComputeChildrenContentWidth(fiber.Child) + padRightPx - layoutBox.AbsoluteX) * ScaleX;
                 float sbOpacity = GetScrollbarOpacity != null ? GetScrollbarOpacity(path) : 0f;
                 if (sbOpacity > 0f)
                 {

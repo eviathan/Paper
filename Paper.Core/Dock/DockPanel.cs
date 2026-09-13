@@ -84,12 +84,28 @@ namespace Paper.Core.Dock
                     {
                         e.Data = new DockDragPayload(panel.PanelId, null, IsFloat: false);
                         ctx.SetDragging?.Invoke(true, panel.PanelId, null);
+                        if (ctx.Session != null)
+                            ctx.Session.BeginCrossWindowDrag(panel.PanelId, ctx.WindowId, () =>
+                            {
+                                ctx.Dispatch(new DockRemovePanel { PanelId = panel.PanelId });
+                                ctx.SetDragging?.Invoke(false, null, null);
+                            });
                     })
                     .OnDragEnd(e =>
                     {
+                        Console.WriteLine($"[DockDbg] DockPanel.OnDragEnd: outside={e.OutsideSourceWindow} hasPayload={e.Data is DockDragPayload} session={ctx.Session != null}");
                         ctx.SetDragging?.Invoke(false, null, null);
-                        if (e.Data is DockDragPayload { TearOff: true } payload)
-                            ctx.Dispatch(new DockTearOff { SourcePanelId = payload.PanelId, X = e.X - 20, Y = e.Y - 15 });
+                        if (e.Data is DockDragPayload payload)
+                        {
+                            if (e.OutsideSourceWindow)
+                                ctx.Dispatch(new DockEjectToNewWindow { PanelId = payload.PanelId, X = e.X, Y = e.Y, ScreenX = e.ScreenX, ScreenY = e.ScreenY });
+                            else
+                                ctx.Session?.CancelCrossWindowDrag();
+                        }
+                        else
+                        {
+                            ctx.Session?.CancelCrossWindowDrag();
+                        }
                     })
                     .Children(headerChildren.ToArray())
                     .Build()),

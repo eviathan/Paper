@@ -21,5 +21,14 @@ namespace Paper.Rendering.Silk.NET.Models
         public float DragCursorY;
         public Fiber? DragOver;
         public string? DragOverPath;
+
+        // ── Cross-window drag state ───────────────────────────────────────────
+        // Active when another OS window has an ongoing drag and the cursor is in this window.
+        public bool    CrossWindowDragActive;
+        public object? CrossWindowDragData;
+        public Fiber?  CrossWindowDragOver;
+        public string? CrossWindowDragOverPath;
+        public float   CrossWindowDragX;
+        public float   CrossWindowDragY;
     }
 }

@@ -2,6 +2,7 @@ using Paper.Core.Context;
 using Paper.Core.Hooks;
 using Paper.Core.Styles;
 using Paper.Core.VirtualDom;
+using H = Paper.Core.Hooks.Hooks;
 
 namespace Paper.Core.Dock
 {
@@ -40,6 +41,12 @@ namespace Paper.Core.Dock
         /// Invoke to end drag:   SetDragging(false, null, null)
         /// </summary>
         public Action<bool, string?, string?>? SetDragging { get; init; }
+
+        // ── Multi-window session ──────────────────────────────────────────────
+        /// <summary>Optional multi-window session. Null = single-window mode.</summary>
+        public DockWindowSession? Session  { get; init; }
+        /// <summary>Stable identifier for this dock window (used for cross-window drag tracking).</summary>
+        public string             WindowId { get; init; } = "main";
 
         // ── Panel registry ────────────────────────────────────────────────────
         /// <summary>Maps PanelId → PanelRegistration (content factory + constraints).</summary>
@@ -109,6 +116,8 @@ namespace Paper.Core.Dock
                 Theme           = Theme,
                 PanelRegistry   = PanelRegistry,
                 SetDragging     = SetDragging,
+                Session         = Session,
+                WindowId        = WindowId,
                 IsDraggingPanel = dragging,
                 DragPanelId     = panelId,
                 DragNodeId      = nodeId,
@@ -140,41 +149,103 @@ namespace Paper.Core.Dock
         /// </param>
         public static UINode Root(
             IReadOnlyList<PanelRegistration> panels,
-            DockState?   initialState = null,
-            DockTheme?   theme        = null,
-            StyleSheet?  style        = null,
-            string?      key          = null,
-            params UINode[] children)
+            DockState?         initialState = null,
+            DockTheme?         theme        = null,
+            StyleSheet?        style        = null,
+            string?            key          = null,
+            DockWindowSession? session      = null,
+            string?            windowId     = null,
+            params UINode[]    children)
         {
             var registry = panels.ToDictionary(p => p.PanelId);
 
             return UI.Component(props =>
             {
-                var reg      = props.Get<IReadOnlyDictionary<string, PanelRegistration>>("registry")!;
-                var init     = props.Get<DockState>("initialState")
-                               ?? BuildInitialState(props.Get<IReadOnlyList<PanelRegistration>>("panels")!);
+                var reg       = props.Get<IReadOnlyDictionary<string, PanelRegistration>>("registry")!;
+                var init      = props.Get<DockState>("initialState")
+                                ?? BuildInitialState(props.Get<IReadOnlyList<PanelRegistration>>("panels")!);
                 var dockTheme = props.Get<DockTheme>("theme") ?? DockTheme.Dark;
+                var sess      = props.Get<DockWindowSession>("session");
+                var winId     = props.Get<string>("windowId") ?? "main";
 
-                var (dockState, dispatch) = Paper.Core.Hooks.Hooks.UseReducer<DockState, DockAction>(DockReducer.Reduce, init);
-                var (dragCtx, setDragCtx, _) = Paper.Core.Hooks.Hooks.UseState<DockContextValue?>(null);
+                var (dockState, dispatch)    = H.UseReducer<DockState, DockAction>(DockReducer.Reduce, init);
+                var (dragCtx, setDragCtx, _) = H.UseState<DockContextValue?>(null);
+                var (_, setSessionTick, _)   = H.UseState(0);
+
+                // Subscribe to session drag-state changes so cross-window drop zones appear.
+                H.UseEffect(() =>
+                {
+                    if (sess == null) return null;
+                    int tick = 0;
+                    Action handler = () => setSessionTick(++tick);
+                    sess.DragStateChanged += handler;
+                    return () => { sess.DragStateChanged -= handler; };
+                }, new object?[] { sess });
+
+                // Notify session when this window's layout becomes empty.
+                H.UseEffect(() =>
+                {
+                    if (sess == null || string.IsNullOrEmpty(winId)) return null;
+                    bool isEmpty = IsLayoutEmpty(dockState);
+                    Console.WriteLine($"[DockDbg] IsLayoutEmpty effect: winId={winId} isEmpty={isEmpty} root={dockState.Root?.GetType().Name}({(dockState.Root as PanelNode)?.PanelId})");
+                    if (isEmpty) sess.NotifyWindowEmptied(winId);
+                    return null;
+                }, new object?[] { dockState, winId, sess });
+
+                // ExternalPanelArrived for macOS eject drops is now handled at the Canvas level
+                // via SyntheticCrossWindowDrop, which fires the Drop event on the zone fiber
+                // under the cursor — the same path as non-macOS cross-window drops.
+                // DockContainer.RenderDropTarget / RenderOuterDropZones OnDrop handlers then
+                // dispatch DockAcceptExternalPanel / DockAcceptExternalPanelOuter as normal.
+
+                // Wrap dispatch to intercept eject and cross-window drop completion.
+                Action<DockAction> wrappedDispatch = action =>
+                {
+                    if (action is DockEjectToNewWindow eject)
+                    {
+                        HandleEject(eject.PanelId, eject.X, eject.Y, eject.ScreenX, eject.ScreenY, dockState, dispatch, sess, winId, reg);
+                        return;
+                    }
+                    dispatch(action);
+                    // After accepting an external panel, complete the cross-window drop
+                    // (removes the panel from the source window).
+                    if (sess != null)
+                    {
+                        bool isExternalAccept =
+                            action is DockAcceptExternalPanel     aep  && sess.CrossDragPanelId == aep.Panel.PanelId  ||
+                            action is DockAcceptExternalPanelOuter aepo && sess.CrossDragPanelId == aepo.Panel.PanelId;
+                        if (isExternalAccept)
+                            sess.CompleteCrossWindowDrop();
+                    }
+                };
 
                 var contextValue = dragCtx ?? new DockContextValue
                 {
                     State         = dockState,
-                    Dispatch      = dispatch,
+                    Dispatch      = wrappedDispatch,
                     Theme         = dockTheme,
                     PanelRegistry = reg,
+                    Session       = sess,
+                    WindowId      = winId,
                 };
 
-                // Ensure State and Theme are always current even if dragCtx carries a stale snapshot
+                // Cross-window drag: show drop zones in this window even though the drag
+                // originated in another window.
+                bool crossWindowDragActive = sess != null
+                    && sess.IsCrossWindowDragActive
+                    && sess.CrossDragSourceWindowId != winId;
+
+                // Ensure State and Theme are always current even if dragCtx carries a stale snapshot.
                 var live = new DockContextValue
                 {
                     State           = dockState,
-                    Dispatch        = dispatch,
+                    Dispatch        = wrappedDispatch,
                     Theme           = dockTheme,
                     PanelRegistry   = reg,
-                    IsDraggingPanel = contextValue.IsDraggingPanel,
-                    DragPanelId     = contextValue.DragPanelId,
+                    Session         = sess,
+                    WindowId        = winId,
+                    IsDraggingPanel = contextValue.IsDraggingPanel || crossWindowDragActive,
+                    DragPanelId     = contextValue.DragPanelId ?? (crossWindowDragActive ? sess!.CrossDragPanelId : null),
                     DragNodeId      = contextValue.DragNodeId,
                     DragOverNodeId  = contextValue.DragOverNodeId,
                     DragOverZone    = contextValue.DragOverZone,
@@ -186,9 +257,11 @@ namespace Paper.Core.Dock
                             setDragCtx(new DockContextValue
                             {
                                 State           = dockState,
-                                Dispatch        = dispatch,
+                                Dispatch        = wrappedDispatch,
                                 Theme           = dockTheme,
                                 PanelRegistry   = reg,
+                                Session         = sess,
+                                WindowId        = winId,
                                 IsDraggingPanel = true,
                                 DragPanelId     = panelId,
                                 DragNodeId      = nodeId,
@@ -209,21 +282,122 @@ namespace Paper.Core.Dock
                     MinHeight     = Length.Px(0),
                 }.Merge(props.Style ?? StyleSheet.Empty);
 
-                // When no children are passed, render the dock container automatically.
-                // DockContainer.Render() reads from the Context.Provider(live, ...) below.
                 var content = children2.Count == 0
                     ? DockContainer.Render()
                     : UI.Box(new StyleSheet { FlexGrow = 1f, Width = Length.Percent(100), MinHeight = Length.Px(0) }, children2.ToArray());
 
                 return UI.Box(outerStyle, Context.Provider(live, content));
             }, new PropsBuilder()
-                .Set("registry", (object)registry)
-                .Set("panels",   (object)panels)
+                .Set("registry",     (object)registry)
+                .Set("panels",       (object)panels)
                 .Set("initialState", (object?)initialState)
-                .Set("theme",    (object?)(theme ?? DockTheme.Dark))
+                .Set("theme",        (object?)(theme ?? DockTheme.Dark))
+                .Set("session",      (object?)session)
+                .Set("windowId",     (object?)(windowId ?? "main"))
                 .Style(style ?? StyleSheet.Empty)
                 .Children(children)
                 .Build(), key);
+        }
+
+        // ── Eject handler ─────────────────────────────────────────────────────
+
+        private static void HandleEject(
+            string panelId, float dragX, float dragY, int screenX, int screenY,
+            DockState dockState, Action<DockAction> dispatch,
+            DockWindowSession? session, string windowId,
+            IReadOnlyDictionary<string, PanelRegistration> reg)
+        {
+            Console.WriteLine($"[DockDbg] HandleEject: panelId={panelId} session={session != null} pos=({dragX},{dragY}) screen=({screenX},{screenY})");
+            session?.CancelCrossWindowDrag();
+
+            // Try tiled layout first
+            var (panel, _) = DockReducer.ExtractPanelPublic(dockState.Root, panelId);
+            Console.WriteLine($"[DockDbg] HandleEject: panel found in tiled={panel != null}");
+            if (panel != null)
+            {
+                dispatch(new DockRemovePanel { PanelId = panelId });
+                if (session != null && session.TryExternalDrop(windowId, panel, screenX, screenY))
+                {
+                    Console.WriteLine($"[DockDbg] HandleEject: delivered to existing window");
+                    return;
+                }
+                Console.WriteLine($"[DockDbg] HandleEject: calling RequestNewWindow, session={session != null}");
+                session?.RequestNewWindow(panel.PanelId, new DockState { Root = panel }, (int)dragX, (int)dragY);
+                return;
+            }
+
+            // Try floats list (FloatNode ejected outside window)
+            var floatNode = dockState.Floats.FirstOrDefault(f => f.Panel.PanelId == panelId);
+            if (floatNode != null)
+            {
+                dispatch(new DockRemoveFloat { FloatNodeId = floatNode.NodeId });
+                if (session != null && session.TryExternalDrop(windowId, floatNode.Panel, screenX, screenY))
+                    return;
+                session?.RequestNewWindow(floatNode.Panel.PanelId, new DockState { Root = floatNode.Panel }, (int)dragX, (int)dragY);
+            }
+        }
+
+        private static bool IsLayoutEmpty(DockState state) =>
+            (state.Root == null || (state.Root is PanelNode ep && ep.PanelId == "empty"))
+            && state.Floats.Count == 0;
+
+        private static DropZone ComputeDropZone(int localX, int localY, int ww, int wh)
+        {
+            if (ww <= 0 || wh <= 0) return DropZone.Right;
+            const int stripPx = 40;
+            if (localX < stripPx)        return DropZone.Left;
+            if (localX > ww - stripPx)   return DropZone.Right;
+            if (localY < stripPx)        return DropZone.Top;
+            if (localY > wh - stripPx)   return DropZone.Bottom;
+            return DropZone.Right;
+        }
+
+        // Walk the DockState split tree using split ratios to find which leaf node
+        // contains (localX, localY) and compute the inner drop zone within it.
+        private static (string? nodeId, DropZone zone) HitTestDockTree(
+            DockNode? node, int x, int y, float left, float top, float width, float height)
+        {
+            if (node == null) return (null, DropZone.Right);
+
+            switch (node)
+            {
+                case PanelNode panel when panel.PanelId != "empty":
+                    return (panel.NodeId, ComputeInnerZone(x, y, left, top, width, height));
+
+                case TabGroupNode tabGroup:
+                    return (tabGroup.NodeId, ComputeInnerZone(x, y, left, top, width, height));
+
+                case SplitNode split:
+                    if (split.Direction == DockDirection.Horizontal)
+                    {
+                        float splitX = left + width * split.Ratio;
+                        return x < splitX
+                            ? HitTestDockTree(split.First,  x, y, left,   top, width * split.Ratio,        height)
+                            : HitTestDockTree(split.Second, x, y, splitX, top, width * (1f - split.Ratio), height);
+                    }
+                    else
+                    {
+                        float splitY = top + height * split.Ratio;
+                        return y < splitY
+                            ? HitTestDockTree(split.First,  x, y, left, top,    width, height * split.Ratio)
+                            : HitTestDockTree(split.Second, x, y, left, splitY, width, height * (1f - split.Ratio));
+                    }
+            }
+            return (null, DropZone.Right);
+        }
+
+        private static DropZone ComputeInnerZone(int x, int y, float left, float top, float width, float height)
+        {
+            if (width <= 0 || height <= 0) return DropZone.Center;
+            float xf = (x - left) / width;
+            float yf = (y - top)  / height;
+            // Match RenderDropTarget zone layout: L/R are 30% columns (full height);
+            // T/B/Center occupy the middle 40% column, split at 33%/67%.
+            if (xf < 0.30f)              return DropZone.Left;
+            if (xf > 0.70f)              return DropZone.Right;
+            if (yf < 0.33f)              return DropZone.Top;
+            if (yf > 0.67f)              return DropZone.Bottom;
+            return DropZone.Center;
         }
 
         // ── Auto layout builder ───────────────────────────────────────────────

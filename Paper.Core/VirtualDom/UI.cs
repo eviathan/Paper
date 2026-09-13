@@ -46,6 +46,19 @@ namespace Paper.Core.VirtualDom
                 .Build(), key);
 
         /// <summary>
+        /// Draws one frame of a shared sprite sheet — a sub-rect of <paramref name="src"/> addressed by
+        /// a flat row-major <paramref name="frameIndex"/> into a uniform grid of
+        /// <paramref name="frameWidth"/>×<paramref name="frameHeight"/> px cells. Always give the element
+        /// an explicit size via <paramref name="style"/> (no aspect-ratio inference, matching <see cref="Icon(IconRef, float, PaperColour, StyleSheet?, string?)"/>).
+        /// </summary>
+        public static UINode Sprite(string src, int frameIndex, float frameWidth, float frameHeight, StyleSheet? style = null, string? key = null) =>
+            new(ElementTypes.Sprite, new PropsBuilder()
+                .Src(src)
+                .Frame(frameIndex, frameWidth, frameHeight)
+                .Style(style ?? StyleSheet.Empty)
+                .Build(), key);
+
+        /// <summary>
         /// Multiline text input (value, onChange, optional rows).
         /// </summary>
         public static UINode Textarea(
@@ -234,9 +247,21 @@ namespace Paper.Core.VirtualDom
         /// Renders an OpenGL texture as a viewport panel. The texture handle is typically
         /// obtained from the embedded engine's game-view framebuffer.
         /// </summary>
-        public static UINode Viewport(uint textureHandle, StyleSheet? style = null, string? key = null) =>
+        public static UINode Viewport(uint textureHandle, StyleSheet? style = null, string? key = null, Action<int, int>? onSizeChanged = null) =>
             new(ElementTypes.Viewport, new PropsBuilder()
                 .Set("textureHandle", textureHandle)
+                .Set("onViewportSize", onSizeChanged)
+                .Style(style ?? StyleSheet.Empty)
+                .Build(), key);
+
+        /// <summary>
+        /// An immediate-mode 2D drawing surface. <paramref name="draw"/> is called every frame
+        /// with an <see cref="ICanvas2DContext"/> whose coordinates are element-local pixels.
+        /// Use for curve editors, graphs, and custom visualisations.
+        /// </summary>
+        public static UINode Canvas2D(Action<ICanvas2DContext> draw, StyleSheet? style = null, string? key = null) =>
+            new(ElementTypes.Canvas2D, new PropsBuilder()
+                .Canvas2DDraw(draw)
                 .Style(style ?? StyleSheet.Empty)
                 .Build(), key);
 
@@ -543,6 +568,32 @@ namespace Paper.Core.VirtualDom
 
             return new UINode(ElementTypes.Text,
                 new PropsBuilder().Text(codepoint).Style(iconStyle).Build(),
+                key);
+        }
+
+        /// <summary>
+        /// Renders a react-icons SVG icon at the given size and color.
+        /// Obtain <paramref name="icon"/> from the generated <c>Icons.*</c> classes in <c>Paper.Icons</c>
+        /// (e.g. <c>Icons.Fa.FaHome</c>, <c>Icons.Md.MdSettings</c>).
+        /// Colored icon sets (Fc) ignore <paramref name="color"/> and use their embedded fill colors.
+        /// </summary>
+        public static UINode Icon(
+            IconRef icon,
+            float size = 24f,
+            Paper.Core.Styles.PaperColour? color = null,
+            StyleSheet? style = null,
+            string? key = null)
+        {
+            var iconStyle = new StyleSheet
+            {
+                Width   = Paper.Core.Styles.Length.Px(size),
+                Height  = Paper.Core.Styles.Length.Px(size),
+                Display = Paper.Core.Styles.Display.InlineFlex,
+                Color   = color,
+            }.Merge(style ?? StyleSheet.Empty);
+
+            return new UINode(ElementTypes.Icon,
+                new PropsBuilder().Icon(icon).Style(iconStyle).Build(),
                 key);
         }
     }

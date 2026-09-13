@@ -84,6 +84,43 @@ namespace Paper.Rendering.Silk.NET
             _gl.ActiveTexture(GLEnum.Texture0);
             _gl.BindTexture(GLEnum.Texture2D, textureHandle);
 
+            // Game viewport is always fully opaque — use One,Zero so the FBO content
+            // replaces whatever is behind it, regardless of alpha in the texture.
+            _gl.BlendFunc(BlendingFactor.One, BlendingFactor.Zero);
+
+            _gl.BindVertexArray(_vao);
+            _gl.DrawArrays(PrimitiveType.Triangles, 0, 6);
+            _gl.BindVertexArray(0);
+
+            _gl.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
+
+            _gl.BindTexture(GLEnum.Texture2D, 0);
+        }
+
+        /// <summary>
+        /// Draw a textured quad with a custom UV rect, alpha-blended against whatever's already
+        /// drawn (standard SrcAlpha/OneMinusSrcAlpha) rather than replacing it outright. Use this
+        /// for anything that can have real transparent pixels — icons, sprite-sheet frames, PNGs
+        /// with alpha — as opposed to <see cref="DrawWithUV"/>, which is deliberately opaque-only
+        /// (see its own remarks) for compositing a fully-opaque embedded game viewport.
+        /// </summary>
+        public void DrawWithUVBlended(float x, float y, float w, float h,
+            float u0, float v0, float u1, float v1,
+            uint textureHandle, float screenW, float screenH)
+        {
+            if (textureHandle == 0) return;
+
+            _gl.UseProgram(_program);
+            _gl.Uniform4(_uRect,       x, y, w, h);
+            _gl.Uniform4(_uUV,         u0, v0, u1, v1);
+            _gl.Uniform2(_uResolution, screenW, screenH);
+            _gl.Uniform1(_uTexture, 0);
+
+            _gl.ActiveTexture(GLEnum.Texture0);
+            _gl.BindTexture(GLEnum.Texture2D, textureHandle);
+
+            _gl.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
+
             _gl.BindVertexArray(_vao);
             _gl.DrawArrays(PrimitiveType.Triangles, 0, 6);
             _gl.BindVertexArray(0);

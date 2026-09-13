@@ -1,17 +1,15 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-
 namespace Paper.Core.Hooks
 {
     /// <summary>
-    /// Allows the reconciler to hook into state updates to schedule re-renders.
-    /// Set by <see cref="Reconciler.Reconciler"/> on startup; host may wrap OnRenderRequested.
+    /// Allows reconcilers and host surfaces to subscribe to render-request notifications.
+    /// Multiple subscribers are supported; each receives the notification independently.
     /// </summary>
     public static class RenderScheduler
     {
-        public static Action? OnRenderRequested;
-        public static void RequestRender() => OnRenderRequested?.Invoke();
+        private static Action? _handlers;
+
+        public static void AddListener(Action handler) => _handlers += handler;
+        public static void RemoveListener(Action handler) => _handlers -= handler;
+        public static void RequestRender() => _handlers?.Invoke();
     }
 }

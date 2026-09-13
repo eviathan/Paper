@@ -11,9 +11,10 @@ namespace Paper.Rendering.Silk.NET
     /// </summary>
     internal sealed partial class FiberRenderer
     {
-        private readonly RectBatch _rects;
+        private readonly RectBatch            _rects;
         private readonly TexturedQuadRenderer _viewports;
-        private readonly FontRegistry? _fonts;
+        private readonly LineBatch?           _lines;
+        private readonly FontRegistry?        _fonts;
         // Convenience accessor for places that only need the default (16px) atlas metrics.
         private TextBatch? _text => _fonts?.Default;
         private readonly GL? _gl;
@@ -64,6 +65,13 @@ namespace Paper.Rendering.Silk.NET
         /// <summary>Optional: returns texture handle for an image path (used when GetImageResult is not set).</summary>
         public Func<string?, uint>? GetImageTexture { get; set; }
 
+        /// <summary>
+        /// Optional: returns an OpenGL texture handle for a react-icons SVG icon rasterized at <c>sizePx</c>
+        /// with the given RGBA color channels [0,1]. Returns 0 if not available or icon not found.
+        /// Wire up via <c>Paper.Icons.IconTextureCache.GetTexture</c>.
+        /// </summary>
+        public Func<Paper.Core.VirtualDom.IconRef, int, float, float, float, float, uint>? GetIconTexture { get; set; }
+
         /// <summary>Optional: returns (handle, width, height) for object-fit and background-image (cover/contain).</summary>
         public Func<string?, (uint handle, int w, int h)>? GetImageResult { get; set; }
 
@@ -86,15 +94,19 @@ namespace Paper.Rendering.Silk.NET
 
         public FiberRenderer(RectBatch rects, TexturedQuadRenderer viewports,
                              FontRegistry? fonts, float screenW, float screenH,
-                             GL? gl = null)
+                             GL? gl = null, LineBatch? lines = null)
         {
-            _rects = rects;
+            _rects     = rects;
             _viewports = viewports;
-            _fonts = fonts;
-            _gl = gl;
-            _screenW = screenW;
-            _screenH = screenH;
+            _lines     = lines;
+            _fonts     = fonts;
+            _gl        = gl;
+            _screenW   = screenW;
+            _screenH   = screenH;
         }
+
+        /// <summary>Flush the LineBatch — call after the main render pass alongside _rects.Flush().</summary>
+        public void FlushLines(float screenW, float screenH) => _lines?.Flush(screenW, screenH);
 
         /// <summary>Update the screen dimensions (call each frame if the window has been resized).</summary>
         public void SetScreenSize(float w, float h) { _screenW = w; _screenH = h; }
@@ -203,6 +215,14 @@ namespace Paper.Rendering.Silk.NET
         public List<Paper.Core.Reconciler.Fiber>? PortalRoots { get; set; }
 
         /// <summary>
+        /// When set, only fibers whose screen-space bounds intersect this rect will be drawn.
+        /// The rect is in framebuffer pixel space (origin top-left, Y down) matching
+        /// <see cref="_screenW"/> / <see cref="_screenH"/>.  Null means draw everything (full frame).
+        /// Set by the host after computing the per-frame dirty region; reset to null after render.
+        /// </summary>
+        public (float X, float Y, float W, float H)? DirtyRect { get; set; }
+
+        /// <summary>
         /// Renders <paramref name="fiber"/> and its subtree at the cursor position as a translucent
         /// drag ghost. Call this after the main <see cref="Render"/> pass; flush batches afterwards.
         /// <paramref name="cursorX"/>/<paramref name="cursorY"/> are in layout (window) pixel space.
@@ -285,7 +305,24 @@ namespace Paper.Rendering.Silk.NET
             _frameDt = _lastFrameTime < 0.0 ? 0f : (float)(now - _lastFrameTime);
             _lastFrameTime = now;
 
-            _cullRect = (0, 0, _screenW, _screenH);
+            // When a dirty rect is provided, restrict the initial cull rect to that region.
+            // The existing viewport-culling code in the recursive Render() already skips any
+            // fiber whose bounds don't intersect _cullRect, so this one change propagates the
+            // dirty-rect optimisation through the entire tree without further modifications.
+            if (DirtyRect.HasValue)
+            {
+                var dr = DirtyRect.Value;
+                _cullRect = (
+                    Math.Max(0f, dr.X),
+                    Math.Max(0f, dr.Y),
+                    Math.Min(_screenW, dr.X + dr.W) - Math.Max(0f, dr.X),
+                    Math.Min(_screenH, dr.Y + dr.H) - Math.Max(0f, dr.Y)
+                );
+            }
+            else
+            {
+                _cullRect = (0, 0, _screenW, _screenH);
+            }
 
             RenderedScrollbars.Clear();
             _zIndexedList.Clear();

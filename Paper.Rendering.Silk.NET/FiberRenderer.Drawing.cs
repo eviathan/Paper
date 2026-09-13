@@ -11,6 +11,7 @@ namespace Paper.Rendering.Silk.NET
         {
             if (_gl == null) return;
             _rects.Flush(_screenW, _screenH);
+            _lines?.Flush(_screenW, _screenH);
             _fonts?.Flush(_screenW, _screenH);
             _stencilDepth++;
             _gl.Enable(EnableCap.StencilTest);
@@ -29,6 +30,7 @@ namespace Paper.Rendering.Silk.NET
         {
             if (_gl == null) return;
             _rects.Flush(_screenW, _screenH);
+            _lines?.Flush(_screenW, _screenH);
             _fonts?.Flush(_screenW, _screenH);
             _gl.StencilMask(0xFF);
             _gl.StencilFunc(StencilFunction.Always, 0, 0xFF);

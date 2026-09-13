@@ -48,6 +48,23 @@ namespace Paper.Rendering.Silk.NET.Utilities
                 childScrollY = 0f;
             }
 
+            // Read layout once; used both for the clip guard below and the contains check at the end.
+            var layout = fiber.Layout;
+
+            // If this container clips overflow, reject any pointer position that falls outside its
+            // visible bounds. Without this, scrolled-out children (whose layout AbsoluteY is still
+            // inside the tree) remain hit-testable even when visually hidden, and can steal clicks
+            // from elements in completely different branches of the tree.
+            bool clipsX = fiber.ComputedStyle.OverflowX is Overflow.Hidden or Overflow.Auto or Overflow.Scroll;
+            bool clipsY = fiber.ComputedStyle.OverflowY is Overflow.Hidden or Overflow.Auto or Overflow.Scroll;
+            if (clipsX || clipsY)
+            {
+                float cx = layout.AbsoluteX - scrollX;
+                float cy = layout.AbsoluteY - scrollY;
+                if (clipsX && (x < cx || x >= cx + layout.Width)) return null;
+                if (clipsY && (y < cy || y >= cy + layout.Height)) return null;
+            }
+
             // Recurse into children — last child wins (later siblings paint on top in painter's order).
             Fiber? childHit = null;
             int childIndex = 0;
@@ -63,7 +80,6 @@ namespace Paper.Rendering.Silk.NET.Utilities
                 return childHit;
 
             // Check this fiber (in visible coords: layout minus scroll)
-            var layout = fiber.Layout;
             float visibleX = layout.AbsoluteX - scrollX;
             float visibleY = layout.AbsoluteY - scrollY;
 

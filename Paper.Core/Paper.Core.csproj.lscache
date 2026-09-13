@@ -67,6 +67,7 @@ Dock/
  DockPanel.cs
  DockState.cs
  DockTheme.cs
+ DockWindowSession.cs
 Enums/EffectTag.cs
 Events/
  DragEvent.cs

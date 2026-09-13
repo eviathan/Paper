@@ -2,10 +2,11 @@ using Paper.Core.VirtualDom;
 using Paper.CSX;
 using Paper.CSX.Runtime;
 using Paper.CSSS;
+using Paper.Rendering.Silk.NET;
 
-namespace Paper.Rendering.Silk.NET
+namespace Paper.Rendering.Silk.NET.HotReload
 {
-    internal sealed class CSXHotReload : IDisposable
+    public sealed class CSXHotReload : IDisposable
     {
         private readonly Canvas _surface;
         private readonly string _csxFilePath;
@@ -24,6 +25,9 @@ namespace Paper.Rendering.Silk.NET
         private CSXCompiledComponent? _compiled;
 
         public Func<Props, UINode> RootComponent { get; }
+
+        /// <summary>Called after each successful hot-reload compile. Wire up cache-clearing here.</summary>
+        public Action? OnReloaded { get; set; }
 
         public CSXHotReload(Canvas surface, string csxFilePath, string scopeId)
         {
@@ -220,6 +224,7 @@ namespace Paper.Rendering.Silk.NET
                     prev.LoadContext.Unload();
                 }
 
+                OnReloaded?.Invoke();
                 _surface.RequestRender();
             }
             catch (Exception ex)

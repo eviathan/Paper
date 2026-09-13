@@ -21,6 +21,13 @@ namespace Paper.Core.VirtualDom
 
         public PropsBuilder Text(string text) { _data["text"] = text; return this; }
         public PropsBuilder Src(string src) { _data["src"] = src; return this; }
+        public PropsBuilder Frame(int index, float width, float height)
+        {
+            _data["frameIndex"] = index;
+            _data["frameWidth"] = width;
+            _data["frameHeight"] = height;
+            return this;
+        }
 
         // ── Children ─────────────────────────────────────────────────────────
 
@@ -112,6 +119,11 @@ namespace Paper.Core.VirtualDom
         public PropsBuilder AriaLevel(int level) { _data["aria-level"] = level; return this; }
         public PropsBuilder AriaControls(string ids) { _data["aria-controls"] = ids; return this; }
         public PropsBuilder AriaOrientation(string orientation) { _data["aria-orientation"] = orientation; return this; }
+
+        // ── Canvas2D ──────────────────────────────────────────────────────────
+
+        public PropsBuilder Canvas2DDraw(Action<ICanvas2DContext>? draw) { _data["canvas2dDraw"] = draw; return this; }
+        public PropsBuilder Icon(IconRef icon) { _data["icon"] = icon; return this; }
 
         // ── Custom ────────────────────────────────────────────────────────────
 

@@ -194,5 +194,71 @@ void main() {
     FragColor = texture(uTexture, vUV);
 }
 ";
+
+        // ── Line ──────────────────────────────────────────────────────────────
+        // GPU-instanced anti-aliased line segments.
+        // Each instance: p0(xy), p1(xy), color(rgba), thickness(f) — 9 floats.
+        // A base unit quad [0,1]×[0,1] is expanded along the segment direction.
+
+        public const string LineVert = @"
+#version 330 core
+
+// Base quad vertex: x in [0,1] along segment, y in [0,1] perpendicular
+layout (location = 0) in vec2 aPos;
+
+// Per-instance
+layout (location = 1) in vec2  iP0;
+layout (location = 2) in vec2  iP1;
+layout (location = 3) in vec4  iColor;
+layout (location = 4) in float iThickness;
+
+uniform vec2 uResolution;
+
+out vec4  vColor;
+out float vPerp;        // signed pixel distance from segment centre (perpendicular)
+out float vHalfThick;
+
+void main() {
+    vec2  d       = iP1 - iP0;
+    float len     = length(d);
+    vec2  uDir    = len > 0.001 ? d / len : vec2(1.0, 0.0);
+    vec2  uPerp   = vec2(-uDir.y, uDir.x);
+
+    float halfThick = iThickness * 0.5;
+    float feather   = 1.0;
+
+    // Along: extend 1 px beyond each end for rounded-cap headroom
+    float along  = aPos.x * (len + 2.0) - 1.0;
+    // Across: signed pixel offset from centre
+    float across = (aPos.y - 0.5) * 2.0 * (halfThick + feather);
+
+    vColor     = iColor;
+    vPerp      = across;
+    vHalfThick = halfThick;
+
+    vec2 pixelPos = iP0 + uDir * along + uPerp * across;
+    vec2 clipPos  = (pixelPos / uResolution) * 2.0 - 1.0;
+    clipPos.y     = -clipPos.y;
+    gl_Position   = vec4(clipPos, 0.0, 1.0);
+}
+";
+
+        public const string LineFrag = @"
+#version 330 core
+
+in vec4  vColor;
+in float vPerp;
+in float vHalfThick;
+
+out vec4 FragColor;
+
+void main() {
+    // Smooth alpha at the edge of the line
+    float alpha = 1.0 - smoothstep(vHalfThick - 0.5, vHalfThick + 0.5, abs(vPerp));
+    alpha *= vColor.a;
+    if (alpha < 0.001) discard;
+    FragColor = vec4(vColor.rgb, alpha);
+}
+";
     }
 }

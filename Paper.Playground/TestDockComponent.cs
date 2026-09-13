@@ -7,36 +7,36 @@ namespace Paper.Playground;
 
 public static class TestDockComponent
 {
-    public static UINode TestDock(Props props)
+    public static readonly PanelRegistration[] Panels = new PanelRegistration[]
     {
-        var panels = new PanelRegistration[]
-        {
-            new("hierarchy", "Hierarchy",
-                () => HierarchyPanel(),
-                Constraints: new DockPanelConstraints(AllowClose: true, AllowFloat: true, AllowMinimize: true, AllowMaximize: true)),
+        new("hierarchy", "Hierarchy",
+            () => HierarchyPanel(),
+            Constraints: new DockPanelConstraints(AllowClose: true, AllowFloat: true, AllowMinimize: true, AllowMaximize: true)),
 
-            new("scene", "Scene",
-                () => ScenePanel(),
-                DefaultTargetPanelId: "hierarchy",
-                DefaultZone:          DropZone.Right,
-                Constraints: new DockPanelConstraints(AllowClose: true, AllowFloat: true, AllowMinimize: false, AllowMaximize: true)),
+        new("scene", "Scene",
+            () => ScenePanel(),
+            DefaultTargetPanelId: "hierarchy",
+            DefaultZone:          DropZone.Right,
+            Constraints: new DockPanelConstraints(AllowClose: true, AllowFloat: true, AllowMinimize: false, AllowMaximize: true)),
 
-            new("inspector", "Inspector",
-                () => InspectorPanel(),
-                DefaultTargetPanelId: "scene",
-                DefaultZone:          DropZone.Right,
-                Constraints: new DockPanelConstraints(AllowClose: true, AllowFloat: true, AllowMinimize: true, AllowMaximize: true,
-                    MinWidth: 180)),
+        new("inspector", "Inspector",
+            () => InspectorPanel(),
+            DefaultTargetPanelId: "scene",
+            DefaultZone:          DropZone.Right,
+            Constraints: new DockPanelConstraints(AllowClose: true, AllowFloat: true, AllowMinimize: true, AllowMaximize: true,
+                MinWidth: 180)),
 
-            new("console", "Console",
-                () => ConsolePanel(),
-                DefaultTargetPanelId: "hierarchy",
-                DefaultZone:          DropZone.Bottom,
-                Constraints: new DockPanelConstraints(AllowClose: true, AllowFloat: true, AllowMinimize: true, AllowMaximize: false,
-                    MinHeight: 80)),
-        };
+        new("console", "Console",
+            () => ConsolePanel(),
+            DefaultTargetPanelId: "hierarchy",
+            DefaultZone:          DropZone.Bottom,
+            Constraints: new DockPanelConstraints(AllowClose: true, AllowFloat: true, AllowMinimize: true, AllowMaximize: false,
+                MinHeight: 80)),
+    };
 
-        return DockContext.Root(panels, theme: DockTheme.Dark, children:
+    public static UINode TestDock(DockWindowSession session, Props props)
+    {
+        return DockContext.Root(Panels, session: session, windowId: "main", theme: DockTheme.Dark, children:
             UI.Component(PanelManagerShim, Props.Empty));
     }
 
@@ -51,7 +51,7 @@ public static class TestDockComponent
         { "console",   "Console"   },
     };
 
-    private static UINode PanelManagerShim(Props _)
+    public static UINode PanelManagerShim(Props _)
     {
         var ctx = Hooks.UseContext(DockContext.Context);
 

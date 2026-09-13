@@ -42,11 +42,17 @@
       "Bash(sed -n '1055,1080p' Paper.Rendering.Silk.NET/FiberRenderer.cs)",
       "Bash(sed -n '70,90p' Paper.CSSS/Parser/CSSSParser.cs)",
       "Bash(sed -n '275,320p' Paper.CSSS/Parser/CSSSParser.cs)",
-      "Bash(awk '{print $NF}')"
+      "Bash(awk '{print $NF}')",
+      "Read(//usr/local/share/dotnet/**)",
+      "Read(//usr/local/bin/**)",
+      "Bash(cat ~/.zshrc | grep -i dotnet)",
+      "Read(//Users/brian/**)",
+      "Bash(echo 'export PATH=\"$PATH:/usr/local/share/dotnet\"' >> ~/.zshenv && echo \"done\")"
     ],
     "additionalDirectories": [
       "/Users/brian/dev/Games/Archipelago/Archipelago.Engine/Archipelago.Engine.Editor",
-      "/Users/brian/Dev/Games/Archipelago/Archipelago.Engine/Archipelago.Engine.Editor"
+      "/Users/brian/Dev/Games/Archipelago/Archipelago.Engine/Archipelago.Engine.Editor",
+      "/Users/brian"
     ]
   }
 }

@@ -13,6 +13,12 @@ namespace Paper.Core.VirtualDom
         public const string Box = "box";
         public const string Text = "text";
         public const string Image = "image";
+        /// <summary>
+        /// A sub-rect ("frame") of a shared image, addressed by a flat row-major index into a
+        /// uniform grid of <c>frameWidth</c>×<c>frameHeight</c> cells — for drawing one icon out of
+        /// a shared sprite sheet/texture atlas. Use <c>UI.Sprite(src, frameIndex, frameWidth, frameHeight)</c>.
+        /// </summary>
+        public const string Sprite = "sprite";
         public const string Input = "input";
         public const string Button = "button";
         public const string Scroll = "scroll";
@@ -35,5 +41,18 @@ namespace Paper.Core.VirtualDom
         /// Use for modals, tooltips, dropdowns, and toasts.
         /// </summary>
         public const string Portal = "portal";
+
+        /// <summary>
+        /// An immediate-mode 2D drawing surface. The <c>canvas2dDraw</c> prop holds an
+        /// <c>Action&lt;ICanvas2DContext&gt;</c> called each frame with the element's draw context.
+        /// Use for curve editors, graphs, and custom visualisations.
+        /// </summary>
+        public const string Canvas2D = "canvas2d";
+
+        /// <summary>
+        /// A react-icons SVG icon rasterized at the element's layout size.
+        /// Use <c>UI.Icon(IconRef, size, color)</c> to create; set the <c>icon</c> prop to an <see cref="IconRef"/>.
+        /// </summary>
+        public const string Icon = "icon";
     }
 }

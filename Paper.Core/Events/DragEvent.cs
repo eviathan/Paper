@@ -33,5 +33,15 @@ namespace Paper.Core.Events
 
         /// <summary>Arbitrary payload attached by the drag source in OnDragStart.</summary>
         public object? Data { get; set; }
+
+        /// <summary>
+        /// True when a DragEnd fires because the mouse was released outside the source window's bounds.
+        /// Used by the dock system to eject panels to a new window.
+        /// </summary>
+        public bool OutsideSourceWindow { get; set; } = false;
+
+        /// <summary>Screen-absolute pointer position at DragEnd, used for cross-window drop detection.</summary>
+        public int ScreenX { get; set; }
+        public int ScreenY { get; set; }
     }
 }

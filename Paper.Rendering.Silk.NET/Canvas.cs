@@ -1,3 +1,4 @@
+using Paper.Core.Dock;
 using Paper.Core.Styles;
 using Paper.Core.VirtualDom;
 using Paper.Layout;
@@ -32,6 +33,7 @@ namespace Paper.Rendering.Silk.NET
         private IWindow? _window;
         private GL? _gl;
         private RectBatch? _rects;
+        private LineBatch? _lines;
         private TexturedQuadRenderer? _viewports;
         private FontRegistry? _fontSet;
         private TextBatch? _text => _fontSet?.Default;
@@ -39,11 +41,14 @@ namespace Paper.Rendering.Silk.NET
         private LayoutEngine? _layout;
         private ILayoutMeasurer? _measurer;
         private IInputContext? _inputContext;
-        private CSXHotReload? _csxHotReload;
         private ImageTextureLoader? _imageLoader;
+        private Paper.Icons.IconTextureCache? _iconTextureCache;
         private FiberRenderer? _renderer;
         private Core.Reconciler.Fiber? _pointerDownFiber;
         private string? _pointerDownFiberPath;
+        private Action? _renderRequestedListener;
+        private bool    _hasFirstFrameRendered;
+        private GlTextureFactory? _textureFactory;
 
         private ClickState _clickState { get; set; } = new();
         private GLFWState _glfwState { get; set; } = new();
@@ -59,6 +64,84 @@ namespace Paper.Rendering.Silk.NET
         /// </summary>
         public bool AlwaysRender { get; set; } = false;
 
+        // ── Multi-window dock session ─────────────────────────────────────────
+
+        /// <summary>
+        /// Window identifier used to route ExternalPanelArrived events to the correct canvas.
+        /// Set by DockWindowFactory.Wire for both the primary and any spawned windows.
+        /// </summary>
+        public string? WindowId { get; set; }
+
+        private DockWindowSession? _dockSession;
+
+        /// <summary>
+        /// Optional multi-window dock session. When set this Canvas:
+        /// <list type="bullet">
+        ///   <item>Re-renders whenever another window's cross-window drag changes.</item>
+        ///   <item>Provides cross-window drag data so panels dragged from other windows
+        ///         show drop zones inside this window.</item>
+        /// </list>
+        /// </summary>
+        public DockWindowSession? DockSession
+        {
+            get => _dockSession;
+            set
+            {
+                if (_dockSession != null)
+                {
+                    _dockSession.DragStateChanged    -= OnDockSessionDragStateChanged;
+                    _dockSession.ExternalPanelArrived -= OnExternalPanelArrived;
+                }
+                _dockSession = value;
+                if (_dockSession != null)
+                {
+                    _dockSession.DragStateChanged    += OnDockSessionDragStateChanged;
+                    _dockSession.ExternalPanelArrived += OnExternalPanelArrived;
+                }
+            }
+        }
+
+        private void OnExternalPanelArrived(string targetWindowId, DockNode panel, int localX, int localY, int ww, int wh)
+        {
+            Console.WriteLine($"[DockDbg] OnExternalPanelArrived: targetWindowId={targetWindowId} thisWindowId={WindowId} panel={panel} local=({localX},{localY})");
+            // Only handle events routed to this window.
+            if (WindowId != null && targetWindowId != WindowId) return;
+            if (panel is not PanelNode panelNode) return;
+
+            SyntheticCrossWindowDrop(panelNode, localX, localY);
+        }
+
+        private void OnDockSessionDragStateChanged()
+        {
+            _renderState.LayoutDirty = true;
+            // Keep this window continuously re-rendering while another window has an active drag,
+            // so we can poll the OS cursor position and draw the ghost / drop-zone highlights.
+            if (_dockSession?.IsCrossWindowDragActive == true && !_uiState.DragActive)
+                _renderState.AnimationDeadline = double.MaxValue;
+            else if (_renderState.AnimationDeadline == double.MaxValue)
+                _renderState.AnimationDeadline = 0;
+        }
+
+        /// <summary>
+        /// Returns drag payload for an active cross-window drag, or null.
+        /// Used by Canvas mouse handling to synthesise drag-over events in this window
+        /// when a panel drag originated in another OS window.
+        /// </summary>
+        internal object? GetCrossWindowDragData() =>
+            _dockSession?.IsCrossWindowDragActive == true
+                ? new DockDragPayload(_dockSession.CrossDragPanelId!, null, false) { IsCrossWindow = true }
+                : null;
+
+        /// <summary>Ratio of physical framebuffer pixels to logical window pixels (e.g. 2 on Retina). Updated each frame.</summary>
+        public float DpiScale { get; private set; } = 1f;
+
+        /// <summary>
+        /// Factory for creating GPU-backed textures for use inside <c>Canvas2D</c> draw callbacks.
+        /// Available after <see cref="InitializeWindow"/> (or <see cref="Run"/>) returns.
+        /// All factory methods must be called on the UI / render thread.
+        /// </summary>
+        public Paper.Core.Rendering.ITextureFactory? TextureFactory => _textureFactory;
+
         /// <summary>Global style registry for this surface.</summary>
         public StyleRegistry Styles { get; } = new();
 
@@ -70,6 +153,12 @@ namespace Paper.Rendering.Silk.NET
 
         /// <summary>Window border type. Default is Resizable.</summary>
         public WindowBorder WindowBorder { get; set; } = WindowBorder.Resizable;
+
+        /// <summary>
+        /// Path to the window icon file. Set before calling <see cref="Run"/> or <see cref="InitializeWindow"/>.
+        /// Accepts <c>.icns</c> on macOS and <c>.png</c> on Windows/Linux.
+        /// </summary>
+        public string? IconPath { get; set; }
 
         /// <summary>Convenience: set true for a frameless window (sets WindowBorder to Hidden). Default false.</summary>
         public bool Frameless
@@ -83,6 +172,12 @@ namespace Paper.Rendering.Silk.NET
 
         /// <summary>Called at the start of each render frame, before Paper renders its UI.</summary>
         public Action<double>? PreRender { get; set; }
+
+        /// <summary>
+        /// Raised on the UI thread when the user drops files from the OS onto the window.
+        /// Receives the full paths of the dropped files.
+        /// </summary>
+        public event Action<string[]>? FileDrop;
 
         public Canvas(string title = "Paper", int width = 1280, int height = 720)
         {
@@ -109,52 +204,25 @@ namespace Paper.Rendering.Silk.NET
             _rootFactory = () => new UINode(rootComponent, Props.Empty);
         }
 
-        /// <summary>Development helper: mount a CSX file and enable hot reload while running.</summary>
-        public void MountCSXHotReload(string csxFilePath, string? scopeId = null)
-        {
-            var csxPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, $"../../../{csxFilePath}"));
-            Console.WriteLine($"Paper.Playground: Loading {csxPath}");
 
-            if (File.Exists(csxPath))
-            {
-                Console.WriteLine($"Mounting {csxFilePath} hot reload.");
-                scopeId ??= Path.GetFileNameWithoutExtension(csxFilePath);
+        /// <summary>
+        /// Optional initial screen position (in logical pixels) applied when the window is created.
+        /// Useful in multi-window scenarios to place a new window near where the drag ended.
+        /// </summary>
+        public Vector2D<int>? InitialPosition { get; set; }
 
-                _csxHotReload?.Dispose();
-                _csxHotReload = new CSXHotReload(this, csxPath, scopeId);
-                _csxHotReload.Start();
+        /// <summary>
+        /// When true, VSync is disabled for this window. Useful in multi-window mode where
+        /// each window having its own VSync would cut framerate per window.
+        /// </summary>
+        public bool DisableVSync { get; set; } = false;
 
-                Mount(_csxHotReload.RootComponent);
-            }
-            else
-            {
-                throw new InvalidOperationException($"Could not properly mount {csxFilePath}");
-            }
-        }
+        // ── Single-window entry point ─────────────────────────────────────────
 
         /// <summary>Run the surface event loop (blocking). Disposes all GPU resources before returning.</summary>
         public void Run()
         {
-            if (_rootFactory == null)
-                throw new InvalidOperationException("Call Mount() before Run().");
-
-            var options = WindowOptions.Default;
-            options.Size = new Vector2D<int>(_width, _height);
-            options.Title = _title;
-            options.ShouldSwapAutomatically = true;
-            options.VSync = true;
-            options.IsEventDriven = false;
-            options.PreferredStencilBufferBits = 8;
-            options.WindowBorder = WindowBorder;
-
-            _window = Window.Create(options);
-            _window.Load += OnWindowLoad;
-            _window.Render += OnRender;
-            _window.Resize += OnResize;
-
-            Console.WriteLine("Window created, running event loop...");
-            _window.Initialize();
-
+            InitializeWindow();
             try
             {
                 RunLoop();
@@ -165,6 +233,76 @@ namespace Paper.Rendering.Silk.NET
             }
         }
 
+        // ── Multi-window entry points ─────────────────────────────────────────
+
+        /// <summary>
+        /// Create and initialise the OS window without starting the blocking event loop.
+        /// Use this with <see cref="DoFrame"/> and <see cref="CanvasManager"/> for multi-window scenarios.
+        /// </summary>
+        public void InitializeWindow()
+        {
+            if (_rootFactory == null)
+                throw new InvalidOperationException("Call Mount() before InitializeWindow().");
+
+            var options = WindowOptions.Default;
+            options.Size = new Vector2D<int>(_width, _height);
+            options.Title = _title;
+            options.ShouldSwapAutomatically = true;
+            options.VSync = !DisableVSync;
+            options.IsEventDriven = false;
+            options.PreferredStencilBufferBits = 8;
+            options.WindowBorder = WindowBorder;
+            if (InitialPosition.HasValue)
+                options.Position = InitialPosition.Value;
+
+            _window = Window.Create(options);
+            _window.Load += OnWindowLoad;
+            _window.Render += OnRender;
+            _window.Resize += OnResize;
+
+            Console.WriteLine($"[Canvas] Initializing window '{_title}'...");
+            _window.Initialize();
+        }
+
+        /// <summary>
+        /// Execute one frame (events + update + conditional render).
+        /// Returns false when the window is closing; caller should then call <see cref="Dispose"/>.
+        /// Used by <see cref="CanvasManager"/> in multi-window mode.
+        /// </summary>
+        public bool DoFrame()
+        {
+            if (_window == null || _window.IsClosing)
+                return false;
+
+            _window.DoEvents();
+            if (_window.IsClosing) return false;
+
+            _window.DoUpdate();
+            if (_window.IsClosing) return false;
+
+            // Drain actions posted by background threads (audio, I/O, analysis).
+            // Must happen before the render check so that state changes posted via UiThread.Post
+            // are processed and trigger reconcile/layout in the same frame.
+            Paper.Core.Threading.UiThread.DrainQueue();
+
+            var utcNow = DateTime.UtcNow.Ticks / (double)TimeSpan.TicksPerSecond;
+            bool isAnimating = utcNow < _renderState.AnimationDeadline;
+            if (AlwaysRender || _renderState.LayoutDirty || isAnimating)
+                _window.DoRender();
+
+            return true;
+        }
+
+        /// <summary>True when this window wants to render on the next <see cref="DoFrame"/> call.</summary>
+        internal bool WantsRender
+        {
+            get
+            {
+                var utcNow = DateTime.UtcNow.Ticks / (double)TimeSpan.TicksPerSecond;
+                return AlwaysRender || _renderState.LayoutDirty || utcNow < _renderState.AnimationDeadline;
+            }
+        }
+
         public void RequestRender()
         {
             _renderState.ExternalRenderRequested = true;
@@ -172,6 +310,12 @@ namespace Paper.Rendering.Silk.NET
         }
 
         public void Shutdown() => _window?.Close();
+
+        /// <summary>Screen position of the window's top-left corner in logical pixels. Valid after InitializeWindow().</summary>
+        public Vector2D<int> ScreenPosition => _window?.Position ?? default;
+
+        /// <summary>Screen size of the window's client area in logical pixels.</summary>
+        public Vector2D<int> ScreenSize => _window?.Size ?? new Vector2D<int>(_width, _height);
 
         /// <summary>
         /// Mark that a draw is needed and extend the animation deadline (keeps rendering alive
@@ -189,25 +333,16 @@ namespace Paper.Rendering.Silk.NET
         }
 
         /// <summary>
-        /// Run loop. VSync makes DoRender() block until the next display refresh.
+        /// Single-window run loop. VSync makes DoRender() block until the next display refresh.
         /// When nothing needs drawing we sleep 4 ms so the thread yields CPU.
         /// </summary>
         private void RunLoop()
         {
             while (_window != null && !_window.IsClosing)
             {
-                _window.DoEvents();
-                if (_window.IsClosing) break;
-
-                _window.DoUpdate();
-                if (_window.IsClosing) break;
-
-                var utcNow = DateTime.UtcNow.Ticks / (double)TimeSpan.TicksPerSecond;
-                var isAnimating = utcNow < _renderState.AnimationDeadline;
-
-                if (AlwaysRender || _renderState.LayoutDirty || isAnimating)
-                    _window.DoRender();
-                else
+                bool alive = DoFrame();
+                if (!alive) break;
+                if (!WantsRender)
                     Thread.Sleep(4);
             }
 
