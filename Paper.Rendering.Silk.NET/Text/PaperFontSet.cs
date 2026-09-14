@@ -61,6 +61,16 @@ namespace Paper.Rendering.Silk.NET.Text
             return (atlas.LineHeight > 0 ? atlas.LineHeight : atlas.BaseSize) * scale;
         }
 
+        /// <summary>Baseline-to-ascent distance in pixels for <paramref name="targetPx"/> — how far
+        /// below the top of the line box the baseline actually sits for this font, as opposed to a
+        /// fixed guessed fraction of line height.</summary>
+        public float Ascender(float targetPx)
+        {
+            var (batch, scale) = Get(targetPx);
+            var atlas = batch.Atlas;
+            return (atlas.Ascender > 0 ? atlas.Ascender : atlas.BaseSize * 0.8f) * scale;
+        }
+
         public void Flush(float screenW, float screenH)
         {
             foreach (var (_, batch) in _batches)

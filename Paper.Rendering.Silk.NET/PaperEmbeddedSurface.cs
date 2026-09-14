@@ -40,6 +40,7 @@ namespace Paper.Rendering.Silk.NET
         private readonly TexturedQuadRenderer _viewports;
         private readonly ImageTextureLoader _imageLoader;
         private readonly Paper.Icons.IconTextureCache _iconTextureCache;
+        private readonly SpriteTextureCache _spriteTextureCache;
         private readonly LayoutEngine _layout;
         private ILayoutMeasurer _measurer;
         private FontRegistry? _fontSet;
@@ -105,6 +106,7 @@ namespace Paper.Rendering.Silk.NET
             _viewports = new TexturedQuadRenderer(gl);
             _imageLoader = new ImageTextureLoader(gl);
             _iconTextureCache = new Paper.Icons.IconTextureCache(gl);
+            _spriteTextureCache = new SpriteTextureCache(gl);
             _layout    = new LayoutEngine();
             _measurer  = new FallbackLayoutMeasurer();
 
@@ -143,6 +145,8 @@ namespace Paper.Rendering.Silk.NET
                 // GetIconTexture != null)`) never rasterizes anything and every UI.Icon(...) is
                 // silently a no-op — never wired here even though Canvas has always had it.
                 GetIconTexture = (iconRef, sizePx, r, g, b, a) => _iconTextureCache.GetTexture(iconRef, sizePx, r, g, b, a),
+                GetSpriteTexture = (path, frameIndex, frameW, frameH, sizePx) =>
+                    _spriteTextureCache.GetTexture(path, frameIndex, frameW, frameH, sizePx),
             };
 
             _reconciler = new Reconciler();
@@ -609,6 +613,7 @@ namespace Paper.Rendering.Silk.NET
             _reconciler?.Dispose();
             _rects.Dispose();
             _iconTextureCache.Dispose();
+            _spriteTextureCache.Dispose();
         }
     }
 }

@@ -43,8 +43,18 @@ namespace Paper.Rendering.Silk.NET.Text
             var weight     = style.FontWeight;
             var fontStyle  = style.FontStyle;
 
+            // _fonts.LineHeight(fontPx, ...) is already an absolute line height in px (the font
+            // atlas's own natural metric), not a bare font size — so an unset style.LineHeight
+            // should use it as-is. It used to be multiplied by another ~1.4x default on top of
+            // that (i.e. by a factor meant for a *font-size* multiplier — see the correct usage a
+            // few lines below and in FlexLayout.cs's own text-height fallbacks), inflating every
+            // text node's measured height ~40% past the font's real line height. That oversized
+            // measurement was what threw off vertical centering everywhere a Text sat inside a
+            // fixed-height flex container (e.g. Controls.Btn) — see FlexLayout.PositionLine's own
+            // remarks for the second half of that bug. Only an *explicit* style.LineHeight still
+            // multiplies fontPx, matching CSS's own numeric line-height convention.
             float lineHPx = _fonts.LineHeight(fontPx, fam, weight, fontStyle);
-            float lineH   = lineHPx * Math.Max(0.5f, style.LineHeight ?? 1.4f);
+            float lineH = style.LineHeight is { } lh && lh > 0 ? fontPx * lh : lineHPx;
             if (lineH <= 0) lineH = fontPx * DefaultLineHeightFactor;
 
             if (string.IsNullOrEmpty(text))

@@ -75,6 +75,15 @@ namespace Paper.Rendering.Silk.NET
         /// <summary>Optional: returns (handle, width, height) for object-fit and background-image (cover/contain).</summary>
         public Func<string?, (uint handle, int w, int h)>? GetImageResult { get; set; }
 
+        /// <summary>
+        /// Optional: returns an OpenGL texture handle for one frame of a sprite sheet, rasterized fresh
+        /// at the exact <c>sizePx</c> requested (crop + high-quality resample, cached by size) instead of
+        /// uploading the frame once at sheet resolution and letting the GPU stretch it — the stretch is
+        /// what reads as crisp on a Retina display and blurry on a standard one. Falls back to the
+        /// GetImageResult + raw sheet UV path when not set. Wire up via <c>SpriteTextureCache.GetTexture</c>.
+        /// </summary>
+        public Func<string?, int, float, float, int, uint>? GetSpriteTexture { get; set; }
+
         /// <summary>Path of the currently hovered fiber (for hover highlight on interactive elements).</summary>
         public string? HoveredPath { get; set; }
 

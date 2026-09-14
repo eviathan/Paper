@@ -183,29 +183,55 @@ namespace Paper.Rendering.Silk.NET
             if (fiber.Type is string typeSprite && typeSprite == ElementTypes.Sprite)
             {
                 _rects.Flush(_screenW, _screenH);
-                (uint spriteTex, int sheetW, int sheetH) = GetImageResult != null
-                    ? GetImageResult(fiber.Props.Src)
-                    : (0u, 0, 0);
                 float frameW = fiber.Props.FrameWidth;
                 float frameH = fiber.Props.FrameHeight;
-                if (spriteTex != 0 && sheetW > 0 && sheetH > 0 && frameW > 0 && frameH > 0)
+                int frameIndex = fiber.Props.FrameIndex;
+                bool drawn = false;
+
+                if (GetSpriteTexture != null && frameW > 0 && frameH > 0)
                 {
-                    int columns = Math.Max(1, (int)(sheetW / frameW));
-                    int frameIndex = fiber.Props.FrameIndex;
-                    int col = frameIndex % columns;
-                    int row = frameIndex / columns;
-                    float u0 = (col * frameW) / sheetW;
-                    float v0 = (row * frameH) / sheetH;
-                    float u1 = ((col + 1) * frameW) / sheetW;
-                    float v1 = ((row + 1) * frameH) / sheetH;
-                    // Blended, not DrawWithUV's opaque-replace: a sprite-sheet frame can very
-                    // plausibly have transparent pixels around the art (this one's test sheet
-                    // happens not to, but the element shouldn't assume that in general).
-                    _viewports.DrawWithUVBlended(drawX, drawY, drawWidth, drawHeight, u0, v0, u1, v1, spriteTex, _screenW, _screenH);
+                    // Rasterized fresh at the exact physical size this frame is drawn at (like the
+                    // Icon element below), not uploaded once at sheet resolution and GPU-stretched —
+                    // see GetSpriteTexture's doc comment for why that stretch is DPI-dependent.
+                    int sizePx = Math.Max(1, (int)MathF.Round(Math.Max(drawWidth, drawHeight)));
+                    uint tex = GetSpriteTexture(fiber.Props.Src, frameIndex, frameW, frameH, sizePx);
+                    if (tex != 0)
+                    {
+                        _viewports.DrawWithUVBlended(drawX, drawY, drawWidth, drawHeight, 0f, 0f, 1f, 1f, tex, _screenW, _screenH);
+                        drawn = true;
+                    }
                 }
-                else
+
+                if (!drawn)
                 {
-                    DrawRect(drawX, drawY, drawWidth, drawHeight, 0.35f, 0.35f, 0.4f, 1f * opacity, 0, 0, 0, 0, 0, 0);
+                    (uint spriteTex, int sheetW, int sheetH) = GetImageResult != null
+                        ? GetImageResult(fiber.Props.Src)
+                        : (0u, 0, 0);
+                    if (spriteTex != 0 && sheetW > 0 && sheetH > 0 && frameW > 0 && frameH > 0)
+                    {
+                        int columns = Math.Max(1, (int)(sheetW / frameW));
+                        int col = frameIndex % columns;
+                        int row = frameIndex / columns;
+                        // Half-texel inset: sampling exactly at a frame's edge lets bilinear filtering
+                        // blend in a sliver of the *neighboring* sheet cell (this path samples the
+                        // shared atlas directly, unlike GetSpriteTexture's own dedicated per-frame
+                        // texture, which has no neighbors to bleed from). Insetting by half a source
+                        // texel keeps every sampled texel inside this frame's own cell.
+                        float halfTexelU = 0.5f / sheetW;
+                        float halfTexelV = 0.5f / sheetH;
+                        float u0 = (col * frameW) / sheetW + halfTexelU;
+                        float v0 = (row * frameH) / sheetH + halfTexelV;
+                        float u1 = ((col + 1) * frameW) / sheetW - halfTexelU;
+                        float v1 = ((row + 1) * frameH) / sheetH - halfTexelV;
+                        // Blended, not DrawWithUV's opaque-replace: a sprite-sheet frame can very
+                        // plausibly have transparent pixels around the art (this one's test sheet
+                        // happens not to, but the element shouldn't assume that in general).
+                        _viewports.DrawWithUVBlended(drawX, drawY, drawWidth, drawHeight, u0, v0, u1, v1, spriteTex, _screenW, _screenH);
+                    }
+                    else
+                    {
+                        DrawRect(drawX, drawY, drawWidth, drawHeight, 0.35f, 0.35f, 0.4f, 1f * opacity, 0, 0, 0, 0, 0, 0);
+                    }
                 }
                 Render(fiber.Sibling, inheritedOpacity, parentPath, indexInParent + 1, scrollX, scrollY);
                 return;
@@ -219,7 +245,18 @@ namespace Paper.Rendering.Silk.NET
                 {
                     _rects.Flush(_screenW, _screenH);
                     var col  = style.Color ?? new Paper.Core.Styles.PaperColour(0f, 0f, 0f, 1f);
-                    int sizePx = Math.Max(1, (int)MathF.Round(Math.Max(drawWidth, drawHeight)));
+                    // Rasterize at a minimum of ~2 texels per logical pixel regardless of the
+                    // display's actual DPI. On a Retina display (DpiScale 2) that's already what
+                    // drawWidth/drawHeight give us — factor collapses to ~1. On a standard display
+                    // (DpiScale 1) rasterizing at exactly drawWidth/drawHeight starves multi-detail
+                    // icons (e.g. GoSortAsc's three bars + arrowhead) of enough pixels to keep their
+                    // strokes distinct — they blur into an indistinct blob. Supersampling here and
+                    // letting the existing Linear-filtered GPU downscale do the antialiasing gives
+                    // the same clean result at any DPI, the same fix already applied to sprites in
+                    // SpriteTextureCache but the opposite direction (there we removed a GPU upscale;
+                    // here a GPU downscale is exactly what smooths fine vector detail well).
+                    float iconSupersample = Math.Max(1f, 2f / Math.Max(DpiScale, 0.01f));
+                    int sizePx = Math.Max(1, (int)MathF.Round(Math.Max(drawWidth, drawHeight) * iconSupersample));
                     uint tex = GetIconTexture(iconRef, sizePx, col.R, col.G, col.B, col.A * opacity);
                     if (tex != 0)
                         // Blended, not Draw/DrawWithUV's opaque-replace (that mode is for
@@ -547,11 +584,12 @@ namespace Paper.Rendering.Silk.NET
                     }
 
                     var (mdBatch, mdScale) = _fonts!.Get(fontPx * DpiScale, fam, fontWeight, fontStyle);
+                    float atlasAscent = _fonts.Ascender(fontPx, fam, fontWeight, fontStyle);
                     var (padTop2, _, padBottom2, _) = BoxModel.PaddingPixels(style, layoutBox.Width, layoutBox.Height);
                     float contentH2 = textH - padTop2 - padBottom2;
                     float baselineBase = contentH2 >= atlasLineH * 1.4f
-                        ? padTop2 + (contentH2 - atlasLineH) / 2f + atlasLineH * 0.8f
-                        : padTop2 + atlasLineH * 0.8f;
+                        ? padTop2 + (contentH2 - atlasLineH) / 2f + atlasAscent
+                        : padTop2 + atlasAscent;
                     float xOrigin = layoutBox.AbsoluteX + padLeft;
 
                     for (int row = 0; row < mdCached.Rows.Length; row++)

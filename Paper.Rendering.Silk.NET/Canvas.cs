@@ -43,6 +43,7 @@ namespace Paper.Rendering.Silk.NET
         private IInputContext? _inputContext;
         private ImageTextureLoader? _imageLoader;
         private Paper.Icons.IconTextureCache? _iconTextureCache;
+        private SpriteTextureCache? _spriteTextureCache;
         private FiberRenderer? _renderer;
         private Core.Reconciler.Fiber? _pointerDownFiber;
         private string? _pointerDownFiberPath;

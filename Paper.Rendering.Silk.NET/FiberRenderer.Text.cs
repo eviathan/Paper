@@ -22,16 +22,17 @@ namespace Paper.Rendering.Silk.NET
             string? fam = style.FontFamily;
             var weight = style.FontWeight;
             float textH = _fonts.LineHeight(fontPx, fam, weight);
+            float ascent = _fonts.Ascender(fontPx, fam, weight);
             var (padTop, _, padBottom, padLeft) = BoxModel.PaddingPixels(style, fullLb.Width, fullLb.Height);
             float xLayout = fullLb.AbsoluteX + padLeft - inputScrollX;
             float contentH = lineBox.Height - padTop - padBottom;
             float baseline = contentH >= textH
-                ? lineBox.AbsoluteY + padTop + (contentH - textH) / 2f + (textH * 0.8f)
-                : lineBox.AbsoluteY + padTop + (textH * 0.8f);
+                ? lineBox.AbsoluteY + padTop + (contentH - textH) / 2f + ascent
+                : lineBox.AbsoluteY + padTop + ascent;
             float selectionStartWidth = _fonts.MeasureWidth(line.AsSpan(0, lineSelStart), fontPx, fam, weight);
             float selectionEndWidth = _fonts.MeasureWidth(line.AsSpan(0, lineSelEnd), fontPx, fam, weight);
             float selectionDrawX = (xLayout - scrollX + selectionStartWidth) * ScaleX;
-            float selectionDrawY = (baseline - scrollY - textH * 0.8f) * ScaleY;
+            float selectionDrawY = (baseline - scrollY - ascent) * ScaleY;
             float selectionWidth = (selectionEndWidth - selectionStartWidth) * ScaleX;
             float selectionHeight = textH * ScaleY;
             if (selectionWidth > 0 && selectionHeight > 0)
@@ -46,21 +47,22 @@ namespace Paper.Rendering.Silk.NET
             string? fam = style.FontFamily;
             var weight = style.FontWeight;
             float textH = _fonts.LineHeight(fontPx, fam, weight);
+            float ascent = _fonts.Ascender(fontPx, fam, weight);
             var (padTop, _, padBottom, padLeft) = BoxModel.PaddingPixels(style, fullLb.Width, fullLb.Height);
             float xLayout = fullLb.AbsoluteX + padLeft - inputScrollX;
             float contentH = lineBox.Height - padTop - padBottom;
             float baseline = contentH >= textH
-                ? lineBox.AbsoluteY + padTop + (contentH - textH) / 2f + (textH * 0.8f)
-                : lineBox.AbsoluteY + padTop + (textH * 0.8f);
+                ? lineBox.AbsoluteY + padTop + (contentH - textH) / 2f + ascent
+                : lineBox.AbsoluteY + padTop + ascent;
             int caretOffset = Math.Min(FocusedInputCaret - lineStart, line.Length);
             float caretX = xLayout + (caretOffset <= 0 ? 0 : _fonts.MeasureWidth(line.AsSpan(0, caretOffset), fontPx, fam, weight));
-            DrawCaretAt(caretX, baseline, 1f, textH, col, opacity, scrollX, scrollY);
+            DrawCaretAt(caretX, baseline, 1f, textH, ascent, col, opacity, scrollX, scrollY);
         }
 
-        private void DrawCaretAt(float xLayout, float baseline, float scale, float textH, PaperColour col, float opacity, float scrollX, float scrollY)
+        private void DrawCaretAt(float xLayout, float baseline, float scale, float textH, float ascent, PaperColour col, float opacity, float scrollX, float scrollY)
         {
             float caretDrawX = (xLayout - scrollX) * ScaleX;
-            float caretDrawY = (baseline - scrollY - textH * 0.8f) * ScaleY;
+            float caretDrawY = (baseline - scrollY - ascent) * ScaleY;
             float caretDrawHeight = Math.Max(14f, textH * ScaleY);
             float caretWidth = Math.Max(2f, 2f * ScaleX);
             DrawRect(caretDrawX, caretDrawY, caretWidth, caretDrawHeight, col.R, col.G, col.B, col.A * opacity, 0, 0, 0, 0, 0, 0);
@@ -144,7 +146,8 @@ namespace Paper.Rendering.Silk.NET
 
             float dpiScale = DpiScale > 0f ? DpiScale : 1f;
             var (batch, batchScale) = _fonts.Get(fontPx * dpiScale, fam, weight, fontStyle);
-            float atlasLineH = _fonts.LineHeight(fontPx, fam, weight, fontStyle);
+            float atlasLineH  = _fonts.LineHeight(fontPx, fam, weight, fontStyle);
+            float atlasAscent = _fonts.Ascender(fontPx, fam, weight, fontStyle);
 
             if (_fonts.WillUseSyntheticItalic(fam, weight, fontStyle))
                 batch.ItalicSkew = 0.21f;
@@ -170,11 +173,11 @@ namespace Paper.Rendering.Silk.NET
             if (contentH >= atlasLineH)
             {
                 float centreY = layoutBox.AbsoluteY + padTop + (contentH - atlasLineH) / 2f;
-                baseline = centreY + (atlasLineH * 0.8f);
+                baseline = centreY + atlasAscent;
             }
             else
             {
-                baseline = layoutBox.AbsoluteY + padTop + (atlasLineH * 0.8f);
+                baseline = layoutBox.AbsoluteY + padTop + atlasAscent;
             }
 
             float textW = MeasureLogical(label.AsSpan());
@@ -216,7 +219,7 @@ namespace Paper.Rendering.Silk.NET
                 float spaceW = MeasureLogical(" ".AsSpan());
                 if (spaceW <= 0) spaceW = atlasLineH * 0.3f;
                 float lineSpacing = atlasLineH * Math.Max(0.5f, style.LineHeight ?? 1.4f);
-                float wrapBaseline = layoutBox.AbsoluteY + padTop + (atlasLineH * 0.8f);
+                float wrapBaseline = layoutBox.AbsoluteY + padTop + atlasAscent;
                 float xOrigin = layoutBox.AbsoluteX + padLeft;
 
                 var words = label.Split(' ');

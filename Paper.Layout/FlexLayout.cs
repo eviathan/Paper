@@ -314,9 +314,18 @@ namespace Paper.Layout
 
             foreach (var fi in line.Items)
             {
-                // Use at least LineCrossSize so CENTER/FlexEnd items in auto-height containers
-                // (where crossSize arrives as 0) don't receive a negative offset.
-                float effectiveCross = Math.Max(crossSize, line.LineCrossSize);
+                // In an auto-height container, crossSize arrives as 0 (not yet determined by
+                // anything but its own content) — fall back to LineCrossSize so CENTER/FlexEnd
+                // items there don't receive a negative offset. But a container with a real
+                // (explicit or constrained) crossSize must align against *that*, not against
+                // whichever item happens to be the tallest: Math.Max(crossSize, line.LineCrossSize)
+                // used the item's own size instead of the container's real one whenever an item's
+                // natural size exceeded the container's, which silently zeroed out AlignCross's
+                // (effectiveCross - fi.FinalCross) / 2 offset — collapsing Center to FlexStart —
+                // instead of computing the correct *negative* offset that centers an oversized
+                // item within a smaller fixed-height container (e.g. a button's Text label taller
+                // than the button itself once padding is subtracted).
+                float effectiveCross = crossSize > 0 ? crossSize : line.LineCrossSize;
                 float cross = AlignCross(fi, style, effectiveCross);
 
                 float x, y, w, h;

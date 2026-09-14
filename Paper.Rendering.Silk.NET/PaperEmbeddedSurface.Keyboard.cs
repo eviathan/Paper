@@ -116,7 +116,10 @@ namespace Paper.Rendering.Silk.NET
             _renderRequested = true;
         }
 
-        private void HandleTabFocusNavigation(bool shift)
+        /// <summary>Every focusable fiber in tab order: positive TabIndex first (ascending), then
+        /// TabIndex 0/unset in tree order — the same ordering Tab/Shift+Tab navigate through, and
+        /// what "focus the first element" (<see cref="ResetFocus"/>) means as a result.</summary>
+        private List<Fiber> BuildTabOrder()
         {
             var all = new List<Fiber>();
             HitTestUtility.CollectFocusable(_reconciler!.Root, all);
@@ -124,7 +127,12 @@ namespace Paper.Rendering.Silk.NET
             var ordered = new List<Fiber>();
             ordered.AddRange(all.Where(fiber => (fiber.Props.TabIndex ?? 0) > 0).OrderBy(fiber => fiber.Props.TabIndex));
             ordered.AddRange(all.Where(fiber => fiber.Props.TabIndex == 0 || fiber.Props.TabIndex == null));
+            return ordered;
+        }
 
+        private void HandleTabFocusNavigation(bool shift)
+        {
+            var ordered = BuildTabOrder();
             if (ordered.Count == 0) return;
 
             int currentFocusIndex = ordered.FindIndex(fiber => ReferenceEquals(fiber, _inputState.Focused));

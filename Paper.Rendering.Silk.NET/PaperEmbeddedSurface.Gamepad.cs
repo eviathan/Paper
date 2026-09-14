@@ -73,6 +73,16 @@ namespace Paper.Rendering.Silk.NET
         /// this is just the sensible default when nothing more specific is wired up.</summary>
         public void ClearFocus() => SetFocus(null);
 
+        /// <summary>Moves focus to the first focusable element in tab order (see
+        /// <see cref="BuildTabOrder"/>) — for landing focus somewhere sensible right after a menu
+        /// opens or first mounts, as opposed to <see cref="NavigateFocus"/>'s relative movement from
+        /// whatever's currently focused. No-op (clears focus) if nothing is focusable.</summary>
+        public void ResetFocus()
+        {
+            var ordered = BuildTabOrder();
+            SetFocus(ordered.Count > 0 ? ordered[0] : null);
+        }
+
         private static (float x, float y) Center(Fiber fiber) =>
             (fiber.Layout.AbsoluteX + fiber.Layout.Width / 2f, fiber.Layout.AbsoluteY + fiber.Layout.Height / 2f);
     }

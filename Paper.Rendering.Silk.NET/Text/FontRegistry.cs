@@ -45,6 +45,9 @@ namespace Paper.Rendering.Silk.NET.Text
         public float LineHeight(float targetPx)
             => ResolveSet(null, null, null).LineHeight(targetPx);
 
+        public float Ascender(float targetPx)
+            => ResolveSet(null, null, null).Ascender(targetPx);
+
         // ── Extended API with family + weight ─────────────────────────────────
 
         public (TextBatch batch, float scale) Get(float targetPx, string? family, FontWeight? weight, Paper.Core.Styles.FontStyle? fontStyle = null)
@@ -55,6 +58,9 @@ namespace Paper.Rendering.Silk.NET.Text
 
         public float LineHeight(float targetPx, string? family, FontWeight? weight, Paper.Core.Styles.FontStyle? fontStyle = null)
             => ResolveSet(family, weight, fontStyle).LineHeight(targetPx);
+
+        public float Ascender(float targetPx, string? family, FontWeight? weight, Paper.Core.Styles.FontStyle? fontStyle = null)
+            => ResolveSet(family, weight, fontStyle).Ascender(targetPx);
 
         // ── Internal resolution ───────────────────────────────────────────────
 

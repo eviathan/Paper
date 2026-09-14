@@ -14,6 +14,8 @@ namespace Paper.Core.VirtualDom
 
         public PropsBuilder Style(StyleSheet style) { _data["style"] = style; return this; }
         public PropsBuilder HoverStyle(StyleSheet style) { _data["hoverStyle"] = style; return this; }
+        public PropsBuilder ActiveStyle(StyleSheet style) { _data["activeStyle"] = style; return this; }
+        public PropsBuilder FocusStyle(StyleSheet style) { _data["focusStyle"] = style; return this; }
         public PropsBuilder ClassName(string cls) { _data["className"] = cls; return this; }
         public PropsBuilder Id(string id) { _data["id"] = id; return this; }
 

@@ -7,11 +7,19 @@ namespace Paper.Icons;
 /// <summary>
 /// Rasterizes icons on demand and caches the resulting OpenGL textures.
 /// Cache key: (set, name, sizePx, colorARGB).  Colored icons always use a fixed key.
+/// Bounded to <see cref="MaxCacheEntries"/> textures, evicted least-recently-used: sizePx now
+/// tracks live (DPI- and supersample-scaled) layout pixels rather than a handful of fixed sizes, so
+/// a continuously resized/animated icon would otherwise mint a new GPU texture forever and never
+/// free any of them.
 /// </summary>
 public sealed class IconTextureCache : IDisposable
 {
+    private const int MaxCacheEntries = 512;
+
     private readonly GL _gl;
-    private readonly Dictionary<(string Set, string Name, int Size, uint Color), uint> _cache = new();
+    private readonly LinkedList<(string Set, string Name, int Size, uint Color)> _lru = new();
+    private readonly Dictionary<(string Set, string Name, int Size, uint Color),
+        (uint Handle, LinkedListNode<(string Set, string Name, int Size, uint Color)> Node)> _cache = new();
     private bool _disposed;
 
     public IconTextureCache(GL gl) => _gl = gl;
@@ -31,7 +39,12 @@ public sealed class IconTextureCache : IDisposable
         uint colorKey = data.IsColored ? 0xFFFFFFFFu : PackColor(r, g, b, a);
         var cacheKey  = (iconRef.Set, iconRef.Name, sizePx, colorKey);
 
-        if (_cache.TryGetValue(cacheKey, out var cached)) return cached;
+        if (_cache.TryGetValue(cacheKey, out var entry))
+        {
+            _lru.Remove(entry.Node);
+            _lru.AddFirst(entry.Node);
+            return entry.Handle;
+        }
 
         var skColor = data.IsColored
             ? SKColors.White
@@ -41,17 +54,31 @@ public sealed class IconTextureCache : IDisposable
         if (bitmap == null) return 0;
 
         var handle = UploadToGpu(bitmap);
-        _cache[cacheKey] = handle;
+        var node = _lru.AddFirst(cacheKey);
+        _cache[cacheKey] = (handle, node);
+        EvictOverflow();
         return handle;
+    }
+
+    private void EvictOverflow()
+    {
+        while (_cache.Count > MaxCacheEntries && _lru.Last != null)
+        {
+            var lruKey = _lru.Last.Value;
+            _lru.RemoveLast();
+            if (_cache.Remove(lruKey, out var evicted) && evicted.Handle != 0)
+                _gl.DeleteTexture(evicted.Handle);
+        }
     }
 
     public void Dispose()
     {
         if (_disposed) return;
         _disposed = true;
-        foreach (var handle in _cache.Values)
-            if (handle != 0) _gl.DeleteTexture(handle);
+        foreach (var entry in _cache.Values)
+            if (entry.Handle != 0) _gl.DeleteTexture(entry.Handle);
         _cache.Clear();
+        _lru.Clear();
     }
 
     private static uint PackColor(float r, float g, float b, float a) =>

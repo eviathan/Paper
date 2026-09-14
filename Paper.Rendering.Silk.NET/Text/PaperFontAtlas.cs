@@ -7,6 +7,14 @@ namespace Paper.Rendering.Silk.NET.Text
         public int   BaseSize      { get; }
         public float LineHeight    { get; internal set; }
 
+        /// <summary>
+        /// Distance from the baseline up to the font's ascent line, in pixels at this atlas's baked
+        /// size — FreeType's <c>face-&gt;size-&gt;metrics.ascender</c>. Used to place the baseline
+        /// correctly for whatever font is actually loaded, instead of assuming every font's ascent
+        /// sits at a fixed fraction of its line height (fonts vary a fair amount here).
+        /// </summary>
+        public float Ascender { get; internal set; }
+
         private readonly Dictionary<int, GlyphMetrics> _glyphs = new();
         public  IReadOnlyDictionary<int, GlyphMetrics>  Glyphs => _glyphs;
 

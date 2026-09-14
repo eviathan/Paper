@@ -107,22 +107,41 @@ namespace Paper.Rendering.Silk.NET.Text
             return result;
         }
 
+        /// <summary>Largest atlas this loader will grow to before giving up trying to fit every glyph.</summary>
+        private const int MaxAtlasSize = 4096;
+
         private static unsafe PaperFontAtlas LoadSingleCodepoints(GL gl, FT_FaceRec_* face, int pixelSize, int atlasSize, IEnumerable<int> codepoints)
         {
-            var atlas      = new PaperFontAtlas(atlasSize, pixelSize);
-            var atlasBytes = new byte[atlasSize * atlasSize];
+            // Materialize once: codepoints is re-walked on every retry below.
+            var codepointList = codepoints as IReadOnlyList<int> ?? codepoints.ToList();
 
             FT_Set_Pixel_Sizes(face, 0, (uint)pixelSize);
 
-            int cursorX   = Padding;
-            int cursorY   = Padding;
-            int rowHeight = 0;
+            // atlasSize is only a heuristic guess (px>=32?1024:512 by glyph pixel size, ignoring how
+            // many codepoints this particular font actually has). A font with an unusually large
+            // character set could still overflow that guess; growing and repacking instead of
+            // silently dropping whatever didn't fit — which is what PackGlyphs used to just do via a
+            // bare `break` — is what actually guarantees every glyph gets a slot, at any font size.
+            while (true)
+            {
+                var atlas      = new PaperFontAtlas(atlasSize, pixelSize);
+                var atlasBytes = new byte[atlasSize * atlasSize];
 
-            PackGlyphs(face, codepoints, atlasSize, atlasBytes, atlas, ref cursorX, ref cursorY, ref rowHeight);
+                int cursorX   = Padding;
+                int cursorY   = Padding;
+                int rowHeight = 0;
 
-            atlas.LineHeight = (float)((int)face->size->metrics.height >> 6);
-            UploadTexture(gl, atlas, atlasBytes, atlasSize);
-            return atlas;
+                bool overflowed = PackGlyphs(face, codepointList, atlasSize, atlasBytes, atlas, ref cursorX, ref cursorY, ref rowHeight);
+                if (!overflowed || atlasSize >= MaxAtlasSize)
+                {
+                    atlas.LineHeight = (float)((int)face->size->metrics.height >> 6);
+                    atlas.Ascender   = (float)((int)face->size->metrics.ascender >> 6);
+                    UploadTexture(gl, atlas, atlasBytes, atlasSize);
+                    return atlas;
+                }
+
+                atlasSize *= 2;
+            }
         }
 
         private static unsafe PaperFontAtlas LoadSingle(GL gl, FT_FaceRec_* face, int pixelSize, int atlasSize)
@@ -138,12 +157,20 @@ namespace Paper.Rendering.Silk.NET.Text
                 cp = FT_Get_Next_Char(face, (uint)cp, &glyphIdx);
             }
 
-            return LoadSingleCodepoints(gl, face, pixelSize, 2048, codepoints);
+            // Was hardcoded to 2048 here regardless of what the caller passed in, silently
+            // overriding LoadSet/Load's px>=32?1024:512 sizing — every regular-text atlas ended up
+            // 2048x2048 (4x-16x more GPU memory than intended) no matter the glyph pixel size.
+            return LoadSingleCodepoints(gl, face, pixelSize, atlasSize, codepoints);
         }
 
-        private static unsafe void PackGlyphs(
+        /// <summary>
+        /// Packs every codepoint into the atlas. Returns true if it ran out of room and had to stop
+        /// early — the caller (<see cref="LoadSingleCodepoints"/>) retries at double the atlas size
+        /// rather than accepting a partial bake, so no glyph is ever silently missing at render time.
+        /// </summary>
+        private static unsafe bool PackGlyphs(
             FT_FaceRec_* face,
-            IEnumerable<int> codepoints,
+            IReadOnlyList<int> codepoints,
             int atlasSize,
             byte[] atlasBytes,
             PaperFontAtlas atlas,
@@ -168,7 +195,7 @@ namespace Paper.Rendering.Silk.NET.Text
                     rowHeight = 0;
                 }
 
-                if (cursorY + bh > atlasSize) break;
+                if (cursorY + bh > atlasSize) return true;
 
                 for (int row = 0; row < bh; row++)
                 {
@@ -194,6 +221,8 @@ namespace Paper.Rendering.Silk.NET.Text
                 cursorX  += bw + Padding;
                 rowHeight = Math.Max(rowHeight, bh);
             }
+
+            return false;
         }
 
         private static unsafe void UploadTexture(GL gl, PaperFontAtlas atlas, byte[] pixels, int atlasSize)
@@ -209,10 +238,17 @@ namespace Paper.Rendering.Silk.NET.Text
                     PixelFormat.Red, PixelType.UnsignedByte, ptr);
             }
 
+            // Linear, not Nearest: text is only ever baked at 9 fixed sizes (PaperFontLoader.DefaultSizes)
+            // and PaperFontSet.Get picks the *nearest* one, scaling the glyph quad to whatever size was
+            // actually requested — most requested sizes don't land exactly on a baked size, so this
+            // scale is very often != 1. Nearest filtering under a non-1 scale is what made text look
+            // visibly blocky/aliased (worst on small text, e.g. badge counts, which land furthest from
+            // any baked size). 1px of transparent padding around each glyph (see Padding below) keeps
+            // bilinear sampling from ever reaching into a neighboring glyph's ink.
             gl.TexParameter(TextureTarget.Texture2D,
-                TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
+                TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
             gl.TexParameter(TextureTarget.Texture2D,
-                TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
+                TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
             gl.TexParameter(TextureTarget.Texture2D,
                 TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
             gl.TexParameter(TextureTarget.Texture2D,
