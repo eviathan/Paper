@@ -197,7 +197,7 @@ namespace Paper.Rendering.Silk.NET
                     uint tex = GetSpriteTexture(fiber.Props.Src, frameIndex, frameW, frameH, sizePx);
                     if (tex != 0)
                     {
-                        _viewports.DrawWithUVBlended(drawX, drawY, drawWidth, drawHeight, 0f, 0f, 1f, 1f, tex, _screenW, _screenH);
+                        _viewports.DrawWithUVBlended(drawX, drawY, drawWidth, drawHeight, 0f, 0f, 1f, 1f, tex, _screenW, _screenH, opacity);
                         drawn = true;
                     }
                 }
@@ -226,7 +226,7 @@ namespace Paper.Rendering.Silk.NET
                         // Blended, not DrawWithUV's opaque-replace: a sprite-sheet frame can very
                         // plausibly have transparent pixels around the art (this one's test sheet
                         // happens not to, but the element shouldn't assume that in general).
-                        _viewports.DrawWithUVBlended(drawX, drawY, drawWidth, drawHeight, u0, v0, u1, v1, spriteTex, _screenW, _screenH);
+                        _viewports.DrawWithUVBlended(drawX, drawY, drawWidth, drawHeight, u0, v0, u1, v1, spriteTex, _screenW, _screenH, opacity);
                     }
                     else
                     {

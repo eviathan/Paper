@@ -17,6 +17,7 @@ namespace Paper.Rendering.Silk.NET
         private readonly int _uUV;
         private readonly int _uResolution;
         private readonly int _uTexture;
+        private readonly int _uAlpha;
 
         public unsafe TexturedQuadRenderer(GL gl)
         {
@@ -26,6 +27,7 @@ namespace Paper.Rendering.Silk.NET
             _uUV         = GlHelpers.Uniform(gl, _program, "uUV");
             _uResolution = GlHelpers.Uniform(gl, _program, "uResolution");
             _uTexture    = GlHelpers.Uniform(gl, _program, "uTexture");
+            _uAlpha      = GlHelpers.Uniform(gl, _program, "uAlpha");
 
             // Interleaved: pos.xy (2 floats) + uv.xy (2 floats) = 4 floats per vertex
             float[] quad = [
@@ -80,6 +82,7 @@ namespace Paper.Rendering.Silk.NET
             _gl.Uniform4(_uUV,         u0, v0, u1, v1);
             _gl.Uniform2(_uResolution, screenW, screenH);
             _gl.Uniform1(_uTexture, 0);
+            _gl.Uniform1(_uAlpha, 1f);
 
             _gl.ActiveTexture(GLEnum.Texture0);
             _gl.BindTexture(GLEnum.Texture2D, textureHandle);
@@ -104,9 +107,13 @@ namespace Paper.Rendering.Silk.NET
         /// with alpha — as opposed to <see cref="DrawWithUV"/>, which is deliberately opaque-only
         /// (see its own remarks) for compositing a fully-opaque embedded game viewport.
         /// </summary>
+        /// <param name="alpha">Extra opacity multiplier applied on top of the texture's own alpha
+        /// channel — e.g. a Sprite element's CSS <c>opacity</c>, which (unlike Icon, which bakes it
+        /// into the rasterized texture) draws from a texture shared/cached independent of opacity,
+        /// so it has to be applied here instead.</param>
         public void DrawWithUVBlended(float x, float y, float w, float h,
             float u0, float v0, float u1, float v1,
-            uint textureHandle, float screenW, float screenH)
+            uint textureHandle, float screenW, float screenH, float alpha = 1f)
         {
             if (textureHandle == 0) return;
 
@@ -115,6 +122,7 @@ namespace Paper.Rendering.Silk.NET
             _gl.Uniform4(_uUV,         u0, v0, u1, v1);
             _gl.Uniform2(_uResolution, screenW, screenH);
             _gl.Uniform1(_uTexture, 0);
+            _gl.Uniform1(_uAlpha, alpha);
 
             _gl.ActiveTexture(GLEnum.Texture0);
             _gl.BindTexture(GLEnum.Texture2D, textureHandle);

@@ -195,11 +195,13 @@ void main() {
 in vec2 vUV;
 
 uniform sampler2D uTexture;
+uniform float uAlpha;
 
 out vec4 FragColor;
 
 void main() {
     FragColor = texture(uTexture, vUV);
+    FragColor.a *= uAlpha;
 }
 ";
 
