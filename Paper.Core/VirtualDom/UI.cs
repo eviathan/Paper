@@ -59,6 +59,19 @@ namespace Paper.Core.VirtualDom
                 .Build(), key);
 
         /// <summary>
+        /// Draws one slice of a sprite sheet — an explicit pixel rectangle
+        /// (<see cref="SpriteSlice.Region"/>, e.g. a frame from a packed atlas) or a grid cell
+        /// (<see cref="SpriteSlice.Cell"/>). Always give the element an explicit size via
+        /// <paramref name="style"/>, as with the frame-index overload.
+        /// </summary>
+        public static UINode Sprite(string src, SpriteSlice slice, StyleSheet? style = null, string? key = null) =>
+            new(ElementTypes.Sprite, new PropsBuilder()
+                .Src(src)
+                .Slice(slice)
+                .Style(style ?? StyleSheet.Empty)
+                .Build(), key);
+
+        /// <summary>
         /// Multiline text input (value, onChange, optional rows).
         /// </summary>
         public static UINode Textarea(

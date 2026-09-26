@@ -145,8 +145,8 @@ namespace Paper.Rendering.Silk.NET
                 // GetIconTexture != null)`) never rasterizes anything and every UI.Icon(...) is
                 // silently a no-op — never wired here even though Canvas has always had it.
                 GetIconTexture = (iconRef, sizePx, r, g, b, a) => _iconTextureCache.GetTexture(iconRef, sizePx, r, g, b, a),
-                GetSpriteTexture = (path, frameIndex, frameW, frameH, sizePx) =>
-                    _spriteTextureCache.GetTexture(path, frameIndex, frameW, frameH, sizePx),
+                GetSpriteTexture = (path, slice, sizePx) =>
+                    _spriteTextureCache.GetTexture(path, slice, sizePx),
             };
 
             _reconciler = new Reconciler();

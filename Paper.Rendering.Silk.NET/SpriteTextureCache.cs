@@ -1,11 +1,12 @@
+using Paper.Core.VirtualDom;
 using Silk.NET.OpenGL;
 using SkiaSharp;
 
 namespace Paper.Rendering.Silk.NET
 {
     /// <summary>
-    /// Renders one frame of a bitmap sprite sheet at the exact physical pixel size it's drawn at,
-    /// caching the result by (sheet, frame, size) — the same "rasterize on demand, cache per size"
+    /// Renders one slice (<see cref="SpriteSlice"/> — a grid cell or any rectangle) of a bitmap sprite
+    /// sheet at the exact physical pixel size it's drawn at, caching the result by (sheet, slice, size) — the same "rasterize on demand, cache per size"
     /// approach <see cref="Paper.Icons.IconTextureCache"/> uses for vector icons, applied to a bitmap
     /// source. Without this, a sprite frame is uploaded once at its native sheet resolution and then
     /// GPU-stretched to fit; that stretch is a fixed bilinear blur that reads as crisp on a Retina
@@ -23,9 +24,9 @@ namespace Paper.Rendering.Silk.NET
 
         private readonly GL _gl;
         private readonly Dictionary<string, SKBitmap?> _sheets = new();
-        private readonly LinkedList<(string Path, int FrameIndex, int Size)> _lru = new();
-        private readonly Dictionary<(string Path, int FrameIndex, int Size),
-            (uint Handle, LinkedListNode<(string Path, int FrameIndex, int Size)> Node)> _cache = new();
+        private readonly LinkedList<(string Path, SpriteSlice Slice, int Size)> _lru = new();
+        private readonly Dictionary<(string Path, SpriteSlice Slice, int Size),
+            (uint Handle, LinkedListNode<(string Path, SpriteSlice Slice, int Size)> Node)> _cache = new();
         private bool _disposed;
 
         public SpriteTextureCache(GL gl) => _gl = gl;
@@ -35,13 +36,21 @@ namespace Paper.Rendering.Silk.NET
         /// cell of the sheet at <paramref name="path"/>, rasterized at <paramref name="sizePx"/>x<paramref name="sizePx"/>.
         /// Returns 0 if the sheet can't be loaded or the frame falls outside it.
         /// </summary>
-        public uint GetTexture(string? path, int frameIndex, float frameWidth, float frameHeight, int sizePx)
+        public uint GetTexture(string? path, int frameIndex, float frameWidth, float frameHeight, int sizePx) =>
+            GetTexture(path, SpriteSlice.Cell(frameIndex, frameWidth, frameHeight), sizePx);
+
+        /// <summary>
+        /// Returns an OpenGL texture handle for <paramref name="slice"/> of the sheet at
+        /// <paramref name="path"/>, rasterized at <paramref name="sizePx"/>x<paramref name="sizePx"/>.
+        /// Returns 0 if the sheet can't be loaded or the slice falls outside it.
+        /// </summary>
+        public uint GetTexture(string? path, SpriteSlice slice, int sizePx)
         {
-            if (_disposed || sizePx <= 0 || frameWidth <= 0 || frameHeight <= 0 || string.IsNullOrEmpty(path))
+            if (_disposed || sizePx <= 0 || !slice.IsValid || string.IsNullOrEmpty(path))
                 return 0;
 
             string key = Path.GetFullPath(path);
-            var cacheKey = (key, frameIndex, sizePx);
+            var cacheKey = (key, slice, sizePx);
             if (_cache.TryGetValue(cacheKey, out var entry))
             {
                 _lru.Remove(entry.Node);
@@ -52,11 +61,8 @@ namespace Paper.Rendering.Silk.NET
             var sheet = GetOrLoadSheet(key);
             if (sheet == null) return 0;
 
-            int columns = Math.Max(1, (int)(sheet.Width / frameWidth));
-            int col = frameIndex % columns;
-            int row = frameIndex / columns;
-            var srcRect = new SKRect(col * frameWidth, row * frameHeight, (col + 1) * frameWidth, (row + 1) * frameHeight);
-            if (srcRect.Right > sheet.Width || srcRect.Bottom > sheet.Height) return 0;
+            if (!slice.Resolve(sheet.Width, sheet.Height, out float x, out float y, out float w, out float h)) return 0;
+            var srcRect = new SKRect(x, y, x + w, y + h);
 
             using var frame = RenderFrame(sheet, srcRect, sizePx);
             if (frame == null) return 0;

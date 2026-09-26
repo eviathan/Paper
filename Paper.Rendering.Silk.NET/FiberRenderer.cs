@@ -1,5 +1,6 @@
 using Paper.Core.Reconciler;
 using Paper.Core.Styles;
+using Paper.Core.VirtualDom;
 using Paper.Rendering.Silk.NET.Text;
 using Silk.NET.OpenGL;
 
@@ -82,7 +83,7 @@ namespace Paper.Rendering.Silk.NET
         /// what reads as crisp on a Retina display and blurry on a standard one. Falls back to the
         /// GetImageResult + raw sheet UV path when not set. Wire up via <c>SpriteTextureCache.GetTexture</c>.
         /// </summary>
-        public Func<string?, int, float, float, int, uint>? GetSpriteTexture { get; set; }
+        public Func<string?, SpriteSlice, int, uint>? GetSpriteTexture { get; set; }
 
         /// <summary>Path of the currently hovered fiber (for hover highlight on interactive elements).</summary>
         public string? HoveredPath { get; set; }

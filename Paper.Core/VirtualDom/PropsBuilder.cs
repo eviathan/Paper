@@ -23,11 +23,21 @@ namespace Paper.Core.VirtualDom
 
         public PropsBuilder Text(string text) { _data["text"] = text; return this; }
         public PropsBuilder Src(string src) { _data["src"] = src; return this; }
+        /// <summary>Sprite: cell <paramref name="index"/> of a uniform grid of
+        /// <paramref name="width"/>×<paramref name="height"/> cells. Shorthand for
+        /// <see cref="Slice"/> with <see cref="SpriteSlice.Cell"/>.</summary>
         public PropsBuilder Frame(int index, float width, float height)
         {
             _data["frameIndex"] = index;
             _data["frameWidth"] = width;
             _data["frameHeight"] = height;
+            return Slice(SpriteSlice.Cell(index, width, height));
+        }
+
+        /// <summary>Sprite: the part of the sheet to draw — a grid cell or an explicit rectangle.</summary>
+        public PropsBuilder Slice(SpriteSlice slice)
+        {
+            _data["slice"] = slice;
             return this;
         }
 

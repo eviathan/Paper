@@ -183,18 +183,19 @@ namespace Paper.Rendering.Silk.NET
             if (fiber.Type is string typeSprite && typeSprite == ElementTypes.Sprite)
             {
                 _rects.Flush(_screenW, _screenH);
-                float frameW = fiber.Props.FrameWidth;
-                float frameH = fiber.Props.FrameHeight;
-                int frameIndex = fiber.Props.FrameIndex;
+                // A grid cell or an explicit rectangle; the frame-index props predate SpriteSlice
+                // and always set a slice too, so this covers both.
+                SpriteSlice slice = fiber.Props.Slice
+                    ?? SpriteSlice.Cell(fiber.Props.FrameIndex, fiber.Props.FrameWidth, fiber.Props.FrameHeight);
                 bool drawn = false;
 
-                if (GetSpriteTexture != null && frameW > 0 && frameH > 0)
+                if (GetSpriteTexture != null && slice.IsValid)
                 {
                     // Rasterized fresh at the exact physical size this frame is drawn at (like the
                     // Icon element below), not uploaded once at sheet resolution and GPU-stretched —
                     // see GetSpriteTexture's doc comment for why that stretch is DPI-dependent.
                     int sizePx = Math.Max(1, (int)MathF.Round(Math.Max(drawWidth, drawHeight)));
-                    uint tex = GetSpriteTexture(fiber.Props.Src, frameIndex, frameW, frameH, sizePx);
+                    uint tex = GetSpriteTexture(fiber.Props.Src, slice, sizePx);
                     if (tex != 0)
                     {
                         _viewports.DrawWithUVBlended(drawX, drawY, drawWidth, drawHeight, 0f, 0f, 1f, 1f, tex, _screenW, _screenH, opacity);
@@ -207,11 +208,9 @@ namespace Paper.Rendering.Silk.NET
                     (uint spriteTex, int sheetW, int sheetH) = GetImageResult != null
                         ? GetImageResult(fiber.Props.Src)
                         : (0u, 0, 0);
-                    if (spriteTex != 0 && sheetW > 0 && sheetH > 0 && frameW > 0 && frameH > 0)
+                    if (spriteTex != 0 && sheetW > 0 && sheetH > 0
+                        && slice.Resolve(sheetW, sheetH, out float sliceX, out float sliceY, out float sliceW, out float sliceH))
                     {
-                        int columns = Math.Max(1, (int)(sheetW / frameW));
-                        int col = frameIndex % columns;
-                        int row = frameIndex / columns;
                         // Half-texel inset: sampling exactly at a frame's edge lets bilinear filtering
                         // blend in a sliver of the *neighboring* sheet cell (this path samples the
                         // shared atlas directly, unlike GetSpriteTexture's own dedicated per-frame
@@ -219,13 +218,12 @@ namespace Paper.Rendering.Silk.NET
                         // texel keeps every sampled texel inside this frame's own cell.
                         float halfTexelU = 0.5f / sheetW;
                         float halfTexelV = 0.5f / sheetH;
-                        float u0 = (col * frameW) / sheetW + halfTexelU;
-                        float v0 = (row * frameH) / sheetH + halfTexelV;
-                        float u1 = ((col + 1) * frameW) / sheetW - halfTexelU;
-                        float v1 = ((row + 1) * frameH) / sheetH - halfTexelV;
+                        float u0 = sliceX / sheetW + halfTexelU;
+                        float v0 = sliceY / sheetH + halfTexelV;
+                        float u1 = (sliceX + sliceW) / sheetW - halfTexelU;
+                        float v1 = (sliceY + sliceH) / sheetH - halfTexelV;
                         // Blended, not DrawWithUV's opaque-replace: a sprite-sheet frame can very
-                        // plausibly have transparent pixels around the art (this one's test sheet
-                        // happens not to, but the element shouldn't assume that in general).
+                        // plausibly have transparent pixels around the art.
                         _viewports.DrawWithUVBlended(drawX, drawY, drawWidth, drawHeight, u0, v0, u1, v1, spriteTex, _screenW, _screenH, opacity);
                     }
                     else

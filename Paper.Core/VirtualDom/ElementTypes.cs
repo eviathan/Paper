@@ -14,9 +14,9 @@ namespace Paper.Core.VirtualDom
         public const string Text = "text";
         public const string Image = "image";
         /// <summary>
-        /// A sub-rect ("frame") of a shared image, addressed by a flat row-major index into a
-        /// uniform grid of <c>frameWidth</c>×<c>frameHeight</c> cells — for drawing one icon out of
-        /// a shared sprite sheet/texture atlas. Use <c>UI.Sprite(src, frameIndex, frameWidth, frameHeight)</c>.
+        /// A slice of a shared image (<see cref="SpriteSlice"/>) — either a cell of a uniform grid or
+        /// an explicit pixel rectangle — for drawing one icon out of a shared sprite sheet/texture atlas. Use <c>UI.Sprite(src, frameIndex, frameWidth, frameHeight)</c> for a
+        /// grid cell, or <c>UI.Sprite(src, SpriteSlice.Region(x, y, w, h))</c> for any rectangle (a packed atlas frame).
         /// </summary>
         public const string Sprite = "sprite";
         public const string Input = "input";

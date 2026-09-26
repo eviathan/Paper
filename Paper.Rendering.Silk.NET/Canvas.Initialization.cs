@@ -68,8 +68,8 @@ namespace Paper.Rendering.Silk.NET
                 },
                 GetIconTexture = (iconRef, sizePx, r, g, b, a) =>
                     _iconTextureCache?.GetTexture(iconRef, sizePx, r, g, b, a) ?? 0u,
-                GetSpriteTexture = (path, frameIndex, frameW, frameH, sizePx) =>
-                    _spriteTextureCache?.GetTexture(PaperUtility.ResolveImagePath(path), frameIndex, frameW, frameH, sizePx) ?? 0u
+                GetSpriteTexture = (path, slice, sizePx) =>
+                    _spriteTextureCache?.GetTexture(PaperUtility.ResolveImagePath(path), slice, sizePx) ?? 0u
             };
 
             _reconciler = new Reconciler();
