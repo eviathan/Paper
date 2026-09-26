@@ -128,6 +128,7 @@ VirtualDom/
  PaperRect.cs
  Props.cs
  PropsBuilder.cs
+ SpriteSlice.cs
  UI.cs
  UINode.cs
 
