@@ -755,4 +755,40 @@ public sealed class LayoutTests
         Assert.Equal(192f, Approx(first.Layout.Width));
         Assert.Equal(192f, Approx(second.Layout.Width));
     }
+
+    // ── Re-anchored positioned boxes carry their children ─────────────────────
+
+    [Fact]
+    public void BottomAnchored_AutoHeight_Box_Keeps_Its_Children_Inside_It()
+    {
+        // A chat panel: fixed to the bottom-left, height from its content.
+        var panel = UI.Box(new StyleSheet
+            {
+                Position = Position.Fixed, Left = 24, Bottom = 24, Width = 200,
+                Display = Display.Flex, FlexDirection = FlexDirection.Column, Padding = new Thickness(Length.Px(8)),
+            },
+            UI.Box(new StyleSheet { Height = 40 }),
+            UI.Box(new StyleSheet { Height = 20 }));
+        var (root, _) = Mount(UI.Box(new StyleSheet { Width = Length.Percent(100), Height = Length.Percent(100) }, panel));
+
+        var box = root.Child!; // root is the full-screen wrapper
+        Assert.Equal(600f - 24f - box.Layout.Height, Approx(box.Layout.AbsoluteY));
+        var first = box.Child!;
+        var second = first.Sibling!;
+        Assert.Equal(Approx(box.Layout.AbsoluteY + 8f), Approx(first.Layout.AbsoluteY));
+        Assert.Equal(Approx(first.Layout.AbsoluteY + 40f), Approx(second.Layout.AbsoluteY));
+        Assert.True(second.Layout.AbsoluteY + second.Layout.Height <= box.Layout.AbsoluteY + box.Layout.Height);
+    }
+
+    [Fact]
+    public void RightAnchored_AutoWidth_Box_Keeps_Its_Children_Inside_It()
+    {
+        var badge = UI.Box(new StyleSheet { Position = Position.Absolute, Right = 10, Top = 10, Padding = new Thickness(Length.Px(4)) },
+            UI.Box(new StyleSheet { Width = 30, Height = 10 }));
+        var (root, _) = Mount(UI.Box(new StyleSheet { Width = Length.Percent(100), Height = Length.Percent(100) }, badge));
+
+        var box = root.Child!; // root is the full-screen wrapper
+        Assert.Equal(800f - 10f - box.Layout.Width, Approx(box.Layout.AbsoluteX));
+        Assert.Equal(Approx(box.Layout.AbsoluteX + 4f), Approx(box.Child!.Layout.AbsoluteX));
+    }
 }

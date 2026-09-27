@@ -341,6 +341,10 @@ namespace Paper.Layout
             // Bottom + hAuto: y is corrected after content height is known
 
             fiber.Layout = new LayoutBox { X = x, Y = y, Width = w, Height = h };
+            // Where the children are about to be laid out. A bottom- or right-anchored box with an
+            // auto size only finds its real position once they've been measured (below), and then
+            // they have to move with it.
+            float laidOutX = x, laidOutY = y;
 
             var (cx, cy) = BoxModel.ContentOrigin(style, w, h);
             var (cw, ch) = BoxModel.ContentSize(w, h, style, containingW, containingH);
@@ -417,6 +421,32 @@ namespace Paper.Layout
                 layoutBox.Y = y;
                 layoutBox.Height = h;
                 fiber.Layout = layoutBox;
+            }
+
+            // Re-anchoring moved the box after its children were placed: move them too, or a
+            // bottom-anchored panel draws at the bottom while its contents stay at the top.
+            float dx = fiber.Layout.X - laidOutX, dy = fiber.Layout.Y - laidOutY;
+            if (dx != 0f || dy != 0f)
+                OffsetDescendants(fiber, dx, dy);
+        }
+
+        /// <summary>Moves every descendant laid out in <paramref name="fiber"/>'s coordinate space by
+        /// (<paramref name="dx"/>, <paramref name="dy"/>). <c>position: fixed</c> subtrees are skipped —
+        /// they're placed against the viewport, not their parent.</summary>
+        private static void OffsetDescendants(Fiber fiber, float dx, float dy)
+        {
+            var child = fiber.Child;
+            while (child != null)
+            {
+                if ((child.ComputedStyle.Position ?? Position.Static) != Position.Fixed)
+                {
+                    var box = child.Layout;
+                    box.X += dx;
+                    box.Y += dy;
+                    child.Layout = box;
+                    OffsetDescendants(child, dx, dy);
+                }
+                child = child.Sibling;
             }
         }
 
