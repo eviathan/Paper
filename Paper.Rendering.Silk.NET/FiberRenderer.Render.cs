@@ -615,7 +615,16 @@ namespace Paper.Rendering.Silk.NET
                 {
                     var singleLine = label ?? "";
                     float inputScrollX = (isFocusedInput && fiber.Type is string inp && inp == ElementTypes.Input) ? FocusedInputScrollX : 0f;
-                    if (_gl != null) BeginTextScissor(drawX, drawY, drawWidth, drawHeight);
+                    bool isInput = fiber.Type is string tIs && (tIs == ElementTypes.Input || tIs == ElementTypes.Textarea);
+                    bool clipText = _gl != null && (isInput || !TextFitsBox(singleLine, layoutBox, style)
+                        || !InsideCullRect(drawX, drawY, drawWidth, drawHeight));
+                    if (clipText) BeginTextScissor(drawX, drawY, drawWidth, drawHeight);
+                    else if (singleLine.Length > 0)
+                    {
+                        // Anything already queued (this element's own background) goes under it.
+                        _rects.Flush(_screenW, _screenH);
+                        _lines?.Flush(_screenW, _screenH);
+                    }
                     if (isFocusedInput)
                         DrawSelectionForLine(singleLine, 0, singleLine.Length, layoutBox, layoutBox, style, scrollX, scrollY, inputScrollX);
                     if (singleLine.Length > 0)
@@ -627,7 +636,8 @@ namespace Paper.Rendering.Silk.NET
                     }
                     if (isFocusedInput)
                         DrawCaretForLine(singleLine, 0, singleLine.Length, layoutBox, layoutBox, style, col, opacity, scrollX, scrollY, inputScrollX);
-                    if (_gl != null) EndTextScissor();
+                    if (clipText) EndTextScissor();
+                    else if (singleLine.Length > 0) _textPending = true;
                 }
             }
 
@@ -743,6 +753,10 @@ namespace Paper.Rendering.Silk.NET
         {
             Render(child, opacity, parentPath, 0, scrollX, scrollY);
         }
+
+        private bool InsideCullRect(float x, float y, float w, float h) =>
+            x >= _cullRect.X && y >= _cullRect.Y &&
+            x + w <= _cullRect.X + _cullRect.W && y + h <= _cullRect.Y + _cullRect.H;
 
         private void BeginTextScissor(float drawX, float drawY, float drawWidth, float drawHeight)
         {

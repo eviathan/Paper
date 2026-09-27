@@ -113,6 +113,24 @@ namespace Paper.Rendering.Silk.NET
             _gl        = gl;
             _screenW   = screenW;
             _screenH   = screenH;
+
+            _rects.BeforeDraw = FlushPendingText;
+            _viewports.BeforeDraw = FlushPendingText;
+            if (_lines != null) _lines.BeforeDraw = FlushPendingText;
+        }
+
+        // Text that fits its box is drawn without its own scissor and left queued in the font
+        // batches rather than flushed straight away, so a run of labels (a panel's rows, a HUD's
+        // readouts) costs one draw per atlas instead of a scissor change plus two buffer uploads
+        // each. Paint order is kept by flushing it the moment anything else is drawn after it —
+        // see the BeforeDraw hooks wired above — and at the end of Render.
+        private bool _textPending;
+
+        private void FlushPendingText()
+        {
+            if (!_textPending) return;
+            _textPending = false;
+            _fonts?.Flush(_screenW, _screenH);
         }
 
         /// <summary>Flush the LineBatch — call after the main render pass alongside _rects.Flush().</summary>
@@ -352,6 +370,8 @@ namespace Paper.Rendering.Silk.NET
                 for (int pi = 0; pi < PortalRoots.Count; pi++)
                     Render(PortalRoots[pi], inheritedOpacity, "portal", pi, 0f, 0f);
             }
+
+            FlushPendingText();
         }
     }
 }

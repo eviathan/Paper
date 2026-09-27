@@ -124,6 +124,42 @@ namespace Paper.Rendering.Silk.NET
             _ => fallback,
         };
 
+        /// <summary>Whether <see cref="DrawText"/> would draw <paramref name="label"/> entirely inside
+        /// <paramref name="layoutBox"/>'s content area — no wrapping, ellipsis or overflow — so it
+        /// needs no scissor of its own. Measures with the same DPI-aware atlas DrawText renders
+        /// with. Synthetic italic counts as not fitting: its skew is per batch, so that text can't
+        /// share a batch with upright text.</summary>
+        private bool TextFitsBox(string label, LayoutBox layoutBox, StyleSheet style)
+        {
+            if (_fonts == null || label.Length == 0) return true;
+
+            float fontPx = SilkTextMeasurer.ResolveFontPx(style);
+            string? fam = style.FontFamily;
+            var weight = style.FontWeight;
+            var fontStyle = style.FontStyle;
+            if (_fonts.WillUseSyntheticItalic(fam, weight, fontStyle)) return false;
+
+            if (style.TextTransform is { } transform && transform != TextTransform.None)
+                label = transform switch
+                {
+                    TextTransform.Uppercase => label.ToUpperInvariant(),
+                    TextTransform.Lowercase => label.ToLowerInvariant(),
+                    TextTransform.Capitalize => System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(label.ToLowerInvariant()),
+                    _ => label,
+                };
+
+            float dpiScale = DpiScale > 0f ? DpiScale : 1f;
+            var (batch, batchScale) = _fonts.Get(fontPx * dpiScale, fam, weight, fontStyle);
+            float textW = batch.MeasureWidth(label.AsSpan(), batchScale) / dpiScale;
+            float lineH = _fonts.LineHeight(fontPx, fam, weight, fontStyle);
+
+            var (padTop, padRight, padBottom, padLeft) = BoxModel.PaddingPixels(style, layoutBox.Width, layoutBox.Height);
+            float contentW = layoutBox.Width - padLeft - padRight;
+            float contentH = layoutBox.Height - padTop - padBottom;
+            const float slack = 0.5f;
+            return textW <= contentW + slack && lineH <= contentH + slack;
+        }
+
         private void DrawText(string label, LayoutBox layoutBox, StyleSheet style,
                               PaperColour col, float opacity, float scrollX = 0f, float scrollY = 0f, float inputScrollX = 0f)
         {

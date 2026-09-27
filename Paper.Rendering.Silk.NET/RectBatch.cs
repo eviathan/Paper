@@ -88,6 +88,11 @@ namespace Paper.Rendering.Silk.NET
 
         // ── Public API ────────────────────────────────────────────────────────
 
+        /// <summary>Called before anything new is queued/drawn, so another batch holding
+        /// earlier-in-paint-order content (FiberRenderer's deferred text) can flush first and
+        /// stay underneath.</summary>
+        internal Action? BeforeDraw;
+
         public void Add(float x, float y, float w, float h,
             float r, float g, float b, float a,
             float br = 0f, float bg_ = 0f, float bb = 0f, float ba = 0f,
@@ -95,6 +100,7 @@ namespace Paper.Rendering.Silk.NET
             float radiusTL = 0f, float radiusTR = 0f, float radiusBR = 0f, float radiusBL = 0f,
             float rotation = 0f)
         {
+            BeforeDraw?.Invoke();
             if (_count >= MaxRects) Flush(0, 0); // emergency flush
 
             int i = _count * FloatsPerRect;

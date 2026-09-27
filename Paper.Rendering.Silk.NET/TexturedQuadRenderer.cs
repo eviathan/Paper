@@ -58,6 +58,11 @@ namespace Paper.Rendering.Silk.NET
             gl.BindVertexArray(0);
         }
 
+        /// <summary>Called before anything new is queued/drawn, so another batch holding
+        /// earlier-in-paint-order content (FiberRenderer's deferred text) can flush first and
+        /// stay underneath.</summary>
+        internal Action? BeforeDraw;
+
         /// <summary>
         /// Draw a textured quad at the given screen-space rect using <paramref name="textureHandle"/>.
         /// Full texture is used (UV 0,0 to 1,1).
@@ -76,6 +81,7 @@ namespace Paper.Rendering.Silk.NET
             uint textureHandle, float screenW, float screenH)
         {
             if (textureHandle == 0) return;
+            BeforeDraw?.Invoke();
 
             _gl.UseProgram(_program);
             _gl.Uniform4(_uRect,       x, y, w, h);
@@ -116,6 +122,7 @@ namespace Paper.Rendering.Silk.NET
             uint textureHandle, float screenW, float screenH, float alpha = 1f)
         {
             if (textureHandle == 0) return;
+            BeforeDraw?.Invoke();
 
             _gl.UseProgram(_program);
             _gl.Uniform4(_uRect,       x, y, w, h);

@@ -27,6 +27,7 @@ namespace Paper.Rendering.Silk.NET.Text
         {
             var variants = new FontVariants(regular, bold, italic, boldItalic);
             _families[name] = variants;
+            _distinctSets = null;
             if (!_hasDefault)
             {
                 _default    = variants;
@@ -34,7 +35,19 @@ namespace Paper.Rendering.Silk.NET.Text
             }
         }
 
-        // ── Backward-compatible single-family API (uses default family) ────────
+        private List<PaperFontSet>? _distinctSets;
+
+        private List<PaperFontSet> DistinctSets()
+        {
+            var seen = new HashSet<PaperFontSet>();
+            var list = new List<PaperFontSet>();
+            foreach (var (_, v) in _families)
+                foreach (var set in new[] { v.Regular, v.Bold, v.Italic, v.BoldItalic })
+                    if (set != null && seen.Add(set)) list.Add(set);
+            return list;
+        }
+
+                // ── Backward-compatible single-family API (uses default family) ────────
 
         public (TextBatch batch, float scale) Get(float targetPx)
             => ResolveSet(null, null, null).Get(targetPx);
@@ -100,14 +113,10 @@ namespace Paper.Rendering.Silk.NET.Text
 
         public void Flush(float screenW, float screenH)
         {
-            var seen = new HashSet<PaperFontSet>();
-            foreach (var (_, v) in _families)
-            {
-                if (seen.Add(v.Regular))    v.Regular.Flush(screenW, screenH);
-                if (v.Bold       != null && seen.Add(v.Bold))       v.Bold.Flush(screenW, screenH);
-                if (v.Italic     != null && seen.Add(v.Italic))     v.Italic.Flush(screenW, screenH);
-                if (v.BoldItalic != null && seen.Add(v.BoldItalic)) v.BoldItalic.Flush(screenW, screenH);
-            }
+            // Called several times a frame, so the distinct set list is built once, not per call.
+            _distinctSets ??= DistinctSets();
+            foreach (var set in _distinctSets)
+                set.Flush(screenW, screenH);
         }
 
         public void Dispose()
