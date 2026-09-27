@@ -1,3 +1,4 @@
+using Paper.Core.Styles;
 using Paper.Core.Reconciler;
 using Paper.Rendering.Silk.NET.Models;
 using Paper.Rendering.Silk.NET.Utilities;
@@ -62,6 +63,53 @@ namespace Paper.Rendering.Silk.NET
             long elapsed = Environment.TickCount64 - _inputState.LastInputActivityTicks;
             if (elapsed < InputState.CaretIdleMs) return true;
             return (Environment.TickCount64 % InputState.CaretBlinkPeriodMs) < InputState.CaretBlinkOnMs;
+        }
+
+        /// <summary>Scrolls every scrollable ancestor of <paramref name="target"/> just far enough
+        /// that it's fully in view — so moving focus with the keyboard or a gamepad into a
+        /// scrolled list never leaves the focused item off-screen. Innermost container first; each
+        /// outer one then brings the inner container itself into view. Uses the last layout pass,
+        /// so call it for focus moves between already-laid-out elements (navigation), not for a
+        /// fiber mounted this frame.</summary>
+        private void ScrollIntoView(Fiber? target)
+        {
+            if (target == null || _reconciler?.Root == null) return;
+
+            const float Margin = 4f;
+            var inView = target;
+            for (var container = target.Parent; container != null; container = container.Parent)
+            {
+                var overflowY = container.ComputedStyle.OverflowY ?? Overflow.Visible;
+                if (overflowY is not (Overflow.Scroll or Overflow.Auto)) continue;
+
+                var path = GetPathString(_reconciler.Root, container) ?? "";
+                var (scrollX, scrollY) = _scrollOffsets.TryGetValue(path, out var offset) ? offset : (0f, 0f);
+
+                // Layout positions are unscrolled, so this is the element's place in the content.
+                float top = inView.Layout.AbsoluteY - container.Layout.AbsoluteY;
+                float bottom = top + inView.Layout.Height;
+                float viewport = container.Layout.Height;
+
+                float newScrollY = scrollY;
+                if (top - Margin < scrollY)
+                    newScrollY = top - Margin;
+                else if (bottom + Margin > scrollY + viewport)
+                    newScrollY = bottom + Margin - viewport;
+
+                float maxScroll = _renderer != null && _renderer.RenderedScrollbars.TryGetValue(path, out var scrollbar)
+                    ? scrollbar.MaxScroll
+                    : float.MaxValue;
+                newScrollY = Math.Clamp(newScrollY, 0f, Math.Max(0f, maxScroll));
+
+                if (newScrollY != scrollY)
+                {
+                    _scrollOffsets[path] = (scrollX, newScrollY);
+                    _scrollbarLastActive[path] = DateTime.UtcNow.Ticks / (double)TimeSpan.TicksPerSecond;
+                    _renderRequested = true;
+                }
+
+                inView = container;
+            }
         }
 
         /// <summary>Recursive child-then-sibling walk for the first AutoFocus-eligible fiber —

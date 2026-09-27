@@ -141,6 +141,7 @@ namespace Paper.Rendering.Silk.NET
                 : (currentFocusIndex < 0 || currentFocusIndex >= ordered.Count - 1 ? 0 : currentFocusIndex + 1);
 
             SetFocus(ordered[nextFocusIndex]);
+            ScrollIntoView(ordered[nextFocusIndex]);
             if (_inputState.InputText != null)
             {
                 _inputState.InputSelStart = 0;

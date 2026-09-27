@@ -34,6 +34,7 @@ namespace Paper.Rendering.Silk.NET
             if (current == null || !candidates.Any(f => ReferenceEquals(f, current)))
             {
                 SetFocus(candidates[0]);
+                ScrollIntoView(candidates[0]);
                 return;
             }
 
@@ -62,7 +63,11 @@ namespace Paper.Rendering.Silk.NET
                 if (score < bestScore) { bestScore = score; best = candidate; }
             }
 
-            if (best != null) SetFocus(best);
+            if (best != null)
+            {
+                SetFocus(best);
+                ScrollIntoView(best);
+            }
         }
 
         /// <summary>Activates the focused element — equivalent to Enter/Space/click.</summary>
@@ -81,6 +86,7 @@ namespace Paper.Rendering.Silk.NET
         {
             var ordered = BuildTabOrder();
             SetFocus(ordered.Count > 0 ? ordered[0] : null);
+            ScrollIntoView(_inputState.Focused);
         }
 
         private static (float x, float y) Center(Fiber fiber) =>
